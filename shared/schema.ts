@@ -267,8 +267,27 @@ export type InsertScheduleConflict = z.infer<typeof insertScheduleConflictSchema
 
 // Login schema
 export const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
-  password: z.string().min(1, "Password is required"),
+  accessCode: z.string().min(1, "Kirish kodi kiritilishi kerak"),
 });
 
 export type LoginRequest = z.infer<typeof loginSchema>;
+
+// Access codes table for custom authentication
+export const accessCodes = pgTable("access_codes", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  ownerName: text("owner_name").notNull(),
+  role: text("role").notNull().default("teacher"), // admin, teacher
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastUsed: timestamp("last_used"),
+});
+
+export const insertAccessCodeSchema = createInsertSchema(accessCodes).omit({
+  id: true,
+  createdAt: true,
+  lastUsed: true,
+});
+
+export type AccessCode = typeof accessCodes.$inferSelect;
+export type InsertAccessCode = z.infer<typeof insertAccessCodeSchema>;

@@ -40,28 +40,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { username, password } = loginSchema.parse(req.body);
+      const { accessCode } = loginSchema.parse(req.body);
       
-      const user = await storage.getUserByUsername(username);
-      if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
+      const validAccessCode = await storage.getAccessCodeByCode(accessCode);
+      if (!validAccessCode) {
+        return res.status(401).json({ message: "Noto'g'ri kirish kodi" });
       }
 
-      const validPassword = await bcrypt.compare(password, user.password);
-      if (!validPassword) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
+      // Update last used time
+      await storage.updateAccessCodeLastUsed(accessCode);
 
       const token = jwt.sign(
-        { id: user.id, username: user.username, role: user.role },
+        { 
+          id: validAccessCode.id, 
+          code: validAccessCode.code,
+          ownerName: validAccessCode.ownerName,
+          role: validAccessCode.role 
+        },
         JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      const { password: _, ...userWithoutPassword } = user;
-      res.json({ token, user: userWithoutPassword });
+      const user = {
+        id: validAccessCode.id,
+        firstName: validAccessCode.ownerName.split(' ')[0] || validAccessCode.ownerName,
+        lastName: validAccessCode.ownerName.split(' ')[1] || '',
+        role: validAccessCode.role,
+        username: validAccessCode.code,
+        email: `${validAccessCode.code}@school.edu`
+      };
+
+      res.json({ token, user });
     } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      res.status(400).json({ message: "Noto'g'ri so'rov" });
     }
   });
 
