@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(210, 83%, 53%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(60, 4.8%, 95.9%);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 0.5rem;
+
+  /* Custom colors for school schedule app */
+  --primary-blue: hsl(210, 83%, 53%);
+  --primary-blue-50: hsl(212, 100%, 96%);
+  --primary-blue-100: hsl(212, 94%, 89%);
+  --primary-blue-500: hsl(210, 83%, 53%);
+  --primary-blue-600: hsl(210, 86%, 47%);
+  --primary-blue-700: hsl(217, 100%, 32%);
+
+  --secondary-green: hsl(122, 39%, 49%);
+  --secondary-green-50: hsl(120, 60%, 96%);
+  --secondary-green-100: hsl(120, 54%, 89%);
+  --secondary-green-500: hsl(122, 39%, 49%);
+  --secondary-green-600: hsl(122, 47%, 42%);
+
+  --accent-orange: hsl(33, 100%, 48%);
+  --accent-orange-50: hsl(33, 100%, 94%);
+  --accent-orange-100: hsl(33, 100%, 85%);
+  --accent-orange-500: hsl(33, 100%, 48%);
+  --accent-orange-600: hsl(32, 100%, 46%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(210, 83%, 53%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .schedule-card {
+    @apply cursor-move transition-all duration-200 hover:shadow-md;
+  }
+
+  .schedule-card.dragging {
+    @apply opacity-50 scale-95;
+  }
+
+  .drop-zone {
+    @apply border-2 border-dashed transition-all duration-200;
+  }
+
+  .drop-zone.drag-over {
+    @apply border-primary bg-primary/5;
+  }
+
+  .conflict-indicator {
+    @apply absolute -top-2 -right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full;
+  }
+
+  .stats-card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all duration-200 hover:shadow-md;
+  }
+
+  .nav-item {
+    @apply flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors duration-200;
+  }
+
+  .nav-item.active {
+    @apply bg-blue-50 text-blue-700 font-medium;
+  }
+
+  .nav-item:not(.active) {
+    @apply text-gray-700 hover:bg-gray-100;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground));
+}
+
+/* Animation for schedule grid */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.schedule-entry {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Loading states */
+.skeleton {
+  @apply animate-pulse bg-muted rounded;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    background: white !important;
+  }
+}
