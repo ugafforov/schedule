@@ -103,13 +103,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/auth/me", authenticateToken, async (req: any, res) => {
     try {
-      const user = await storage.getUser(req.user.id);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
+      const user = {
+        id: req.user.id,
+        firstName: req.user.ownerName?.split(' ')[0] || req.user.ownerName || 'User',
+        lastName: req.user.ownerName?.split(' ')[1] || '',
+        role: req.user.role,
+        username: req.user.code,
+        email: `${req.user.code}@school.edu`
+      };
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  // Access code management routes (admin only)
+  app.get("/api/access-codes", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const accessCodes = await storage.getAllAccessCodes();
+      res.json(accessCodes);
+    } catch (error) {
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  app.post("/api/access-codes", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { code, ownerName, role } = req.body;
+      
+      if (!code || !ownerName) {
+        return res.status(400).json({ message: "Kod va egasi nomi kiritilishi kerak" });
+      }
+
+      const accessCode = await storage.createAccessCode({
+        code,
+        ownerName,
+        role: role || 'teacher'
+      });
+      
+      res.status(201).json(accessCode);
+    } catch (error) {
+      res.status(400).json({ message: "Kod yaratishda xatolik" });
+    }
+  });
+
+  app.delete("/api/access-codes/:id", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const success = await storage.deleteAccessCode(id);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Kod topilmadi" });
       }
       
-      const { password: _, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Server error" });
     }

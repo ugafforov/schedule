@@ -42,28 +42,15 @@ export function LoginForm() {
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="username">Username</Label>
+        <Label htmlFor="accessCode">Kirish Kodi</Label>
         <Input
-          id="username"
+          id="accessCode"
           type="text"
-          placeholder="Enter your username"
-          {...register("username")}
+          placeholder="Kirish kodingizni kiriting"
+          {...register("accessCode")}
         />
-        {errors.username && (
-          <p className="text-sm text-red-600">{errors.username.message}</p>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          placeholder="Enter your password"
-          {...register("password")}
-        />
-        {errors.password && (
-          <p className="text-sm text-red-600">{errors.password.message}</p>
+        {errors.accessCode && (
+          <p className="text-sm text-red-600">{errors.accessCode.message}</p>
         )}
       </div>
 
@@ -83,9 +70,10 @@ export function LoginForm() {
       </Button>
 
       <div className="text-center text-sm text-gray-600">
-        <p>Demo credentials:</p>
-        <p>Admin: admin / admin123</p>
-        <p>Teacher: teacher / teacher123</p>
+        <p>Demo kirish kodlari:</p>
+        <p>Admin: ADMIN2024</p>
+        <p>O'qituvchi: TEACHER001</p>
+        <p>Maktab: SCHOOL123</p>
       </div>
     </form>
   );

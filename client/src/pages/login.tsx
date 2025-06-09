@@ -23,10 +23,10 @@ export default function Login() {
             <Calendar className="h-8 w-8 text-white" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            School Schedule Master
+            Maktab Dars Jadvali
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to your account to manage school schedules
+            Maktab dars jadvalini boshqarish uchun kirish kodingizni kiriting
           </p>
         </div>
         
