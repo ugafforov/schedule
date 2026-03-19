@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { MapPin, User, Users } from "lucide-react";
 
 interface ScheduleCardProps {
   subject: string;
@@ -20,7 +20,6 @@ export function ScheduleCard({
   class: className,
   color,
   hasConflict,
-  slotKey,
   onDragStart,
   onDragEnd,
 }: ScheduleCardProps) {
@@ -40,28 +39,37 @@ export function ScheduleCard({
   return (
     <div
       className={`
-        schedule-card relative p-3 rounded-lg border-l-4 cursor-move
+        relative p-2.5 rounded-xl border-l-4 cursor-grab active:cursor-grabbing select-none
         ${color}
-        ${isDragging ? 'dragging' : 'hover:shadow-md'}
-        transition-all duration-200
+        ${isDragging ? "opacity-40 scale-95" : "hover:shadow-md hover:-translate-y-0.5"}
+        transition-all duration-150
       `}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="text-sm font-medium">{subject}</div>
-      <div className="text-xs opacity-80 mt-1">{teacher}</div>
-      <div className="text-xs opacity-70">{room}</div>
-      <div className="text-xs opacity-70">{className}</div>
-      
       {hasConflict && (
-        <Badge 
-          variant="destructive" 
-          className="absolute -top-2 -right-2 text-xs px-2 py-1"
-        >
-          Conflict!
-        </Badge>
+        <div className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+          <span className="text-white text-[9px] font-bold">!</span>
+        </div>
       )}
+
+      <div className="text-xs font-bold leading-tight mb-1.5 line-clamp-1">{subject}</div>
+
+      <div className="space-y-0.5">
+        <div className="flex items-center space-x-1 opacity-70">
+          <User className="h-2.5 w-2.5 flex-shrink-0" />
+          <span className="text-[10px] leading-tight truncate">{teacher}</span>
+        </div>
+        <div className="flex items-center space-x-1 opacity-70">
+          <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
+          <span className="text-[10px] leading-tight truncate">{room}</span>
+        </div>
+        <div className="flex items-center space-x-1 opacity-70">
+          <Users className="h-2.5 w-2.5 flex-shrink-0" />
+          <span className="text-[10px] leading-tight">{className}</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -3,155 +3,249 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, DoorOpen } from "lucide-react";
+import { Plus, Search, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 import type { Room } from "@shared/schema";
+
+interface RoomFormData {
+  name: string;
+  roomNumber: string;
+  building: string;
+  floor: string;
+  capacity: number;
+  roomType: string;
+}
+
+const ROOM_TYPES = [
+  { value: "classroom", label: "Darsxona", icon: BookOpen, bg: "bg-blue-50", color: "text-blue-600", badge: "bg-blue-100 text-blue-700" },
+  { value: "lab", label: "Laboratoriya", icon: FlaskConical, bg: "bg-green-50", color: "text-green-600", badge: "bg-green-100 text-green-700" },
+  { value: "auditorium", label: "Auditoriya", icon: Music, bg: "bg-purple-50", color: "text-purple-600", badge: "bg-purple-100 text-purple-700" },
+  { value: "gym", label: "Sporzal", icon: Dumbbell, bg: "bg-orange-50", color: "text-orange-600", badge: "bg-orange-100 text-orange-700" },
+  { value: "library", label: "Kutubxona", icon: BookOpen, bg: "bg-amber-50", color: "text-amber-600", badge: "bg-amber-100 text-amber-700" },
+];
+
+const getRoomTypeInfo = (type: string) => ROOM_TYPES.find(t => t.value === type) || ROOM_TYPES[0];
 
 export default function Rooms() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [showDialog, setShowDialog] = useState(false);
+  const [formData, setFormData] = useState<RoomFormData>({ name: "", roomNumber: "", building: "", floor: "", capacity: 30, roomType: "classroom" });
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: rooms, isLoading } = useQuery({
-    queryKey: ["/api/rooms"],
-  });
+  const { data: rooms, isLoading } = useQuery({ queryKey: ["/api/rooms"] });
 
-  const deleteRoomMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await fetch(`/api/rooms/${id}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Failed to delete room");
-    },
+  const createMutation = useMutation({
+    mutationFn: (data: RoomFormData) => apiRequest("POST", "/api/rooms", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
-      toast({
-        title: "Success",
-        description: "Room deleted successfully",
-      });
+      setShowDialog(false);
+      resetForm();
+      toast({ title: "Muvaffaqiyat", description: "Xona qo'shildi" });
     },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to delete room",
-        variant: "destructive",
-      });
-    },
+    onError: () => toast({ title: "Xatolik", description: "Xona qo'shilmadi", variant: "destructive" }),
   });
 
-  const filteredRooms = rooms?.filter((room: Room) =>
-    room.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    room.roomNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    room.building?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    room.roomType?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/rooms/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      toast({ title: "Muvaffaqiyat", description: "Xona o'chirildi" });
+    },
+    onError: () => toast({ title: "Xatolik", description: "O'chirishda xato", variant: "destructive" }),
+  });
 
-  const getRoomTypeColor = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'classroom': return 'bg-blue-100 text-blue-800';
-      case 'lab': return 'bg-green-100 text-green-800';
-      case 'auditorium': return 'bg-purple-100 text-purple-800';
-      case 'library': return 'bg-amber-100 text-amber-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const resetForm = () => setFormData({ name: "", roomNumber: "", building: "", floor: "", capacity: 30, roomType: "classroom" });
+
+  const handleSubmit = () => {
+    if (!formData.name && !formData.roomNumber) {
+      toast({ title: "Xatolik", description: "Xona nomi yoki raqamini kiriting", variant: "destructive" });
+      return;
     }
+    createMutation.mutate(formData);
   };
 
+  const filteredRooms = (rooms as Room[] || []).filter((r) =>
+    r.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.roomNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.building?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    r.roomType?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Rooms</h1>
-          <p className="text-gray-600 mt-1">Manage school rooms and facilities</p>
+          <h1 className="text-2xl font-bold text-gray-900">Xonalar</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Xona va auditoriyalarni boshqarish</p>
         </div>
-        
-        <Button>
+        <Button onClick={() => { resetForm(); setShowDialog(true); }} className="bg-blue-600 hover:bg-blue-700">
           <Plus className="mr-2 h-4 w-4" />
-          Add Room
+          Xona qo'shish
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="border border-gray-100 shadow-sm">
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center">
-              <DoorOpen className="mr-2 h-5 w-5" />
-              Room Directory
+            <CardTitle className="text-base font-semibold flex items-center">
+              <DoorOpen className="mr-2 h-4 w-4 text-orange-600" />
+              Xonalar ro'yxati
+              {rooms && (
+                <Badge variant="secondary" className="ml-2 text-xs">{(rooms as Room[]).length} ta</Badge>
+              )}
             </CardTitle>
-            <div className="relative w-64">
+            <div className="relative w-60">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search rooms..."
+                placeholder="Qidirish..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-9 h-9 text-sm"
               />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="skeleton h-20" />
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[...Array(8)].map((_, i) => <div key={i} className="skeleton h-32 rounded-xl" />)}
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredRooms.map((room: Room) => (
-                <Card key={room.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{room.name}</h3>
-                        <p className="text-sm text-gray-600 mt-1">Room {room.roomNumber}</p>
-                        {room.building && (
-                          <p className="text-sm text-gray-500">
-                            {room.building} {room.floor && `- Floor ${room.floor}`}
-                          </p>
-                        )}
-                        
-                        <div className="flex items-center space-x-2 mt-3">
-                          <Badge className={getRoomTypeColor(room.roomType)}>
-                            {room.roomType}
-                          </Badge>
-                          <Badge variant={room.isActive ? "default" : "secondary"}>
-                            {room.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-                        
-                        <p className="text-xs text-gray-500 mt-2">
-                          Capacity: {room.capacity} people
-                        </p>
+          ) : filteredRooms.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredRooms.map((room) => {
+                const typeInfo = getRoomTypeInfo(room.roomType);
+                const Icon = typeInfo.icon;
+                return (
+                  <div key={room.id} className="group border border-gray-100 rounded-xl p-4 hover:border-orange-200 hover:shadow-sm transition-all bg-white">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className={`w-10 h-10 ${typeInfo.bg} rounded-xl flex items-center justify-center`}>
+                        <Icon className={`${typeInfo.color} h-5 w-5`} />
                       </div>
-                      
-                      <div className="flex space-x-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
+                      <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
                           size="sm"
-                          onClick={() => deleteRoomMutation.mutate(room.id)}
-                          disabled={deleteRoomMutation.isPending}
+                          className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                          onClick={() => deleteMutation.mutate(room.id)}
+                          disabled={deleteMutation.isPending}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+
+                    <h3 className="font-semibold text-gray-900 text-sm">{room.name}</h3>
+                    <p className="text-xs text-gray-400 mt-0.5">#{room.roomNumber}</p>
+
+                    {(room.building || room.floor) && (
+                      <div className="flex items-center space-x-1 mt-1.5">
+                        <Building2 className="h-3 w-3 text-gray-400" />
+                        <p className="text-xs text-gray-500">
+                          {room.building}{room.floor && `, ${room.floor}-qavat`}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-50">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeInfo.badge}`}>
+                        {typeInfo.label}
+                      </span>
+                      <div className="flex items-center space-x-1 text-gray-500">
+                        <Users className="h-3 w-3" />
+                        <span className="text-xs">{room.capacity}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
-          
-          {!isLoading && filteredRooms.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              {searchTerm ? "No rooms found matching your search." : "No rooms found. Add your first room to get started."}
+          ) : (
+            <div className="text-center py-16">
+              <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <DoorOpen className="h-6 w-6 text-gray-400" />
+              </div>
+              <p className="text-gray-600 font-medium">
+                {searchTerm ? "Qidiruv bo'yicha natija topilmadi" : "Xonalar ro'yxati bo'sh"}
+              </p>
+              <p className="text-sm text-gray-400 mt-1">
+                {!searchTerm && "Yangi xona qo'shish uchun yuqoridagi tugmani bosing"}
+              </p>
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Yangi xona qo'shish</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Xona nomi</Label>
+                <Input placeholder="Masalan: Fizika xonasi" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Xona raqami</Label>
+                <Input placeholder="Masalan: 201" value={formData.roomNumber} onChange={e => setFormData(p => ({ ...p, roomNumber: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Bino</Label>
+                <Input placeholder="Masalan: A-bino" value={formData.building} onChange={e => setFormData(p => ({ ...p, building: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Qavat</Label>
+                <Input placeholder="Masalan: 2" value={formData.floor} onChange={e => setFormData(p => ({ ...p, floor: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Sig'im (o'rindiqlar)</Label>
+              <Input type="number" min={5} max={500} value={formData.capacity} onChange={e => setFormData(p => ({ ...p, capacity: parseInt(e.target.value) || 30 }))} />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm">Xona turi</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {ROOM_TYPES.map((type) => {
+                  const Icon = type.icon;
+                  return (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => setFormData(p => ({ ...p, roomType: type.value }))}
+                      className={`flex items-center space-x-2 p-2.5 rounded-lg border transition-all text-left ${
+                        formData.roomType === type.value
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-100 hover:border-gray-200"
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 ${formData.roomType === type.value ? "text-blue-600" : "text-gray-400"}`} />
+                      <span className={`text-sm font-medium ${formData.roomType === type.value ? "text-blue-700" : "text-gray-600"}`}>{type.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDialog(false)}>Bekor qilish</Button>
+            <Button onClick={handleSubmit} disabled={createMutation.isPending} className="bg-blue-600 hover:bg-blue-700">Qo'shish</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { GraduationCap, Users, AlertTriangle, DoorOpen } from "lucide-react";
+import { GraduationCap, Users, AlertTriangle, DoorOpen, BookOpen, TrendingUp } from "lucide-react";
 
 interface StatsCardsProps {
   stats?: {
@@ -7,67 +7,66 @@ interface StatsCardsProps {
     totalTeachers: number;
     activeConflicts: number;
     roomUtilization: number;
+    totalSubjects?: number;
+    totalRooms?: number;
   };
 }
 
 export function StatsCards({ stats }: StatsCardsProps) {
   const cards = [
     {
-      label: "Total Classes",
+      label: "Jami sinflar",
       value: stats?.totalClasses || 0,
-      change: "+12%",
-      changeLabel: "vs last term",
       icon: GraduationCap,
-      bgColor: "bg-blue-50",
-      iconColor: "text-blue-500",
+      bgColor: "bg-blue-500",
+      lightBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      note: "faol sinf",
     },
     {
-      label: "Active Teachers",
+      label: "O'qituvchilar",
       value: stats?.totalTeachers || 0,
-      change: "+3",
-      changeLabel: "new this month",
       icon: Users,
-      bgColor: "bg-green-50",
-      iconColor: "text-green-500",
+      bgColor: "bg-emerald-500",
+      lightBg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+      note: "faol o'qituvchi",
     },
     {
-      label: "Schedule Conflicts",
+      label: "Jadval ziddiyatlari",
       value: stats?.activeConflicts || 0,
-      change: "-2",
-      changeLabel: "since yesterday",
       icon: AlertTriangle,
-      bgColor: "bg-orange-50",
-      iconColor: "text-orange-500",
+      bgColor: stats?.activeConflicts ? "bg-orange-500" : "bg-gray-400",
+      lightBg: stats?.activeConflicts ? "bg-orange-50" : "bg-gray-50",
+      iconColor: stats?.activeConflicts ? "text-orange-600" : "text-gray-500",
+      note: stats?.activeConflicts ? "hal qilinmagan" : "muammo yo'q",
     },
     {
-      label: "Room Utilization",
+      label: "Xonalar band",
       value: `${stats?.roomUtilization || 0}%`,
-      change: "+5%",
-      changeLabel: "vs last week",
       icon: DoorOpen,
-      bgColor: "bg-blue-50",
-      iconColor: "text-blue-500",
+      bgColor: "bg-violet-500",
+      lightBg: "bg-violet-50",
+      iconColor: "text-violet-600",
+      note: "o'rtacha bandlik",
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <Card key={card.label} className="stats-card">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">{card.label}</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{card.value}</p>
-                  <div className="flex items-center mt-2">
-                    <span className="text-sm text-green-600 font-medium">{card.change}</span>
-                    <span className="text-sm text-gray-500 ml-1">{card.changeLabel}</span>
-                  </div>
+          <Card key={card.label} className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-500 font-medium">{card.label}</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1.5">{card.value}</p>
+                  <p className="text-xs text-gray-400 mt-1">{card.note}</p>
                 </div>
-                <div className={`w-12 h-12 ${card.bgColor} rounded-lg flex items-center justify-center`}>
-                  <Icon className={`${card.iconColor} h-6 w-6`} />
+                <div className={`w-11 h-11 ${card.lightBg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                  <Icon className={`${card.iconColor} h-5 w-5`} />
                 </div>
               </div>
             </CardContent>

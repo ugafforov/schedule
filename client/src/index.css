@@ -81,11 +81,11 @@
 
 @layer components {
   .schedule-card {
-    @apply cursor-move transition-all duration-200 hover:shadow-md;
+    @apply cursor-grab active:cursor-grabbing transition-all duration-150;
   }
 
   .schedule-card.dragging {
-    @apply opacity-50 scale-95;
+    @apply opacity-40 scale-95;
   }
 
   .drop-zone {
@@ -101,19 +101,19 @@
   }
 
   .stats-card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6 transition-all duration-200 hover:shadow-md;
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 p-5 transition-all duration-200 hover:shadow-md;
   }
 
   .nav-item {
-    @apply flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors duration-200;
+    @apply flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200;
   }
 
   .nav-item.active {
-    @apply bg-blue-50 text-blue-700 font-medium;
+    @apply bg-blue-600 text-white font-medium shadow-sm;
   }
 
   .nav-item:not(.active) {
-    @apply text-gray-700 hover:bg-gray-100;
+    @apply text-slate-400 hover:bg-slate-700 hover:text-white;
   }
 }
 
