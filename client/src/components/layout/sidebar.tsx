@@ -1,53 +1,21 @@
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { 
-  Calendar, 
-  LayoutDashboard, 
-  Users, 
-  GraduationCap, 
-  BookOpen, 
-  DoorOpen,
-  Settings,
-  LogOut,
-  School
+import {
+  Calendar, LayoutDashboard, Users, GraduationCap, BookOpen, DoorOpen, LogOut, School
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
-const navigationItems = [
-  {
-    href: "/",
-    label: "Bosh sahifa",
-    icon: LayoutDashboard,
-  },
-  {
-    href: "/timetables",
-    label: "Dars jadvali",
-    icon: Calendar,
-  },
-  {
-    href: "/teachers",
-    label: "O'qituvchilar",
-    icon: Users,
-  },
-  {
-    href: "/classes",
-    label: "Sinflar",
-    icon: GraduationCap,
-  },
-  {
-    href: "/subjects",
-    label: "Fanlar",
-    icon: BookOpen,
-  },
-  {
-    href: "/rooms",
-    label: "Xonalar",
-    icon: DoorOpen,
-  },
+const navItems = [
+  { href: "/", label: "Bosh sahifa", icon: LayoutDashboard },
+  { href: "/timetables", label: "Dars jadvali", icon: Calendar },
+  { href: "/teachers", label: "O'qituvchilar", icon: Users },
+  { href: "/classes", label: "Sinflar", icon: GraduationCap },
+  { href: "/subjects", label: "Fanlar", icon: BookOpen },
+  { href: "/rooms", label: "Xonalar", icon: DoorOpen },
 ];
 
 export default function Sidebar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { logout, user } = useAuth();
 
   return (
@@ -66,54 +34,50 @@ export default function Sidebar() {
 
       <nav className="flex-1 p-4 space-y-1">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 mb-3">Menyu</p>
-        {navigationItems.map((item) => {
+        {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location === item.href;
-          
           return (
-            <Link key={item.href} href={item.href}>
-              <a className={cn(
-                "flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group",
-                isActive 
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-900/30" 
+            <button
+              key={item.href}
+              onClick={() => setLocation(item.href)}
+              className={cn(
+                "flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group w-full text-left",
+                isActive
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-900/30"
                   : "text-slate-400 hover:bg-slate-700 hover:text-white"
-              )}>
-                <Icon className={cn("w-5 h-5 flex-shrink-0", isActive ? "text-white" : "text-slate-400 group-hover:text-white")} />
-                <span className="text-sm font-medium">{item.label}</span>
-                {isActive && (
-                  <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full" />
-                )}
-              </a>
-            </Link>
+              )}
+            >
+              <Icon className={cn("w-5 h-5 flex-shrink-0", isActive ? "text-white" : "text-slate-400 group-hover:text-white")} />
+              <span className="text-sm font-medium">{item.label}</span>
+              {isActive && <div className="ml-auto w-1.5 h-1.5 bg-white rounded-full" />}
+            </button>
           );
         })}
       </nav>
 
       <div className="p-4 border-t border-slate-700 space-y-1">
-        <button className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-slate-700 hover:text-white transition-all duration-200 w-full group">
-          <Settings className="w-5 h-5 flex-shrink-0 text-slate-400 group-hover:text-white" />
-          <span className="text-sm font-medium">Sozlamalar</span>
-        </button>
-        
-        <button 
-          onClick={logout} 
-          className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-red-900/40 hover:text-red-400 transition-all duration-200 w-full group"
+        <button
+          onClick={logout}
+          className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-slate-400 hover:bg-red-900/40 hover:text-red-400 transition-all duration-200 w-full"
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           <span className="text-sm font-medium">Chiqish</span>
         </button>
 
         {user && (
-          <div className="mt-3 px-3 py-2.5 bg-slate-700/50 rounded-lg">
+          <div className="mt-2 px-3 py-2.5 bg-slate-700/50 rounded-lg">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-xs font-bold">
-                  {user.firstName?.[0]}{user.lastName?.[0]}
+                  {(user.firstName?.[0] || "?")}{(user.lastName?.[0] || "")}
                 </span>
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-medium text-white truncate">{user.firstName} {user.lastName}</p>
-                <p className="text-xs text-slate-400 capitalize truncate">{user.role === 'admin' ? 'Administrator' : user.role === 'teacher' ? "O'qituvchi" : user.role}</p>
+                <p className="text-xs text-slate-400 capitalize truncate">
+                  {user.role === "admin" ? "Administrator" : "O'qituvchi"}
+                </p>
               </div>
             </div>
           </div>

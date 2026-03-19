@@ -1,34 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { StatsCards } from "@/components/stats/stats-cards";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  AlertTriangle, 
-  Wand2, 
-  Calendar, 
-  Plus, 
-  ArrowRight,
-  Users,
-  BookOpen,
-  DoorOpen,
-  GraduationCap,
-  CheckCircle2,
-  Clock,
-  TrendingUp
+import {
+  AlertTriangle, Wand2, Calendar, ArrowRight, Users,
+  BookOpen, DoorOpen, GraduationCap, CheckCircle2, Clock, TrendingUp
 } from "lucide-react";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ["/api/dashboard/stats"],
-  });
-
-  const { data: conflicts, isLoading: conflictsLoading } = useQuery({
-    queryKey: ["/api/schedule-conflicts"],
-  });
+  const { data: stats, isLoading: statsLoading } = useQuery<any>({ queryKey: ["/api/dashboard/stats"] });
+  const { data: conflicts = [], isLoading: conflictsLoading } = useQuery<any[]>({ queryKey: ["/api/schedule-conflicts"] });
 
   const today = new Date();
   const days = ["Yakshanba", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
@@ -36,43 +20,19 @@ export default function Dashboard() {
   const dateStr = `${today.getDate()} ${months[today.getMonth()]}, ${today.getFullYear()}`;
   const dayStr = days[today.getDay()];
 
-  const quickActions = [
-    {
-      icon: Wand2,
-      label: "Jadval yaratish",
-      description: "Avtomatik dars jadvalini yarating",
-      color: "text-blue-600",
-      bg: "bg-blue-50",
-      href: "/timetables",
-    },
-    {
-      icon: Users,
-      label: "O'qituvchi qo'shish",
-      description: "Yangi o'qituvchini ro'yxatga olish",
-      color: "text-emerald-600",
-      bg: "bg-emerald-50",
-      href: "/teachers",
-    },
-    {
-      icon: GraduationCap,
-      label: "Sinf qo'shish",
-      description: "Yangi sinf yaratish",
-      color: "text-violet-600",
-      bg: "bg-violet-50",
-      href: "/classes",
-    },
-    {
-      icon: BookOpen,
-      label: "Fan qo'shish",
-      description: "Yangi fan qo'shish",
-      color: "text-orange-600",
-      bg: "bg-orange-50",
-      href: "/subjects",
-    },
+  const statCards = [
+    { label: "Sinflar", value: stats?.totalClasses ?? "—", icon: GraduationCap, color: "text-blue-600", bg: "bg-blue-50", href: "/classes" },
+    { label: "O'qituvchilar", value: stats?.totalTeachers ?? "—", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50", href: "/teachers" },
+    { label: "Fanlar", value: stats?.totalSubjects ?? "—", icon: BookOpen, color: "text-violet-600", bg: "bg-violet-50", href: "/subjects" },
+    { label: "Xonalar", value: stats?.totalRooms ?? "—", icon: DoorOpen, color: "text-orange-600", bg: "bg-orange-50", href: "/rooms" },
   ];
 
-  const weekDays = ["Du", "Se", "Ch", "Pa", "Ju"];
-  const timeSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00"];
+  const quickActions = [
+    { icon: Wand2, label: "Jadval yaratish", description: "Avtomatik dars jadvalini yarating", color: "text-blue-600", bg: "bg-blue-50", href: "/timetables" },
+    { icon: Users, label: "O'qituvchi qo'shish", description: "Yangi o'qituvchini ro'yxatga olish", color: "text-emerald-600", bg: "bg-emerald-50", href: "/teachers" },
+    { icon: GraduationCap, label: "Sinf qo'shish", description: "Yangi sinf yaratish", color: "text-violet-600", bg: "bg-violet-50", href: "/classes" },
+    { icon: BookOpen, label: "Fan qo'shish", description: "Yangi fan qo'shish", color: "text-orange-600", bg: "bg-orange-50", href: "/subjects" },
+  ];
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -81,90 +41,65 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Bosh sahifa</h1>
           <p className="text-gray-500 text-sm mt-0.5">{dayStr}, {dateStr}</p>
         </div>
-        <Button 
-          onClick={() => setLocation("/timetables")}
-          className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-        >
+        <Button onClick={() => setLocation("/timetables")} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
           <Wand2 className="mr-2 h-4 w-4" />
           Jadval yaratish
         </Button>
       </div>
 
-      {statsLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="skeleton h-28 rounded-xl" />
-          ))}
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map(card => {
+          const Icon = card.icon;
+          return (
+            <button
+              key={card.label}
+              onClick={() => setLocation(card.href)}
+              className="bg-white border border-gray-100 rounded-xl p-4 text-left hover:border-blue-200 hover:shadow-sm transition-all group"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className={`w-10 h-10 ${card.bg} rounded-lg flex items-center justify-center`}>
+                  <Icon className={`${card.color} h-5 w-5`} />
+                </div>
+                <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400 transition-colors" />
+              </div>
+              <div className="text-2xl font-bold text-gray-900">
+                {statsLoading ? <div className="h-7 w-12 bg-gray-100 animate-pulse rounded" /> : card.value}
+              </div>
+              <p className="text-sm text-gray-500 mt-0.5">{card.label}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Scheduled lessons highlight */}
+      {!statsLoading && stats?.totalScheduled > 0 && (
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+              <Calendar className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <p className="text-white font-bold text-xl">{stats.totalScheduled} ta dars</p>
+              <p className="text-blue-200 text-sm">Joriy hafta jadvallashtirildi</p>
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => setLocation("/timetables")} className="bg-white/20 text-white border-0 hover:bg-white/30">
+            Ko'rish <ArrowRight className="ml-1 h-3.5 w-3.5" />
+          </Button>
         </div>
-      ) : (
-        <StatsCards stats={stats} />
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-6">
-          <Card className="border border-gray-100 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold text-gray-900 flex items-center">
-                  <Calendar className="mr-2 h-4 w-4 text-blue-600" />
-                  Haftalik jadval ko'rinishi
-                </CardTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-blue-600 hover:text-blue-700 text-xs font-medium"
-                  onClick={() => setLocation("/timetables")}
-                >
-                  To'liq ko'rish <ArrowRight className="ml-1 h-3 w-3" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr>
-                      <th className="text-left py-2 pr-3 text-gray-400 font-medium w-16">Vaqt</th>
-                      {weekDays.map(d => (
-                        <th key={d} className="text-center py-2 px-1 text-gray-500 font-semibold">{d}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {timeSlots.map((time, i) => (
-                      <tr key={time} className={i % 2 === 0 ? "bg-gray-50/50" : ""}>
-                        <td className="py-2 pr-3 text-gray-400 font-mono text-xs">{time}</td>
-                        {weekDays.map((day, j) => {
-                          const filled = (i + j) % 3 !== 0 && i < 6;
-                          const colors = ["bg-blue-100 text-blue-800", "bg-green-100 text-green-800", "bg-purple-100 text-purple-800", "bg-orange-100 text-orange-800", "bg-pink-100 text-pink-800"];
-                          const subjects = ["Matematika", "Fizika", "Kimyo", "Biologiya", "Tarix", "Ingliz tili", "Adabiyot", "Geografiya"];
-                          return (
-                            <td key={day} className="py-1 px-1 text-center">
-                              {filled ? (
-                                <div className={`${colors[(i + j) % colors.length]} rounded px-1 py-0.5 text-xs leading-tight`}>
-                                  {subjects[(i * 5 + j) % subjects.length]}
-                                </div>
-                              ) : (
-                                <div className="text-gray-200">—</div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className="xl:col-span-2 space-y-5">
+          {/* Quick actions */}
           <Card className="border border-gray-100 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-gray-900">Tezkor amallar</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3">
-                {quickActions.map((action) => {
+                {quickActions.map(action => {
                   const Icon = action.icon;
                   return (
                     <button
@@ -185,9 +120,44 @@ export default function Dashboard() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Setup guide if no data */}
+          {!statsLoading && stats?.totalClasses === 0 && (
+            <Card className="border border-amber-100 bg-amber-50 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold text-amber-900 flex items-center">
+                  <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" />
+                  Tizimni sozlash bo'yicha yo'riqnoma
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2.5">
+                  {[
+                    { step: 1, label: "Fanlarni qo'shing", href: "/subjects", done: stats?.totalSubjects > 0 },
+                    { step: 2, label: "O'qituvchilarni qo'shing va ularga fan belgilang", href: "/teachers", done: stats?.totalTeachers > 0 },
+                    { step: 3, label: "Xonalarni qo'shing", href: "/rooms", done: stats?.totalRooms > 0 },
+                    { step: 4, label: "Sinflarni qo'shing va ularga fan+o'qituvchi belgilang", href: "/classes", done: stats?.totalClasses > 0 },
+                    { step: 5, label: "Jadval yaratish tugmasini bosing", href: "/timetables", done: stats?.totalScheduled > 0 },
+                  ].map(({ step, label, href, done }) => (
+                    <button
+                      key={step}
+                      onClick={() => setLocation(href)}
+                      className={`flex items-center space-x-3 w-full p-2.5 rounded-lg text-left transition-colors ${done ? "opacity-60" : "hover:bg-amber-100"}`}
+                    >
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${done ? "bg-green-500 text-white" : "bg-amber-200 text-amber-800"}`}>
+                        {done ? "✓" : step}
+                      </div>
+                      <span className={`text-sm ${done ? "line-through text-gray-400" : "text-amber-900 font-medium"}`}>{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-5">
+          {/* Conflicts */}
           <Card className="border border-gray-100 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-gray-900 flex items-center">
@@ -197,24 +167,20 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               {conflictsLoading ? (
-                <div className="skeleton h-20 rounded-lg" />
-              ) : conflicts && conflicts.length > 0 ? (
-                <div className="space-y-3">
-                  {conflicts.slice(0, 4).map((conflict: any) => (
-                    <div key={conflict.id} className="flex items-start space-x-2.5 p-3 bg-orange-50 border border-orange-100 rounded-lg">
+                <div className="h-20 bg-gray-100 animate-pulse rounded-lg" />
+              ) : conflicts.length > 0 ? (
+                <div className="space-y-2">
+                  {conflicts.slice(0, 4).map((c: any) => (
+                    <div key={c.id} className="flex items-start space-x-2.5 p-2.5 bg-orange-50 border border-orange-100 rounded-lg">
                       <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-orange-900">
-                          {conflict.conflictType === 'room' ? 'Xona ziddiyati' : 
-                           conflict.conflictType === 'teacher' ? "O'qituvchi ziddiyati" : 'Sinf ziddiyati'}
+                          {c.conflictType === "room" ? "Xona ziddiyati" : c.conflictType === "teacher" ? "O'qituvchi ziddiyati" : "Sinf ziddiyati"}
                         </p>
-                        <p className="text-xs text-orange-700 mt-0.5 truncate">{conflict.description}</p>
+                        <p className="text-xs text-orange-700 mt-0.5 truncate">{c.description}</p>
                       </div>
                     </div>
                   ))}
-                  {conflicts.length > 4 && (
-                    <p className="text-xs text-center text-gray-400">+{conflicts.length - 4} ta ziddiyat</p>
-                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center py-6 text-center">
@@ -228,6 +194,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
+          {/* System status */}
           <Card className="border border-gray-100 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-gray-900 flex items-center">
@@ -235,19 +202,19 @@ export default function Dashboard() {
                 Tizim holati
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2">
               {[
-                { label: "O'qituvchilar", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50", href: "/teachers" },
-                { label: "Sinflar", icon: GraduationCap, color: "text-blue-600", bg: "bg-blue-50", href: "/classes" },
-                { label: "Fanlar", icon: BookOpen, color: "text-violet-600", bg: "bg-violet-50", href: "/subjects" },
-                { label: "Xonalar", icon: DoorOpen, color: "text-orange-600", bg: "bg-orange-50", href: "/rooms" },
-              ].map((item) => {
+                { label: "O'qituvchilar", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50", href: "/teachers", value: stats?.totalTeachers },
+                { label: "Sinflar", icon: GraduationCap, color: "text-blue-600", bg: "bg-blue-50", href: "/classes", value: stats?.totalClasses },
+                { label: "Fanlar", icon: BookOpen, color: "text-violet-600", bg: "bg-violet-50", href: "/subjects", value: stats?.totalSubjects },
+                { label: "Xonalar", icon: DoorOpen, color: "text-orange-600", bg: "bg-orange-50", href: "/rooms", value: stats?.totalRooms },
+              ].map(item => {
                 const Icon = item.icon;
                 return (
                   <button
                     key={item.label}
                     onClick={() => setLocation(item.href)}
-                    className="w-full flex items-center justify-between p-2.5 rounded-lg hover:bg-gray-50 transition-colors group"
+                    className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors group"
                   >
                     <div className="flex items-center space-x-2.5">
                       <div className={`w-7 h-7 ${item.bg} rounded-lg flex items-center justify-center`}>
@@ -255,13 +222,19 @@ export default function Dashboard() {
                       </div>
                       <span className="text-sm text-gray-700 font-medium group-hover:text-blue-600">{item.label}</span>
                     </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-blue-400" />
+                    <div className="flex items-center space-x-1.5">
+                      <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                        {statsLoading ? "..." : item.value ?? 0}
+                      </Badge>
+                      <ArrowRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-blue-400" />
+                    </div>
                   </button>
                 );
               })}
             </CardContent>
           </Card>
 
+          {/* School hours */}
           <Card className="border border-gray-100 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-semibold text-gray-900 flex items-center">
@@ -270,19 +243,18 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {[
                   { n: "1-dars", time: "08:00 – 08:45" },
                   { n: "2-dars", time: "09:00 – 09:45" },
                   { n: "3-dars", time: "10:00 – 10:45" },
-                  { n: "Tanaffus", time: "10:45 – 11:05", isBreak: true },
-                  { n: "4-dars", time: "11:05 – 11:50" },
+                  { n: "4-dars", time: "11:00 – 11:45" },
                   { n: "5-dars", time: "12:00 – 12:45" },
                   { n: "6-dars", time: "13:00 – 13:45" },
-                ].map((slot) => (
-                  <div key={slot.n} className={`flex items-center justify-between py-1.5 px-2 rounded ${slot.isBreak ? "bg-amber-50" : ""}`}>
-                    <span className={`text-xs font-medium ${slot.isBreak ? "text-amber-700" : "text-gray-600"}`}>{slot.n}</span>
-                    <span className={`text-xs font-mono ${slot.isBreak ? "text-amber-600" : "text-gray-500"}`}>{slot.time}</span>
+                ].map(slot => (
+                  <div key={slot.n} className="flex items-center justify-between py-1 px-2 rounded">
+                    <span className="text-xs font-medium text-gray-600">{slot.n}</span>
+                    <span className="text-xs font-mono text-gray-500">{slot.time}</span>
                   </div>
                 ))}
               </div>

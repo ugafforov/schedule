@@ -7,9 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, Users, Phone, Briefcase, BookOpen, X } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Users, Phone, BookOpen, X, Clock } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
-import type { Teacher } from "@shared/schema";
+import type { Teacher, Subject } from "@shared/schema";
 
 interface TeacherFormData {
   firstName: string;
@@ -18,144 +18,100 @@ interface TeacherFormData {
   specialization: string;
   phone: string;
   maxHoursPerWeek: number;
+  subjectIds: number[];
 }
 
+const EMPTY_FORM: TeacherFormData = {
+  firstName: "", lastName: "", department: "", specialization: "", phone: "", maxHoursPerWeek: 30, subjectIds: [],
+};
+
 export default function Teachers() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-  const [formData, setFormData] = useState<TeacherFormData>({
-    firstName: "",
-    lastName: "",
-    department: "",
-    specialization: "",
-    phone: "",
-    maxHoursPerWeek: 20,
-  });
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Teacher | null>(null);
+  const [form, setForm] = useState<TeacherFormData>(EMPTY_FORM);
 
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const qc = useQueryClient();
 
-  const { data: teachers, isLoading } = useQuery({ queryKey: ["/api/teachers"] });
+  const { data: teachers = [], isLoading } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
+  const { data: subjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
 
-  const createMutation = useMutation({
-    mutationFn: (data: TeacherFormData) => apiRequest("POST", "/api/teachers", data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
-      setShowAddDialog(false);
-      resetForm();
-      toast({ title: "Muvaffaqiyat", description: "O'qituvchi qo'shildi" });
+  const upsertMutation = useMutation({
+    mutationFn: async (data: TeacherFormData) => {
+      if (editing) {
+        await apiRequest("PATCH", `/api/teachers/${editing.id}`, data);
+      } else {
+        await apiRequest("POST", "/api/teachers", data);
+      }
     },
-    onError: () => toast({ title: "Xatolik", description: "O'qituvchi qo'shilmadi", variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: TeacherFormData }) =>
-      apiRequest("PATCH", `/api/teachers/${id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
-      setEditingTeacher(null);
-      resetForm();
-      toast({ title: "Muvaffaqiyat", description: "O'qituvchi ma'lumotlari yangilandi" });
+      qc.invalidateQueries({ queryKey: ["/api/teachers"] });
+      setOpen(false);
+      setEditing(null);
+      setForm(EMPTY_FORM);
+      toast({ title: "Muvaffaqiyat", description: editing ? "O'qituvchi yangilandi" : "O'qituvchi qo'shildi" });
     },
-    onError: () => toast({ title: "Xatolik", description: "Yangilash amalga oshmadi", variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiRequest("DELETE", `/api/teachers/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
+      qc.invalidateQueries({ queryKey: ["/api/teachers"] });
       toast({ title: "Muvaffaqiyat", description: "O'qituvchi o'chirildi" });
     },
-    onError: () => toast({ title: "Xatolik", description: "O'chirishda xato yuz berdi", variant: "destructive" }),
   });
 
-  const resetForm = () => setFormData({ firstName: "", lastName: "", department: "", specialization: "", phone: "", maxHoursPerWeek: 20 });
-
-  const openEdit = (teacher: Teacher) => {
-    setEditingTeacher(teacher);
-    setFormData({
-      firstName: (teacher as any).firstName || "",
-      lastName: (teacher as any).lastName || "",
-      department: teacher.department || "",
-      specialization: teacher.specialization || "",
-      phone: teacher.phone || "",
-      maxHoursPerWeek: teacher.maxHoursPerWeek || 20,
+  const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setOpen(true); };
+  const openEdit = async (t: Teacher) => {
+    setEditing(t);
+    // Load teacher's current subjects
+    let subjectIds: number[] = [];
+    try {
+      const r = await fetch(`/api/teachers/${t.id}/subjects`);
+      if (r.ok) {
+        const data = await r.json();
+        subjectIds = data.map((ts: any) => ts.subjectId);
+      }
+    } catch {}
+    setForm({
+      firstName: t.firstName || "",
+      lastName: t.lastName || "",
+      department: t.department || "",
+      specialization: t.specialization || "",
+      phone: t.phone || "",
+      maxHoursPerWeek: t.maxHoursPerWeek || 30,
+      subjectIds,
     });
+    setOpen(true);
   };
 
-  const handleSubmit = () => {
-    if (!formData.firstName && !formData.lastName && !formData.department) {
-      toast({ title: "Xatolik", description: "Iltimos, maydonlarni to'ldiring", variant: "destructive" });
-      return;
-    }
-    if (editingTeacher) {
-      updateMutation.mutate({ id: editingTeacher.id, data: formData });
-    } else {
-      createMutation.mutate(formData);
-    }
+  const toggleSubject = (id: number) => {
+    setForm(p => ({
+      ...p,
+      subjectIds: p.subjectIds.includes(id) ? p.subjectIds.filter(x => x !== id) : [...p.subjectIds, id],
+    }));
   };
 
-  const filteredTeachers = (teachers as Teacher[] || []).filter((t) =>
-    t.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.specialization?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = teachers.filter(t =>
+    `${t.firstName} ${t.lastName} ${t.department} ${t.specialization}`.toLowerCase().includes(search.toLowerCase())
   );
 
-  const TeacherDialog = ({ open, onClose }: { open: boolean; onClose: () => void }) => (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{editingTeacher ? "O'qituvchini tahrirlash" : "Yangi o'qituvchi qo'shish"}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Ism</Label>
-              <Input placeholder="Ism" value={formData.firstName} onChange={e => setFormData(p => ({ ...p, firstName: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Familiya</Label>
-              <Input placeholder="Familiya" value={formData.lastName} onChange={e => setFormData(p => ({ ...p, lastName: e.target.value }))} />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm">Bo'lim / Kafedra</Label>
-            <Input placeholder="Masalan: Matematika kafedrasi" value={formData.department} onChange={e => setFormData(p => ({ ...p, department: e.target.value }))} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm">Mutaxassislik</Label>
-            <Input placeholder="Masalan: Matematika, Fizika" value={formData.specialization} onChange={e => setFormData(p => ({ ...p, specialization: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Telefon raqami</Label>
-              <Input placeholder="+998 90 123 45 67" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Haftalik soat (max)</Label>
-              <Input type="number" min={1} max={40} value={formData.maxHoursPerWeek} onChange={e => setFormData(p => ({ ...p, maxHoursPerWeek: parseInt(e.target.value) || 20 }))} />
-            </div>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
-          <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
-            {editingTeacher ? "Saqlash" : "Qo'shish"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+  const fullName = (t: Teacher) => `${t.firstName} ${t.lastName}`.trim() || t.employeeId;
+  const initials = (t: Teacher) => {
+    const name = `${t.firstName} ${t.lastName}`.trim();
+    return name ? name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) : "?";
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">O'qituvchilar</h1>
-          <p className="text-gray-500 text-sm mt-0.5">O'qituvchilar ro'yxatini boshqarish</p>
+          <p className="text-gray-500 text-sm mt-0.5">O'qituvchilar va ularning fanlarini boshqarish</p>
         </div>
-        <Button onClick={() => { resetForm(); setEditingTeacher(null); setShowAddDialog(true); }} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700">
           <Plus className="mr-2 h-4 w-4" />
           O'qituvchi qo'shish
         </Button>
@@ -167,20 +123,18 @@ export default function Teachers() {
             <CardTitle className="text-base font-semibold flex items-center">
               <Users className="mr-2 h-4 w-4 text-emerald-600" />
               O'qituvchilar ro'yxati
-              {teachers && (
-                <Badge variant="secondary" className="ml-2 text-xs">{(teachers as Teacher[]).length} ta</Badge>
-              )}
+              <Badge variant="secondary" className="ml-2 text-xs">{teachers.length} ta</Badge>
             </CardTitle>
             <div className="relative w-60">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Qidirish..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Ism yoki bo'lim bo'yicha..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
                 className="pl-9 h-9 text-sm"
               />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -190,25 +144,22 @@ export default function Teachers() {
         <CardContent>
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(6)].map((_, i) => <div key={i} className="skeleton h-32 rounded-xl" />)}
+              {Array(6).fill(0).map((_, i) => <div key={i} className="h-36 bg-gray-100 animate-pulse rounded-xl" />)}
             </div>
-          ) : filteredTeachers.length > 0 ? (
+          ) : filtered.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredTeachers.map((teacher) => (
+              {filtered.map(teacher => (
                 <div key={teacher.id} className="group border border-gray-100 rounded-xl p-4 hover:border-blue-200 hover:shadow-sm transition-all bg-white">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <span className="text-emerald-700 font-bold text-sm">
-                        {(teacher.employeeId || "?")[0]}
-                      </span>
+                    <div className="w-11 h-11 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <span className="text-emerald-700 font-bold text-sm">{initials(teacher)}</span>
                     </div>
                     <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(teacher)}>
                         <Edit className="h-3.5 w-3.5" />
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="sm"
+                        variant="ghost" size="sm"
                         className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
                         onClick={() => deleteMutation.mutate(teacher.id)}
                         disabled={deleteMutation.isPending}
@@ -218,22 +169,16 @@ export default function Teachers() {
                     </div>
                   </div>
 
-                  <h3 className="font-semibold text-gray-900 text-sm leading-tight">{teacher.employeeId || "Noma'lum"}</h3>
-                  
+                  <h3 className="font-semibold text-gray-900 text-sm">{fullName(teacher)}</h3>
                   {teacher.department && (
-                    <div className="flex items-center space-x-1 mt-1.5">
-                      <Briefcase className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                      <p className="text-xs text-gray-500 truncate">{teacher.department}</p>
-                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">{teacher.department}</p>
                   )}
-
                   {teacher.specialization && (
-                    <div className="flex items-center space-x-1 mt-1">
+                    <div className="flex items-center space-x-1 mt-1.5">
                       <BookOpen className="h-3 w-3 text-gray-400 flex-shrink-0" />
                       <p className="text-xs text-gray-500 truncate">{teacher.specialization}</p>
                     </div>
                   )}
-
                   {teacher.phone && (
                     <div className="flex items-center space-x-1 mt-1">
                       <Phone className="h-3 w-3 text-gray-400 flex-shrink-0" />
@@ -242,10 +187,11 @@ export default function Teachers() {
                   )}
 
                   <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-50">
-                    <Badge variant={teacher.isActive ? "default" : "secondary"} className="text-xs py-0">
-                      {teacher.isActive ? "Faol" : "Faol emas"}
-                    </Badge>
-                    <span className="text-xs text-gray-400">{teacher.maxHoursPerWeek || 0} soat/hafta</span>
+                    <Badge variant="secondary" className="text-xs py-0 bg-emerald-50 text-emerald-700">Faol</Badge>
+                    <div className="flex items-center space-x-1 text-gray-400">
+                      <Clock className="h-3 w-3" />
+                      <span className="text-xs">{teacher.maxHoursPerWeek} soat/hafta</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -256,17 +202,93 @@ export default function Teachers() {
                 <Users className="h-6 w-6 text-gray-400" />
               </div>
               <p className="text-gray-600 font-medium">
-                {searchTerm ? "Qidiruv bo'yicha natija topilmadi" : "O'qituvchilar ro'yxati bo'sh"}
+                {search ? "Qidiruv bo'yicha natija topilmadi" : "O'qituvchilar ro'yxati bo'sh"}
               </p>
-              <p className="text-sm text-gray-400 mt-1">
-                {!searchTerm && "Yangi o'qituvchi qo'shish uchun yuqoridagi tugmani bosing"}
-              </p>
+              {!search && <p className="text-sm text-gray-400 mt-1">Yangi o'qituvchi qo'shish uchun yuqoridagi tugmani bosing</p>}
             </div>
           )}
         </CardContent>
       </Card>
 
-      <TeacherDialog open={showAddDialog || !!editingTeacher} onClose={() => { setShowAddDialog(false); setEditingTeacher(null); }} />
+      <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setEditing(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editing ? "O'qituvchini tahrirlash" : "Yangi o'qituvchi qo'shish"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Ism *</Label>
+                <Input placeholder="Ism" value={form.firstName} onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Familiya *</Label>
+                <Input placeholder="Familiya" value={form.lastName} onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Bo'lim / Kafedra</Label>
+              <Input placeholder="Matematika kafedrasi" value={form.department} onChange={e => setForm(p => ({ ...p, department: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">Mutaxassislik</Label>
+              <Input placeholder="Masalan: Algebra, Geometriya" value={form.specialization} onChange={e => setForm(p => ({ ...p, specialization: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">Telefon</Label>
+                <Input placeholder="+998 90 123 45 67" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Max soat / hafta</Label>
+                <Input type="number" min={1} max={40} value={form.maxHoursPerWeek} onChange={e => setForm(p => ({ ...p, maxHoursPerWeek: parseInt(e.target.value) || 30 }))} />
+              </div>
+            </div>
+
+            {subjects.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm">O'qitiladigan fanlar</Label>
+                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-100 rounded-lg p-2">
+                  {subjects.map(sub => (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => toggleSubject(sub.id)}
+                      className={`flex items-center space-x-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors ${
+                        form.subjectIds.includes(sub.id)
+                          ? "bg-blue-100 text-blue-800 border border-blue-200"
+                          : "bg-gray-50 text-gray-600 border border-transparent hover:bg-gray-100"
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || "#3B82F6" }} />
+                      <span className="truncate">{sub.name}</span>
+                    </button>
+                  ))}
+                </div>
+                {form.subjectIds.length > 0 && (
+                  <p className="text-xs text-blue-600">{form.subjectIds.length} ta fan tanlandi</p>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Bekor qilish</Button>
+            <Button
+              onClick={() => {
+                if (!form.firstName && !form.lastName) {
+                  toast({ title: "Xatolik", description: "Ism yoki familiya kiritilishi shart", variant: "destructive" });
+                  return;
+                }
+                upsertMutation.mutate(form);
+              }}
+              disabled={upsertMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {editing ? "Saqlash" : "Qo'shish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

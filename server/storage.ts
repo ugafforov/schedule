@@ -1,329 +1,277 @@
-import { 
-  users, schools, subjects, teachers, classes, rooms, timeSlots, scheduleEntries, scheduleConflicts, accessCodes,
-  type User, type InsertUser, type School, type InsertSchool, type Subject, type InsertSubject,
-  type Teacher, type InsertTeacher, type Class, type InsertClass, type Room, type InsertRoom,
-  type TimeSlot, type InsertTimeSlot, type ScheduleEntry, type InsertScheduleEntry,
-  type ScheduleConflict, type InsertScheduleConflict, type AccessCode, type InsertAccessCode
+import {
+  subjects, teachers, classes, rooms, timeSlots, scheduleEntries, scheduleConflicts,
+  accessCodes, teacherSubjects, classSubjects,
+  type Subject, type InsertSubject,
+  type Teacher, type InsertTeacher,
+  type Class, type InsertClass,
+  type Room, type InsertRoom,
+  type TimeSlot, type InsertTimeSlot,
+  type ScheduleEntry, type InsertScheduleEntry,
+  type ScheduleConflict, type InsertScheduleConflict,
+  type AccessCode, type InsertAccessCode,
+  type TeacherSubject, type InsertTeacherSubject,
+  type ClassSubject, type InsertClassSubject,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, inArray } from "drizzle-orm";
 
 export interface IStorage {
-  // Access code methods
   getAccessCodeByCode(code: string): Promise<AccessCode | undefined>;
-  createAccessCode(insertAccessCode: InsertAccessCode): Promise<AccessCode>;
+  createAccessCode(data: InsertAccessCode): Promise<AccessCode>;
   updateAccessCodeLastUsed(code: string): Promise<void>;
   getAllAccessCodes(): Promise<AccessCode[]>;
   deleteAccessCode(id: number): Promise<boolean>;
-  
-  // User methods (legacy - still needed for JWT)
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(insertUser: InsertUser): Promise<User>;
-  
-  // School methods
-  getSchools(): Promise<School[]>;
-  createSchool(insertSchool: InsertSchool): Promise<School>;
-  updateSchool(id: number, updateData: Partial<InsertSchool>): Promise<School | undefined>;
-  deleteSchool(id: number): Promise<boolean>;
-  
-  // Subject methods
+
   getSubjects(): Promise<Subject[]>;
-  createSubject(insertSubject: InsertSubject): Promise<Subject>;
-  updateSubject(id: number, updateData: Partial<InsertSubject>): Promise<Subject | undefined>;
+  createSubject(data: InsertSubject): Promise<Subject>;
+  updateSubject(id: number, data: Partial<InsertSubject>): Promise<Subject | undefined>;
   deleteSubject(id: number): Promise<boolean>;
-  
-  // Teacher methods
+
   getTeachers(): Promise<Teacher[]>;
-  createTeacher(insertTeacher: InsertTeacher): Promise<Teacher>;
-  updateTeacher(id: number, updateData: Partial<InsertTeacher>): Promise<Teacher | undefined>;
+  createTeacher(data: InsertTeacher): Promise<Teacher>;
+  updateTeacher(id: number, data: Partial<InsertTeacher>): Promise<Teacher | undefined>;
   deleteTeacher(id: number): Promise<boolean>;
-  
-  // Class methods
+
+  getTeacherSubjects(teacherId: number): Promise<TeacherSubject[]>;
+  setTeacherSubjects(teacherId: number, subjectIds: number[]): Promise<void>;
+
   getClasses(): Promise<Class[]>;
-  createClass(insertClass: InsertClass): Promise<Class>;
-  updateClass(id: number, updateData: Partial<InsertClass>): Promise<Class | undefined>;
+  createClass(data: InsertClass): Promise<Class>;
+  updateClass(id: number, data: Partial<InsertClass>): Promise<Class | undefined>;
   deleteClass(id: number): Promise<boolean>;
-  
-  // Room methods
+
+  getClassSubjects(classId: number): Promise<ClassSubject[]>;
+  setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>): Promise<void>;
+  getAllClassSubjects(): Promise<ClassSubject[]>;
+
   getRooms(): Promise<Room[]>;
-  createRoom(insertRoom: InsertRoom): Promise<Room>;
-  updateRoom(id: number, updateData: Partial<InsertRoom>): Promise<Room | undefined>;
+  createRoom(data: InsertRoom): Promise<Room>;
+  updateRoom(id: number, data: Partial<InsertRoom>): Promise<Room | undefined>;
   deleteRoom(id: number): Promise<boolean>;
-  
-  // Time slot methods
+
   getTimeSlots(): Promise<TimeSlot[]>;
-  createTimeSlot(insertTimeSlot: InsertTimeSlot): Promise<TimeSlot>;
-  
-  // Schedule entry methods
+  createTimeSlot(data: InsertTimeSlot): Promise<TimeSlot>;
+  deleteAllTimeSlots(): Promise<void>;
+
   getScheduleEntries(): Promise<ScheduleEntry[]>;
+  getScheduleEntriesByClass(classId: number): Promise<ScheduleEntry[]>;
   getScheduleEntriesForWeek(weekStart: Date): Promise<ScheduleEntry[]>;
-  createScheduleEntry(insertScheduleEntry: InsertScheduleEntry): Promise<ScheduleEntry>;
-  updateScheduleEntry(id: number, updateData: Partial<InsertScheduleEntry>): Promise<ScheduleEntry | undefined>;
+  createScheduleEntry(data: InsertScheduleEntry): Promise<ScheduleEntry>;
+  createScheduleEntriesBulk(data: InsertScheduleEntry[]): Promise<ScheduleEntry[]>;
+  updateScheduleEntry(id: number, data: Partial<InsertScheduleEntry>): Promise<ScheduleEntry | undefined>;
   deleteScheduleEntry(id: number): Promise<boolean>;
-  
-  // Conflict methods
+  clearScheduleForWeek(weekStart: Date): Promise<void>;
+
   getUnresolvedConflicts(): Promise<ScheduleConflict[]>;
+  createConflict(data: InsertScheduleConflict): Promise<ScheduleConflict>;
   resolveConflict(id: number): Promise<boolean>;
-  
-  // Dashboard methods
+  clearConflicts(): Promise<void>;
+
   getDashboardStats(): Promise<{
     totalClasses: number;
     totalTeachers: number;
+    totalSubjects: number;
+    totalRooms: number;
+    totalScheduled: number;
     activeConflicts: number;
-    roomUtilization: number;
   }>;
 }
 
 export class DatabaseStorage implements IStorage {
-  // Access code methods
+  // ─── ACCESS CODES ────────────────────────────────────────────────────────────
   async getAccessCodeByCode(code: string): Promise<AccessCode | undefined> {
-    const [accessCode] = await db.select().from(accessCodes)
+    const [r] = await db.select().from(accessCodes)
       .where(and(eq(accessCodes.code, code), eq(accessCodes.isActive, true)));
-    return accessCode || undefined;
+    return r;
   }
-
-  async createAccessCode(insertAccessCode: InsertAccessCode): Promise<AccessCode> {
-    const [accessCode] = await db.insert(accessCodes).values(insertAccessCode).returning();
-    return accessCode;
+  async createAccessCode(data: InsertAccessCode): Promise<AccessCode> {
+    const [r] = await db.insert(accessCodes).values(data).returning();
+    return r;
   }
-
   async updateAccessCodeLastUsed(code: string): Promise<void> {
-    await db.update(accessCodes)
-      .set({ lastUsed: new Date() })
-      .where(eq(accessCodes.code, code));
+    await db.update(accessCodes).set({ lastUsed: new Date() }).where(eq(accessCodes.code, code));
   }
-
   async getAllAccessCodes(): Promise<AccessCode[]> {
-    return await db.select().from(accessCodes).where(eq(accessCodes.isActive, true));
+    return db.select().from(accessCodes).where(eq(accessCodes.isActive, true));
   }
-
   async deleteAccessCode(id: number): Promise<boolean> {
-    const result = await db.update(accessCodes)
-      .set({ isActive: false })
-      .where(eq(accessCodes.id, id));
-    return (result.rowCount || 0) > 0;
+    const r = await db.update(accessCodes).set({ isActive: false }).where(eq(accessCodes.id, id));
+    return (r.rowCount || 0) > 0;
   }
 
-  // User methods (legacy)
-  async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(insertUser)
-      .returning();
-    return user;
-  }
-
-  // School methods
-  async getSchools(): Promise<School[]> {
-    return await db.select().from(schools).where(eq(schools.isActive, true));
-  }
-
-  async createSchool(insertSchool: InsertSchool): Promise<School> {
-    const [school] = await db.insert(schools).values(insertSchool).returning();
-    return school;
-  }
-
-  async updateSchool(id: number, updateData: Partial<InsertSchool>): Promise<School | undefined> {
-    const [school] = await db.update(schools)
-      .set(updateData)
-      .where(eq(schools.id, id))
-      .returning();
-    return school || undefined;
-  }
-
-  async deleteSchool(id: number): Promise<boolean> {
-    const result = await db.update(schools)
-      .set({ isActive: false })
-      .where(eq(schools.id, id));
-    return result.rowCount > 0;
-  }
-
-  // Subject methods
+  // ─── SUBJECTS ────────────────────────────────────────────────────────────────
   async getSubjects(): Promise<Subject[]> {
-    return await db.select().from(subjects).where(eq(subjects.isActive, true));
+    return db.select().from(subjects).where(eq(subjects.isActive, true));
   }
-
-  async createSubject(insertSubject: InsertSubject): Promise<Subject> {
-    const [subject] = await db.insert(subjects).values(insertSubject).returning();
-    return subject;
+  async createSubject(data: InsertSubject): Promise<Subject> {
+    const [r] = await db.insert(subjects).values(data).returning();
+    return r;
   }
-
-  async updateSubject(id: number, updateData: Partial<InsertSubject>): Promise<Subject | undefined> {
-    const [subject] = await db.update(subjects)
-      .set(updateData)
-      .where(eq(subjects.id, id))
-      .returning();
-    return subject || undefined;
+  async updateSubject(id: number, data: Partial<InsertSubject>): Promise<Subject | undefined> {
+    const [r] = await db.update(subjects).set(data).where(eq(subjects.id, id)).returning();
+    return r;
   }
-
   async deleteSubject(id: number): Promise<boolean> {
-    const result = await db.update(subjects)
-      .set({ isActive: false })
-      .where(eq(subjects.id, id));
-    return result.rowCount > 0;
+    const r = await db.update(subjects).set({ isActive: false }).where(eq(subjects.id, id));
+    return (r.rowCount || 0) > 0;
   }
 
-  // Teacher methods
+  // ─── TEACHERS ────────────────────────────────────────────────────────────────
   async getTeachers(): Promise<Teacher[]> {
-    return await db.select().from(teachers).where(eq(teachers.isActive, true));
+    return db.select().from(teachers).where(eq(teachers.isActive, true));
   }
-
-  async createTeacher(insertTeacher: InsertTeacher): Promise<Teacher> {
-    const [teacher] = await db.insert(teachers).values(insertTeacher).returning();
-    return teacher;
+  async createTeacher(data: InsertTeacher): Promise<Teacher> {
+    const [r] = await db.insert(teachers).values(data).returning();
+    return r;
   }
-
-  async updateTeacher(id: number, updateData: Partial<InsertTeacher>): Promise<Teacher | undefined> {
-    const [teacher] = await db.update(teachers)
-      .set(updateData)
-      .where(eq(teachers.id, id))
-      .returning();
-    return teacher || undefined;
+  async updateTeacher(id: number, data: Partial<InsertTeacher>): Promise<Teacher | undefined> {
+    const [r] = await db.update(teachers).set(data).where(eq(teachers.id, id)).returning();
+    return r;
   }
-
   async deleteTeacher(id: number): Promise<boolean> {
-    const result = await db.update(teachers)
-      .set({ isActive: false })
-      .where(eq(teachers.id, id));
-    return result.rowCount > 0;
+    const r = await db.update(teachers).set({ isActive: false }).where(eq(teachers.id, id));
+    return (r.rowCount || 0) > 0;
   }
 
-  // Class methods
+  async getTeacherSubjects(teacherId: number): Promise<TeacherSubject[]> {
+    return db.select().from(teacherSubjects).where(eq(teacherSubjects.teacherId, teacherId));
+  }
+  async setTeacherSubjects(teacherId: number, subjectIds: number[]): Promise<void> {
+    await db.delete(teacherSubjects).where(eq(teacherSubjects.teacherId, teacherId));
+    if (subjectIds.length > 0) {
+      await db.insert(teacherSubjects).values(subjectIds.map(sid => ({ teacherId, subjectId: sid })));
+    }
+  }
+
+  // ─── CLASSES ─────────────────────────────────────────────────────────────────
   async getClasses(): Promise<Class[]> {
-    return await db.select().from(classes).where(eq(classes.isActive, true));
+    return db.select().from(classes).where(eq(classes.isActive, true));
   }
-
-  async createClass(insertClass: InsertClass): Promise<Class> {
-    const [newClass] = await db.insert(classes).values(insertClass).returning();
-    return newClass;
+  async createClass(data: InsertClass): Promise<Class> {
+    const [r] = await db.insert(classes).values(data).returning();
+    return r;
   }
-
-  async updateClass(id: number, updateData: Partial<InsertClass>): Promise<Class | undefined> {
-    const [updatedClass] = await db.update(classes)
-      .set(updateData)
-      .where(eq(classes.id, id))
-      .returning();
-    return updatedClass || undefined;
+  async updateClass(id: number, data: Partial<InsertClass>): Promise<Class | undefined> {
+    const [r] = await db.update(classes).set(data).where(eq(classes.id, id)).returning();
+    return r;
   }
-
   async deleteClass(id: number): Promise<boolean> {
-    const result = await db.update(classes)
-      .set({ isActive: false })
-      .where(eq(classes.id, id));
-    return result.rowCount > 0;
+    const r = await db.update(classes).set({ isActive: false }).where(eq(classes.id, id));
+    return (r.rowCount || 0) > 0;
   }
 
-  // Room methods
+  async getClassSubjects(classId: number): Promise<ClassSubject[]> {
+    return db.select().from(classSubjects).where(eq(classSubjects.classId, classId));
+  }
+  async getAllClassSubjects(): Promise<ClassSubject[]> {
+    return db.select().from(classSubjects);
+  }
+  async setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>): Promise<void> {
+    await db.delete(classSubjects).where(eq(classSubjects.classId, classId));
+    if (items.length > 0) {
+      await db.insert(classSubjects).values(items.map(item => ({
+        classId,
+        subjectId: item.subjectId,
+        teacherId: item.teacherId,
+        weeklyHours: item.weeklyHours,
+      })));
+    }
+  }
+
+  // ─── ROOMS ───────────────────────────────────────────────────────────────────
   async getRooms(): Promise<Room[]> {
-    return await db.select().from(rooms).where(eq(rooms.isActive, true));
+    return db.select().from(rooms).where(eq(rooms.isActive, true));
   }
-
-  async createRoom(insertRoom: InsertRoom): Promise<Room> {
-    const [room] = await db.insert(rooms).values(insertRoom).returning();
-    return room;
+  async createRoom(data: InsertRoom): Promise<Room> {
+    const [r] = await db.insert(rooms).values(data).returning();
+    return r;
   }
-
-  async updateRoom(id: number, updateData: Partial<InsertRoom>): Promise<Room | undefined> {
-    const [room] = await db.update(rooms)
-      .set(updateData)
-      .where(eq(rooms.id, id))
-      .returning();
-    return room || undefined;
+  async updateRoom(id: number, data: Partial<InsertRoom>): Promise<Room | undefined> {
+    const [r] = await db.update(rooms).set(data).where(eq(rooms.id, id)).returning();
+    return r;
   }
-
   async deleteRoom(id: number): Promise<boolean> {
-    const result = await db.update(rooms)
-      .set({ isActive: false })
-      .where(eq(rooms.id, id));
-    return result.rowCount > 0;
+    const r = await db.update(rooms).set({ isActive: false }).where(eq(rooms.id, id));
+    return (r.rowCount || 0) > 0;
   }
 
-  // Time slot methods
+  // ─── TIME SLOTS ──────────────────────────────────────────────────────────────
   async getTimeSlots(): Promise<TimeSlot[]> {
-    return await db.select().from(timeSlots).where(eq(timeSlots.isActive, true));
+    return db.select().from(timeSlots).where(eq(timeSlots.isActive, true));
+  }
+  async createTimeSlot(data: InsertTimeSlot): Promise<TimeSlot> {
+    const [r] = await db.insert(timeSlots).values(data).returning();
+    return r;
+  }
+  async deleteAllTimeSlots(): Promise<void> {
+    await db.delete(timeSlots);
   }
 
-  async createTimeSlot(insertTimeSlot: InsertTimeSlot): Promise<TimeSlot> {
-    const [timeSlot] = await db.insert(timeSlots).values(insertTimeSlot).returning();
-    return timeSlot;
-  }
-
-  // Schedule entry methods
+  // ─── SCHEDULE ENTRIES ────────────────────────────────────────────────────────
   async getScheduleEntries(): Promise<ScheduleEntry[]> {
-    return await db.select().from(scheduleEntries).where(eq(scheduleEntries.isActive, true));
+    return db.select().from(scheduleEntries).where(eq(scheduleEntries.isActive, true));
   }
-
+  async getScheduleEntriesByClass(classId: number): Promise<ScheduleEntry[]> {
+    return db.select().from(scheduleEntries)
+      .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.classId, classId)));
+  }
   async getScheduleEntriesForWeek(weekStart: Date): Promise<ScheduleEntry[]> {
-    return await db.select().from(scheduleEntries)
-      .where(and(
-        eq(scheduleEntries.isActive, true),
-        eq(scheduleEntries.weekStartDate, weekStart)
-      ));
+    return db.select().from(scheduleEntries)
+      .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.weekStartDate, weekStart)));
   }
-
-  async createScheduleEntry(insertScheduleEntry: InsertScheduleEntry): Promise<ScheduleEntry> {
-    const [entry] = await db.insert(scheduleEntries).values(insertScheduleEntry).returning();
-    return entry;
+  async createScheduleEntry(data: InsertScheduleEntry): Promise<ScheduleEntry> {
+    const [r] = await db.insert(scheduleEntries).values(data).returning();
+    return r;
   }
-
-  async updateScheduleEntry(id: number, updateData: Partial<InsertScheduleEntry>): Promise<ScheduleEntry | undefined> {
-    const [entry] = await db.update(scheduleEntries)
-      .set(updateData)
-      .where(eq(scheduleEntries.id, id))
-      .returning();
-    return entry || undefined;
+  async createScheduleEntriesBulk(data: InsertScheduleEntry[]): Promise<ScheduleEntry[]> {
+    if (data.length === 0) return [];
+    return db.insert(scheduleEntries).values(data).returning();
   }
-
+  async updateScheduleEntry(id: number, data: Partial<InsertScheduleEntry>): Promise<ScheduleEntry | undefined> {
+    const [r] = await db.update(scheduleEntries).set(data).where(eq(scheduleEntries.id, id)).returning();
+    return r;
+  }
   async deleteScheduleEntry(id: number): Promise<boolean> {
-    const result = await db.update(scheduleEntries)
+    const r = await db.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.id, id));
+    return (r.rowCount || 0) > 0;
+  }
+  async clearScheduleForWeek(weekStart: Date): Promise<void> {
+    await db.update(scheduleEntries)
       .set({ isActive: false })
-      .where(eq(scheduleEntries.id, id));
-    return result.rowCount > 0;
+      .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.weekStartDate, weekStart)));
   }
 
-  // Conflict methods
+  // ─── CONFLICTS ───────────────────────────────────────────────────────────────
   async getUnresolvedConflicts(): Promise<ScheduleConflict[]> {
-    return await db.select().from(scheduleConflicts)
-      .where(eq(scheduleConflicts.isResolved, false));
+    return db.select().from(scheduleConflicts).where(eq(scheduleConflicts.isResolved, false));
   }
-
+  async createConflict(data: InsertScheduleConflict): Promise<ScheduleConflict> {
+    const [r] = await db.insert(scheduleConflicts).values(data).returning();
+    return r;
+  }
   async resolveConflict(id: number): Promise<boolean> {
-    const result = await db.update(scheduleConflicts)
-      .set({ isResolved: true })
-      .where(eq(scheduleConflicts.id, id));
-    return result.rowCount > 0;
+    const r = await db.update(scheduleConflicts).set({ isResolved: true }).where(eq(scheduleConflicts.id, id));
+    return (r.rowCount || 0) > 0;
+  }
+  async clearConflicts(): Promise<void> {
+    await db.update(scheduleConflicts).set({ isResolved: true });
   }
 
-  // Dashboard methods
-  async getDashboardStats(): Promise<{
-    totalClasses: number;
-    totalTeachers: number;
-    activeConflicts: number;
-    roomUtilization: number;
-  }> {
-    const [classResult] = await db.select({ count: count() }).from(classes).where(eq(classes.isActive, true));
-    const [teacherResult] = await db.select({ count: count() }).from(teachers).where(eq(teachers.isActive, true));
-    const [conflictResult] = await db.select({ count: count() }).from(scheduleConflicts).where(eq(scheduleConflicts.isResolved, false));
-    const [roomResult] = await db.select({ count: count() }).from(rooms).where(eq(rooms.isActive, true));
-    const totalRooms = roomResult?.count || 0;
-    const utilization = totalRooms > 0 ? Math.min(Math.round((Number(teacherResult?.count || 0) / totalRooms) * 100), 100) : 0;
-
+  // ─── DASHBOARD ───────────────────────────────────────────────────────────────
+  async getDashboardStats() {
+    const [cls] = await db.select({ count: count() }).from(classes).where(eq(classes.isActive, true));
+    const [tch] = await db.select({ count: count() }).from(teachers).where(eq(teachers.isActive, true));
+    const [sub] = await db.select({ count: count() }).from(subjects).where(eq(subjects.isActive, true));
+    const [rm] = await db.select({ count: count() }).from(rooms).where(eq(rooms.isActive, true));
+    const [sch] = await db.select({ count: count() }).from(scheduleEntries).where(eq(scheduleEntries.isActive, true));
+    const [cf] = await db.select({ count: count() }).from(scheduleConflicts).where(eq(scheduleConflicts.isResolved, false));
     return {
-      totalClasses: Number(classResult?.count || 0),
-      totalTeachers: Number(teacherResult?.count || 0),
-      activeConflicts: Number(conflictResult?.count || 0),
-      roomUtilization: utilization || 0,
+      totalClasses: Number(cls?.count || 0),
+      totalTeachers: Number(tch?.count || 0),
+      totalSubjects: Number(sub?.count || 0),
+      totalRooms: Number(rm?.count || 0),
+      totalScheduled: Number(sch?.count || 0),
+      activeConflicts: Number(cf?.count || 0),
     };
   }
 }

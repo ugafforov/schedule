@@ -1,29 +1,17 @@
-import { pgTable, text, serial, integer, boolean, timestamp, time, json } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, time } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Users table for authentication
-export const users = pgTable("users", {
+// Access codes table for custom authentication
+export const accessCodes = pgTable("access_codes", {
   id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  role: text("role").notNull().default("teacher"), // admin, teacher, student
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
+  code: text("code").notNull().unique(),
+  ownerName: text("owner_name").notNull(),
+  role: text("role").notNull().default("teacher"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-// Schools table
-export const schools = pgTable("schools", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  address: text("address"),
-  phone: text("phone"),
-  email: text("email"),
-  isActive: boolean("is_active").notNull().default(true),
+  lastUsed: timestamp("last_used"),
 });
 
 // Subjects table
@@ -33,29 +21,29 @@ export const subjects = pgTable("subjects", {
   code: text("code").notNull().unique(),
   description: text("description"),
   color: text("color").notNull().default("#1976D2"),
+  weeklyHours: integer("weekly_hours").notNull().default(2),
   isActive: boolean("is_active").notNull().default(true),
 });
 
 // Teachers table
 export const teachers = pgTable("teachers", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
+  firstName: text("first_name").notNull().default(""),
+  lastName: text("last_name").notNull().default(""),
   employeeId: text("employee_id").notNull().unique(),
   department: text("department"),
   specialization: text("specialization"),
   phone: text("phone"),
-  maxHoursPerWeek: integer("max_hours_per_week").default(40),
-  preferences: json("preferences"), // scheduling preferences
+  maxHoursPerWeek: integer("max_hours_per_week").default(30),
   isActive: boolean("is_active").notNull().default(true),
 });
 
-// Classes table (academic classes/grades)
+// Classes table
 export const classes = pgTable("classes", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   grade: text("grade").notNull(),
   section: text("section"),
-  schoolId: integer("school_id").references(() => schools.id),
   classTeacherId: integer("class_teacher_id").references(() => teachers.id),
   totalStudents: integer("total_students").default(30),
   isActive: boolean("is_active").notNull().default(true),
@@ -69,8 +57,7 @@ export const rooms = pgTable("rooms", {
   building: text("building"),
   floor: text("floor"),
   capacity: integer("capacity").notNull(),
-  roomType: text("room_type").notNull(), // classroom, lab, auditorium, etc.
-  equipment: json("equipment"), // available equipment
+  roomType: text("room_type").notNull().default("classroom"),
   isActive: boolean("is_active").notNull().default(true),
 });
 
@@ -80,9 +67,26 @@ export const timeSlots = pgTable("time_slots", {
   name: text("name").notNull(),
   startTime: time("start_time").notNull(),
   endTime: time("end_time").notNull(),
-  dayOfWeek: integer("day_of_week").notNull(), // 1=Monday, 7=Sunday
+  dayOfWeek: integer("day_of_week").notNull(),
+  periodNumber: integer("period_number").notNull().default(1),
   isBreak: boolean("is_break").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+});
+
+// Teacher-Subject junction (which subjects a teacher can teach)
+export const teacherSubjects = pgTable("teacher_subjects", {
+  id: serial("id").primaryKey(),
+  teacherId: integer("teacher_id").references(() => teachers.id, { onDelete: "cascade" }).notNull(),
+  subjectId: integer("subject_id").references(() => subjects.id, { onDelete: "cascade" }).notNull(),
+});
+
+// Class-Subject assignments (which subjects a class studies, with teacher and weekly hours)
+export const classSubjects = pgTable("class_subjects", {
+  id: serial("id").primaryKey(),
+  classId: integer("class_id").references(() => classes.id, { onDelete: "cascade" }).notNull(),
+  subjectId: integer("subject_id").references(() => subjects.id, { onDelete: "cascade" }).notNull(),
+  teacherId: integer("teacher_id").references(() => teachers.id),
+  weeklyHours: integer("weekly_hours").notNull().default(2),
 });
 
 // Schedule entries table (main timetable)
@@ -101,49 +105,31 @@ export const scheduleEntries = pgTable("schedule_entries", {
 // Schedule conflicts table
 export const scheduleConflicts = pgTable("schedule_conflicts", {
   id: serial("id").primaryKey(),
-  conflictType: text("conflict_type").notNull(), // room, teacher, class
+  conflictType: text("conflict_type").notNull(),
   description: text("description").notNull(),
   scheduleEntry1Id: integer("schedule_entry_1_id").references(() => scheduleEntries.id),
   scheduleEntry2Id: integer("schedule_entry_2_id").references(() => scheduleEntries.id),
-  severity: text("severity").notNull().default("medium"), // low, medium, high
+  severity: text("severity").notNull().default("medium"),
   isResolved: boolean("is_resolved").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Relations
-export const usersRelations = relations(users, ({ one }) => ({
-  teacher: one(teachers, {
-    fields: [users.id],
-    references: [teachers.userId],
-  }),
-}));
-
-export const teachersRelations = relations(teachers, ({ one, many }) => ({
-  user: one(users, {
-    fields: [teachers.userId],
-    references: [users.id],
-  }),
-  scheduleEntries: many(scheduleEntries),
-  classesAsTeacher: many(classes),
-}));
-
-export const schoolsRelations = relations(schools, ({ many }) => ({
-  classes: many(classes),
-}));
-
-export const classesRelations = relations(classes, ({ one, many }) => ({
-  school: one(schools, {
-    fields: [classes.schoolId],
-    references: [schools.id],
-  }),
-  classTeacher: one(teachers, {
-    fields: [classes.classTeacherId],
-    references: [teachers.id],
-  }),
+export const teachersRelations = relations(teachers, ({ many }) => ({
+  teacherSubjects: many(teacherSubjects),
+  classSubjects: many(classSubjects),
   scheduleEntries: many(scheduleEntries),
 }));
 
 export const subjectsRelations = relations(subjects, ({ many }) => ({
+  teacherSubjects: many(teacherSubjects),
+  classSubjects: many(classSubjects),
+  scheduleEntries: many(scheduleEntries),
+}));
+
+export const classesRelations = relations(classes, ({ one, many }) => ({
+  classTeacher: one(teachers, { fields: [classes.classTeacherId], references: [teachers.id] }),
+  classSubjects: many(classSubjects),
   scheduleEntries: many(scheduleEntries),
 }));
 
@@ -155,113 +141,56 @@ export const timeSlotsRelations = relations(timeSlots, ({ many }) => ({
   scheduleEntries: many(scheduleEntries),
 }));
 
-export const scheduleEntriesRelations = relations(scheduleEntries, ({ one, many }) => ({
-  class: one(classes, {
-    fields: [scheduleEntries.classId],
-    references: [classes.id],
-  }),
-  subject: one(subjects, {
-    fields: [scheduleEntries.subjectId],
-    references: [subjects.id],
-  }),
-  teacher: one(teachers, {
-    fields: [scheduleEntries.teacherId],
-    references: [teachers.id],
-  }),
-  room: one(rooms, {
-    fields: [scheduleEntries.roomId],
-    references: [rooms.id],
-  }),
-  timeSlot: one(timeSlots, {
-    fields: [scheduleEntries.timeSlotId],
-    references: [timeSlots.id],
-  }),
-  conflictsAsEntry1: many(scheduleConflicts, {
-    relationName: "entry1Conflicts",
-  }),
-  conflictsAsEntry2: many(scheduleConflicts, {
-    relationName: "entry2Conflicts",
-  }),
+export const teacherSubjectsRelations = relations(teacherSubjects, ({ one }) => ({
+  teacher: one(teachers, { fields: [teacherSubjects.teacherId], references: [teachers.id] }),
+  subject: one(subjects, { fields: [teacherSubjects.subjectId], references: [subjects.id] }),
 }));
 
-export const scheduleConflictsRelations = relations(scheduleConflicts, ({ one }) => ({
-  scheduleEntry1: one(scheduleEntries, {
-    fields: [scheduleConflicts.scheduleEntry1Id],
-    references: [scheduleEntries.id],
-    relationName: "entry1Conflicts",
-  }),
-  scheduleEntry2: one(scheduleEntries, {
-    fields: [scheduleConflicts.scheduleEntry2Id],
-    references: [scheduleEntries.id],
-    relationName: "entry2Conflicts",
-  }),
+export const classSubjectsRelations = relations(classSubjects, ({ one }) => ({
+  class: one(classes, { fields: [classSubjects.classId], references: [classes.id] }),
+  subject: one(subjects, { fields: [classSubjects.subjectId], references: [subjects.id] }),
+  teacher: one(teachers, { fields: [classSubjects.teacherId], references: [teachers.id] }),
+}));
+
+export const scheduleEntriesRelations = relations(scheduleEntries, ({ one }) => ({
+  class: one(classes, { fields: [scheduleEntries.classId], references: [classes.id] }),
+  subject: one(subjects, { fields: [scheduleEntries.subjectId], references: [subjects.id] }),
+  teacher: one(teachers, { fields: [scheduleEntries.teacherId], references: [teachers.id] }),
+  room: one(rooms, { fields: [scheduleEntries.roomId], references: [rooms.id] }),
+  timeSlot: one(timeSlots, { fields: [scheduleEntries.timeSlotId], references: [timeSlots.id] }),
 }));
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertSchoolSchema = createInsertSchema(schools).omit({
-  id: true,
-});
-
-export const insertSubjectSchema = createInsertSchema(subjects).omit({
-  id: true,
-});
-
-export const insertTeacherSchema = createInsertSchema(teachers).omit({
-  id: true,
-});
-
-export const insertClassSchema = createInsertSchema(classes).omit({
-  id: true,
-});
-
-export const insertRoomSchema = createInsertSchema(rooms).omit({
-  id: true,
-});
-
-export const insertTimeSlotSchema = createInsertSchema(timeSlots).omit({
-  id: true,
-});
-
-export const insertScheduleEntrySchema = createInsertSchema(scheduleEntries).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertScheduleConflictSchema = createInsertSchema(scheduleConflicts).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertAccessCodeSchema = createInsertSchema(accessCodes).omit({ id: true, createdAt: true, lastUsed: true });
+export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true });
+export const insertTeacherSchema = createInsertSchema(teachers).omit({ id: true });
+export const insertClassSchema = createInsertSchema(classes).omit({ id: true });
+export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
+export const insertTimeSlotSchema = createInsertSchema(timeSlots).omit({ id: true });
+export const insertTeacherSubjectSchema = createInsertSchema(teacherSubjects).omit({ id: true });
+export const insertClassSubjectSchema = createInsertSchema(classSubjects).omit({ id: true });
+export const insertScheduleEntrySchema = createInsertSchema(scheduleEntries).omit({ id: true, createdAt: true });
+export const insertScheduleConflictSchema = createInsertSchema(scheduleConflicts).omit({ id: true, createdAt: true });
 
 // Types
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-
-export type School = typeof schools.$inferSelect;
-export type InsertSchool = z.infer<typeof insertSchoolSchema>;
-
+export type AccessCode = typeof accessCodes.$inferSelect;
+export type InsertAccessCode = z.infer<typeof insertAccessCodeSchema>;
 export type Subject = typeof subjects.$inferSelect;
 export type InsertSubject = z.infer<typeof insertSubjectSchema>;
-
 export type Teacher = typeof teachers.$inferSelect;
 export type InsertTeacher = z.infer<typeof insertTeacherSchema>;
-
 export type Class = typeof classes.$inferSelect;
 export type InsertClass = z.infer<typeof insertClassSchema>;
-
 export type Room = typeof rooms.$inferSelect;
 export type InsertRoom = z.infer<typeof insertRoomSchema>;
-
 export type TimeSlot = typeof timeSlots.$inferSelect;
 export type InsertTimeSlot = z.infer<typeof insertTimeSlotSchema>;
-
+export type TeacherSubject = typeof teacherSubjects.$inferSelect;
+export type InsertTeacherSubject = z.infer<typeof insertTeacherSubjectSchema>;
+export type ClassSubject = typeof classSubjects.$inferSelect;
+export type InsertClassSubject = z.infer<typeof insertClassSubjectSchema>;
 export type ScheduleEntry = typeof scheduleEntries.$inferSelect;
 export type InsertScheduleEntry = z.infer<typeof insertScheduleEntrySchema>;
-
 export type ScheduleConflict = typeof scheduleConflicts.$inferSelect;
 export type InsertScheduleConflict = z.infer<typeof insertScheduleConflictSchema>;
 
@@ -269,25 +198,14 @@ export type InsertScheduleConflict = z.infer<typeof insertScheduleConflictSchema
 export const loginSchema = z.object({
   accessCode: z.string().min(1, "Kirish kodi kiritilishi kerak"),
 });
-
 export type LoginRequest = z.infer<typeof loginSchema>;
 
-// Access codes table for custom authentication
-export const accessCodes = pgTable("access_codes", {
-  id: serial("id").primaryKey(),
-  code: text("code").notNull().unique(),
-  ownerName: text("owner_name").notNull(),
-  role: text("role").notNull().default("teacher"), // admin, teacher
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  lastUsed: timestamp("last_used"),
-});
-
-export const insertAccessCodeSchema = createInsertSchema(accessCodes).omit({
-  id: true,
-  createdAt: true,
-  lastUsed: true,
-});
-
-export type AccessCode = typeof accessCodes.$inferSelect;
-export type InsertAccessCode = z.infer<typeof insertAccessCodeSchema>;
+// Legacy types for backward compat
+export type User = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  role: string;
+  username: string;
+  email: string;
+};
