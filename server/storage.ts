@@ -312,15 +312,18 @@ export class DatabaseStorage implements IStorage {
     activeConflicts: number;
     roomUtilization: number;
   }> {
-    const [classCount] = await db.select({ count: eq(classes.isActive, true) }).from(classes);
-    const [teacherCount] = await db.select({ count: eq(teachers.isActive, true) }).from(teachers);
-    const [conflictCount] = await db.select({ count: eq(scheduleConflicts.isResolved, false) }).from(scheduleConflicts);
-    
+    const [classResult] = await db.select({ count: count() }).from(classes).where(eq(classes.isActive, true));
+    const [teacherResult] = await db.select({ count: count() }).from(teachers).where(eq(teachers.isActive, true));
+    const [conflictResult] = await db.select({ count: count() }).from(scheduleConflicts).where(eq(scheduleConflicts.isResolved, false));
+    const [roomResult] = await db.select({ count: count() }).from(rooms).where(eq(rooms.isActive, true));
+    const totalRooms = roomResult?.count || 0;
+    const utilization = totalRooms > 0 ? Math.min(Math.round((Number(teacherResult?.count || 0) / totalRooms) * 100), 100) : 0;
+
     return {
-      totalClasses: classCount?.count || 0,
-      totalTeachers: teacherCount?.count || 0,
-      activeConflicts: conflictCount?.count || 0,
-      roomUtilization: 75 // Mock data for now
+      totalClasses: Number(classResult?.count || 0),
+      totalTeachers: Number(teacherResult?.count || 0),
+      activeConflicts: Number(conflictResult?.count || 0),
+      roomUtilization: utilization || 0,
     };
   }
 }

@@ -1,533 +1,415 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { 
-  insertUserSchema, insertSchoolSchema, insertSubjectSchema,
-  insertTeacherSchema, insertClassSchema, insertRoomSchema,
-  insertTimeSlotSchema, insertScheduleEntrySchema,
-  loginSchema, type User
+import { db } from "./db";
+import { classes, teachers, rooms, scheduleConflicts } from "@shared/schema";
+import { eq, count, and } from "drizzle-orm";
+import {
+  insertSubjectSchema,
+  insertTeacherSchema,
+  insertClassSchema,
+  insertRoomSchema,
+  insertTimeSlotSchema,
+  insertScheduleEntrySchema,
+  loginSchema,
 } from "@shared/schema";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const JWT_SECRET = process.env.JWT_SECRET || "maktab-jadval-secret-2024";
 
-// Middleware to verify JWT token
 function authenticateToken(req: any, res: any, next: any) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
-  }
-
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (!token) return res.status(401).json({ message: "Avtorizatsiya talab etiladi" });
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) return res.status(403).json({ message: 'Invalid token' });
+    if (err) return res.status(403).json({ message: "Yaroqsiz token" });
     req.user = user;
     next();
   });
 }
 
-// Middleware to check admin role
 function requireAdmin(req: any, res: any, next: any) {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ message: 'Admin access required' });
-  }
+  if (req.user?.role !== "admin") return res.status(403).json({ message: "Admin huquqi talab etiladi" });
   next();
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Authentication routes
+  // ─── AUTH ───────────────────────────────────────────────────────────────────
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { accessCode } = loginSchema.parse(req.body);
-      
-      const validAccessCode = await storage.getAccessCodeByCode(accessCode);
-      if (!validAccessCode) {
-        return res.status(401).json({ message: "Noto'g'ri kirish kodi" });
+      const validCode = await storage.getAccessCodeByCode(accessCode.trim().toUpperCase());
+      if (!validCode) {
+        return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
       }
-
-      // Update last used time
-      await storage.updateAccessCodeLastUsed(accessCode);
-
+      await storage.updateAccessCodeLastUsed(validCode.code);
       const token = jwt.sign(
-        { 
-          id: validAccessCode.id, 
-          code: validAccessCode.code,
-          ownerName: validAccessCode.ownerName,
-          role: validAccessCode.role 
-        },
+        { id: validCode.id, code: validCode.code, ownerName: validCode.ownerName, role: validCode.role },
         JWT_SECRET,
-        { expiresIn: '24h' }
+        { expiresIn: "24h" }
       );
-
+      const parts = validCode.ownerName.trim().split(" ");
       const user = {
-        id: validAccessCode.id,
-        firstName: validAccessCode.ownerName.split(' ')[0] || validAccessCode.ownerName,
-        lastName: validAccessCode.ownerName.split(' ')[1] || '',
-        role: validAccessCode.role,
-        username: validAccessCode.code,
-        email: `${validAccessCode.code}@school.edu`
+        id: validCode.id,
+        firstName: parts[0] || validCode.ownerName,
+        lastName: parts.slice(1).join(" ") || "",
+        role: validCode.role,
+        username: validCode.code,
+        email: `${validCode.code.toLowerCase()}@maktab.uz`,
       };
-
       res.json({ token, user });
-    } catch (error) {
-      res.status(400).json({ message: "Noto'g'ri so'rov" });
-    }
-  });
-
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-      
-      // Check if user already exists
-      const existingUser = await storage.getUserByUsername(userData.username);
-      if (existingUser) {
-        return res.status(400).json({ message: "Username already exists" });
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(userData.password, 10);
-      
-      const user = await storage.createUser({
-        ...userData,
-        password: hashedPassword,
-      });
-
-      const { password: _, ...userWithoutPassword } = user;
-      res.status(201).json(userWithoutPassword);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+    } catch (error: any) {
+      console.error("[login]", error);
+      res.status(400).json({ message: "So'rov noto'g'ri formatda" });
     }
   });
 
   app.get("/api/auth/me", authenticateToken, async (req: any, res) => {
     try {
-      const user = {
+      const parts = (req.user.ownerName || "").trim().split(" ");
+      res.json({
         id: req.user.id,
-        firstName: req.user.ownerName?.split(' ')[0] || req.user.ownerName || 'User',
-        lastName: req.user.ownerName?.split(' ')[1] || '',
+        firstName: parts[0] || "Foydalanuvchi",
+        lastName: parts.slice(1).join(" ") || "",
         role: req.user.role,
         username: req.user.code,
-        email: `${req.user.code}@school.edu`
-      };
-      res.json(user);
-    } catch (error) {
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  // Access code management routes (admin only)
-  app.get("/api/access-codes", authenticateToken, requireAdmin, async (req, res) => {
-    try {
-      const accessCodes = await storage.getAllAccessCodes();
-      res.json(accessCodes);
-    } catch (error) {
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  app.post("/api/access-codes", authenticateToken, requireAdmin, async (req, res) => {
-    try {
-      const { code, ownerName, role } = req.body;
-      
-      if (!code || !ownerName) {
-        return res.status(400).json({ message: "Kod va egasi nomi kiritilishi kerak" });
-      }
-
-      const accessCode = await storage.createAccessCode({
-        code,
-        ownerName,
-        role: role || 'teacher'
+        email: `${(req.user.code || "").toLowerCase()}@maktab.uz`,
       });
-      
-      res.status(201).json(accessCode);
     } catch (error) {
-      res.status(400).json({ message: "Kod yaratishda xatolik" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  app.delete("/api/access-codes/:id", authenticateToken, requireAdmin, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const success = await storage.deleteAccessCode(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "Kod topilmadi" });
-      }
-      
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  // Dashboard stats
-  app.get("/api/dashboard/stats", authenticateToken, async (req, res) => {
+  // ─── DASHBOARD ──────────────────────────────────────────────────────────────
+  app.get("/api/dashboard/stats", authenticateToken, async (_req, res) => {
     try {
       const stats = await storage.getDashboardStats();
       res.json(stats);
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      console.error("[dashboard/stats]", error);
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  // Schools routes
-  app.get("/api/schools", authenticateToken, async (req, res) => {
+  // ─── SUBJECTS ───────────────────────────────────────────────────────────────
+  app.get("/api/subjects", authenticateToken, async (_req, res) => {
     try {
-      const schools = await storage.getSchools();
-      res.json(schools);
+      res.json(await storage.getSubjects());
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  app.post("/api/schools", authenticateToken, requireAdmin, async (req, res) => {
+  app.post("/api/subjects", authenticateToken, async (req, res) => {
     try {
-      const schoolData = insertSchoolSchema.parse(req.body);
-      const school = await storage.createSchool(schoolData);
-      res.status(201).json(school);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const body = req.body;
+      // Auto-generate code from name if not provided
+      if (!body.code) {
+        body.code = (body.name || "FAN")
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(0, 8) + "_" + Date.now().toString().slice(-4);
+      }
+      const data = insertSubjectSchema.parse({ ...body, isActive: true });
+      res.status(201).json(await storage.createSubject(data));
+    } catch (error: any) {
+      console.error("[subjects POST]", error);
+      res.status(400).json({ message: error.message || "Fan qo'shilmadi" });
     }
   });
 
-  app.put("/api/schools/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.patch("/api/subjects/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const schoolData = insertSchoolSchema.partial().parse(req.body);
-      const school = await storage.updateSchool(id, schoolData);
-      
-      if (!school) {
-        return res.status(404).json({ message: "School not found" });
-      }
-      
-      res.json(school);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const data = insertSubjectSchema.partial().parse(req.body);
+      const result = await storage.updateSubject(id, data);
+      if (!result) return res.status(404).json({ message: "Fan topilmadi" });
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Yangilashda xato" });
     }
   });
 
-  app.delete("/api/schools/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.delete("/api/subjects/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const success = await storage.deleteSchool(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "School not found" });
-      }
-      
+      const ok = await storage.deleteSubject(id);
+      if (!ok) return res.status(404).json({ message: "Fan topilmadi" });
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  // Subjects routes
-  app.get("/api/subjects", authenticateToken, async (req, res) => {
+  // ─── TEACHERS ───────────────────────────────────────────────────────────────
+  app.get("/api/teachers", authenticateToken, async (_req, res) => {
     try {
-      const subjects = await storage.getSubjects();
-      res.json(subjects);
+      res.json(await storage.getTeachers());
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  app.post("/api/subjects", authenticateToken, requireAdmin, async (req, res) => {
+  app.post("/api/teachers", authenticateToken, async (req, res) => {
     try {
-      const subjectData = insertSubjectSchema.parse(req.body);
-      const subject = await storage.createSubject(subjectData);
-      res.status(201).json(subject);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const body = req.body;
+      // Build employeeId from firstName+lastName if not provided
+      const nameSlug = `${body.firstName || ""}${body.lastName || ""}`.replace(/\s+/g, "").toUpperCase().slice(0, 6);
+      const employeeId = body.employeeId || `T_${nameSlug}_${Date.now().toString().slice(-4)}`;
+      // Build specialization / department display name
+      const specialization = body.specialization || body.department || "";
+      const data = insertTeacherSchema.parse({
+        employeeId,
+        department: body.department || "",
+        specialization,
+        phone: body.phone || null,
+        maxHoursPerWeek: body.maxHoursPerWeek || 20,
+        isActive: true,
+      });
+      res.status(201).json(await storage.createTeacher(data));
+    } catch (error: any) {
+      console.error("[teachers POST]", error);
+      res.status(400).json({ message: error.message || "O'qituvchi qo'shilmadi" });
     }
   });
 
-  app.put("/api/subjects/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.patch("/api/teachers/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const subjectData = insertSubjectSchema.partial().parse(req.body);
-      const subject = await storage.updateSubject(id, subjectData);
-      
-      if (!subject) {
-        return res.status(404).json({ message: "Subject not found" });
-      }
-      
-      res.json(subject);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const data = insertTeacherSchema.partial().parse(req.body);
+      const result = await storage.updateTeacher(id, data);
+      if (!result) return res.status(404).json({ message: "O'qituvchi topilmadi" });
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Yangilashda xato" });
     }
   });
 
-  app.delete("/api/subjects/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.delete("/api/teachers/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const success = await storage.deleteSubject(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "Subject not found" });
-      }
-      
+      const ok = await storage.deleteTeacher(id);
+      if (!ok) return res.status(404).json({ message: "O'qituvchi topilmadi" });
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  // Teachers routes
-  app.get("/api/teachers", authenticateToken, async (req, res) => {
+  // ─── CLASSES ────────────────────────────────────────────────────────────────
+  app.get("/api/classes", authenticateToken, async (_req, res) => {
     try {
-      const teachers = await storage.getTeachers();
-      res.json(teachers);
+      res.json(await storage.getClasses());
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  app.post("/api/teachers", authenticateToken, requireAdmin, async (req, res) => {
+  app.post("/api/classes", authenticateToken, async (req, res) => {
     try {
-      const teacherData = insertTeacherSchema.parse(req.body);
-      const teacher = await storage.createTeacher(teacherData);
-      res.status(201).json(teacher);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const body = req.body;
+      const name = body.name || `${body.grade || "?"}${body.section ? "-" + body.section : ""}`;
+      const grade = body.grade || name.split("-")[0] || "1";
+      const data = insertClassSchema.parse({
+        name,
+        grade,
+        section: body.section || null,
+        totalStudents: body.totalStudents || 25,
+        isActive: true,
+      });
+      res.status(201).json(await storage.createClass(data));
+    } catch (error: any) {
+      console.error("[classes POST]", error);
+      res.status(400).json({ message: error.message || "Sinf qo'shilmadi" });
     }
   });
 
-  app.put("/api/teachers/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.patch("/api/classes/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const teacherData = insertTeacherSchema.partial().parse(req.body);
-      const teacher = await storage.updateTeacher(id, teacherData);
-      
-      if (!teacher) {
-        return res.status(404).json({ message: "Teacher not found" });
-      }
-      
-      res.json(teacher);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const data = insertClassSchema.partial().parse(req.body);
+      const result = await storage.updateClass(id, data);
+      if (!result) return res.status(404).json({ message: "Sinf topilmadi" });
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Yangilashda xato" });
     }
   });
 
-  app.delete("/api/teachers/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.delete("/api/classes/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const success = await storage.deleteTeacher(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "Teacher not found" });
-      }
-      
+      const ok = await storage.deleteClass(id);
+      if (!ok) return res.status(404).json({ message: "Sinf topilmadi" });
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  // Classes routes
-  app.get("/api/classes", authenticateToken, async (req, res) => {
+  // ─── ROOMS ──────────────────────────────────────────────────────────────────
+  app.get("/api/rooms", authenticateToken, async (_req, res) => {
     try {
-      const classes = await storage.getClasses();
-      res.json(classes);
+      res.json(await storage.getRooms());
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  app.post("/api/classes", authenticateToken, requireAdmin, async (req, res) => {
+  app.post("/api/rooms", authenticateToken, async (req, res) => {
     try {
-      const classData = insertClassSchema.parse(req.body);
-      const newClass = await storage.createClass(classData);
-      res.status(201).json(newClass);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const body = req.body;
+      const roomNumber = body.roomNumber || body.name?.replace(/[^A-Z0-9]/gi, "").slice(0, 6) || `R${Date.now().toString().slice(-4)}`;
+      const data = insertRoomSchema.parse({
+        name: body.name || `Xona ${roomNumber}`,
+        roomNumber,
+        building: body.building || null,
+        floor: body.floor || null,
+        capacity: body.capacity || 30,
+        roomType: body.roomType || "classroom",
+        isActive: true,
+      });
+      res.status(201).json(await storage.createRoom(data));
+    } catch (error: any) {
+      console.error("[rooms POST]", error);
+      res.status(400).json({ message: error.message || "Xona qo'shilmadi" });
     }
   });
 
-  app.put("/api/classes/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.patch("/api/rooms/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const classData = insertClassSchema.partial().parse(req.body);
-      const updatedClass = await storage.updateClass(id, classData);
-      
-      if (!updatedClass) {
-        return res.status(404).json({ message: "Class not found" });
-      }
-      
-      res.json(updatedClass);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const data = insertRoomSchema.partial().parse(req.body);
+      const result = await storage.updateRoom(id, data);
+      if (!result) return res.status(404).json({ message: "Xona topilmadi" });
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Yangilashda xato" });
     }
   });
 
-  app.delete("/api/classes/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app.delete("/api/rooms/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const success = await storage.deleteClass(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "Class not found" });
-      }
-      
+      const ok = await storage.deleteRoom(id);
+      if (!ok) return res.status(404).json({ message: "Xona topilmadi" });
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  // Rooms routes
-  app.get("/api/rooms", authenticateToken, async (req, res) => {
+  // ─── TIME SLOTS ─────────────────────────────────────────────────────────────
+  app.get("/api/time-slots", authenticateToken, async (_req, res) => {
     try {
-      const rooms = await storage.getRooms();
-      res.json(rooms);
+      res.json(await storage.getTimeSlots());
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  app.post("/api/rooms", authenticateToken, requireAdmin, async (req, res) => {
+  app.post("/api/time-slots", authenticateToken, async (req, res) => {
     try {
-      const roomData = insertRoomSchema.parse(req.body);
-      const room = await storage.createRoom(roomData);
-      res.status(201).json(room);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const data = insertTimeSlotSchema.parse(req.body);
+      res.status(201).json(await storage.createTimeSlot(data));
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Vaqt uyasi qo'shilmadi" });
     }
   });
 
-  app.put("/api/rooms/:id", authenticateToken, requireAdmin, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const roomData = insertRoomSchema.partial().parse(req.body);
-      const room = await storage.updateRoom(id, roomData);
-      
-      if (!room) {
-        return res.status(404).json({ message: "Room not found" });
-      }
-      
-      res.json(room);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
-    }
-  });
-
-  app.delete("/api/rooms/:id", authenticateToken, requireAdmin, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const success = await storage.deleteRoom(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "Room not found" });
-      }
-      
-      res.status(204).send();
-    } catch (error) {
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  // Time slots routes
-  app.get("/api/time-slots", authenticateToken, async (req, res) => {
-    try {
-      const timeSlots = await storage.getTimeSlots();
-      res.json(timeSlots);
-    } catch (error) {
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  app.post("/api/time-slots", authenticateToken, requireAdmin, async (req, res) => {
-    try {
-      const timeSlotData = insertTimeSlotSchema.parse(req.body);
-      const timeSlot = await storage.createTimeSlot(timeSlotData);
-      res.status(201).json(timeSlot);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
-    }
-  });
-
-  // Schedule entries routes
+  // ─── SCHEDULE ENTRIES ───────────────────────────────────────────────────────
   app.get("/api/schedule-entries", authenticateToken, async (req, res) => {
     try {
       const weekStart = req.query.weekStart as string;
-      let entries;
-      
-      if (weekStart) {
-        entries = await storage.getScheduleEntriesForWeek(new Date(weekStart));
-      } else {
-        entries = await storage.getScheduleEntries();
-      }
-      
+      const entries = weekStart
+        ? await storage.getScheduleEntriesForWeek(new Date(weekStart))
+        : await storage.getScheduleEntries();
       res.json(entries);
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
   app.post("/api/schedule-entries", authenticateToken, async (req, res) => {
     try {
-      const entryData = insertScheduleEntrySchema.parse(req.body);
-      const entry = await storage.createScheduleEntry(entryData);
-      res.status(201).json(entry);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const data = insertScheduleEntrySchema.parse(req.body);
+      res.status(201).json(await storage.createScheduleEntry(data));
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Jadval yozuvi qo'shilmadi" });
     }
   });
 
-  app.put("/api/schedule-entries/:id", authenticateToken, async (req, res) => {
+  app.patch("/api/schedule-entries/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const entryData = insertScheduleEntrySchema.partial().parse(req.body);
-      const entry = await storage.updateScheduleEntry(id, entryData);
-      
-      if (!entry) {
-        return res.status(404).json({ message: "Schedule entry not found" });
-      }
-      
-      res.json(entry);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid request" });
+      const data = insertScheduleEntrySchema.partial().parse(req.body);
+      const result = await storage.updateScheduleEntry(id, data);
+      if (!result) return res.status(404).json({ message: "Jadval yozuvi topilmadi" });
+      res.json(result);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Yangilashda xato" });
     }
   });
 
   app.delete("/api/schedule-entries/:id", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const success = await storage.deleteScheduleEntry(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "Schedule entry not found" });
-      }
-      
+      const ok = await storage.deleteScheduleEntry(id);
+      if (!ok) return res.status(404).json({ message: "Jadval yozuvi topilmadi" });
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
-  // Schedule conflicts routes
-  app.get("/api/schedule-conflicts", authenticateToken, async (req, res) => {
+  // ─── SCHEDULE CONFLICTS ─────────────────────────────────────────────────────
+  app.get("/api/schedule-conflicts", authenticateToken, async (_req, res) => {
     try {
-      const conflicts = await storage.getUnresolvedConflicts();
-      res.json(conflicts);
+      res.json(await storage.getUnresolvedConflicts());
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
   app.post("/api/schedule-conflicts/:id/resolve", authenticateToken, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const success = await storage.resolveConflict(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "Conflict not found" });
-      }
-      
+      const ok = await storage.resolveConflict(id);
+      if (!ok) return res.status(404).json({ message: "Ziddiyat topilmadi" });
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ message: "Server xatosi" });
+    }
+  });
+
+  // ─── ACCESS CODES ───────────────────────────────────────────────────────────
+  app.get("/api/access-codes", authenticateToken, requireAdmin, async (_req, res) => {
+    try {
+      res.json(await storage.getAllAccessCodes());
+    } catch (error) {
+      res.status(500).json({ message: "Server xatosi" });
+    }
+  });
+
+  app.post("/api/access-codes", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { code, ownerName, role } = req.body;
+      if (!code || !ownerName) return res.status(400).json({ message: "Kod va egasi nomi kiritilishi kerak" });
+      const ac = await storage.createAccessCode({ code: code.toUpperCase(), ownerName, role: role || "teacher", isActive: true });
+      res.status(201).json(ac);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Kod yaratishda xatolik" });
+    }
+  });
+
+  app.delete("/api/access-codes/:id", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const ok = await storage.deleteAccessCode(id);
+      if (!ok) return res.status(404).json({ message: "Kod topilmadi" });
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
