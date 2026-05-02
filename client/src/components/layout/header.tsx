@@ -1,84 +1,63 @@
-import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Bell, Menu, ChevronRight } from "lucide-react";
-
-const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  "/": { title: "Bosh sahifa", subtitle: "Dars jadvali tizimiga xush kelibsiz" },
-  "/timetables": { title: "Dars jadvali", subtitle: "Haftalik dars jadvalini boshqarish" },
-  "/teachers": { title: "O'qituvchilar", subtitle: "O'qituvchilar ro'yxatini boshqarish" },
-  "/classes": { title: "Sinflar", subtitle: "Sinf va bo'limlarni boshqarish" },
-  "/subjects": { title: "Fanlar", subtitle: "O'quv fanlarini boshqarish" },
-  "/rooms": { title: "Xonalar", subtitle: "Xona va auditoriyalarni boshqarish" },
-  "/settings": { title: "Sozlamalar", subtitle: "Tizim sozlamalari va kirish kodlari" },
-};
+import { Menu, School } from "lucide-react";
 
 interface HeaderProps {
-  onMenuClick?: () => void;
-  onCollapseClick?: () => void;
-  sidebarCollapsed?: boolean;
+  onMobileMenuClick?: () => void;
 }
 
-export default function Header({ onMenuClick, onCollapseClick, sidebarCollapsed }: HeaderProps) {
+export default function Header({ onMobileMenuClick }: HeaderProps) {
   const { user } = useAuth();
-  const [location] = useLocation();
-  const pageInfo = pageTitles[location] || { title: "Sahifa", subtitle: "" };
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 py-3.5 flex-shrink-0">
-      <div className="flex items-center justify-between">
+    <header className="bg-slate-900 border-b border-slate-700 h-14 flex items-center px-4 flex-shrink-0 z-20">
+      <div className="flex items-center justify-between w-full">
+        {/* Left: hamburger (mobile) + brand */}
         <div className="flex items-center space-x-3">
-          {/* Desktop: toggle collapse | Mobile: open drawer */}
+          {/* Mobile hamburger */}
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 text-gray-600 hover:bg-gray-100"
-            onClick={() => {
-              if (window.innerWidth >= 1024) {
-                onCollapseClick?.();
-              } else {
-                onMenuClick?.();
-              }
-            }}
+            className="lg:hidden h-9 w-9 p-0 text-slate-400 hover:text-white hover:bg-slate-700"
+            onClick={onMobileMenuClick}
           >
             <Menu className="h-5 w-5" />
           </Button>
 
-          <div>
-            <div className="hidden sm:flex items-center space-x-2 text-xs text-gray-400 mb-0.5">
-              <span>Maktab Dars Jadvali</span>
-              <ChevronRight className="h-3 w-3" />
-              <span className="text-blue-600 font-medium">{pageInfo.title}</span>
+          {/* Brand */}
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+              <School className="h-4.5 w-4.5 text-white h-5 w-5" />
             </div>
-            <h2 className="text-lg font-bold text-gray-900 leading-tight">{pageInfo.title}</h2>
+            <div>
+              <p className="text-sm font-bold text-white leading-tight">Maktab Dars Jadvali</p>
+              {user && (
+                <p className="text-xs text-slate-400 leading-tight">
+                  Xush kelibsiz, {user.firstName} {user.lastName}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="relative text-gray-500 hover:text-gray-900 h-9 w-9 p-0"
-          >
-            <Bell className="h-5 w-5" />
-          </Button>
-
-          <div className="flex items-center space-x-2 pl-2 border-l border-gray-200">
+        {/* Right: user avatar */}
+        {user && (
+          <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-white font-semibold text-xs">
-                {user?.firstName?.[0] || "?"}{user?.lastName?.[0] || ""}
+                {user.firstName?.[0] || "?"}{user.lastName?.[0] || ""}
               </span>
             </div>
             <div className="hidden md:block">
-              <p className="text-sm font-semibold text-gray-900 leading-tight">
-                {user?.firstName} {user?.lastName}
+              <p className="text-sm font-semibold text-white leading-tight">
+                {user.firstName} {user.lastName}
               </p>
-              <p className="text-xs text-gray-400 leading-tight">
-                {user?.role === "admin" ? "Administrator" : user?.role === "teacher" ? "O'qituvchi" : "Maktab"}
+              <p className="text-xs text-slate-400 leading-tight">
+                {user.role === "admin" ? "Administrator" : user.role === "teacher" ? "O'qituvchi" : "Maktab"}
               </p>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </header>
   );

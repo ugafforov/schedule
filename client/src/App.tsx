@@ -19,8 +19,7 @@ import Header from "@/components/layout/header";
 
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -33,28 +32,20 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
-    return <Redirect to="/login" />;
-  }
+  if (!user) return <Redirect to="/login" />;
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(c => !c)}
-      />
-      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <Header
-          onMenuClick={() => setSidebarOpen(true)}
-          onCollapseClick={() => setSidebarCollapsed(c => !c)}
-          sidebarCollapsed={sidebarCollapsed}
-        />
-        <div className="flex-1 overflow-auto">
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Full-width header */}
+      <Header onMobileMenuClick={() => setMobileOpen(true)} />
+
+      {/* Sidebar + content row */}
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+        <main className="flex-1 overflow-auto min-w-0">
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
@@ -89,7 +80,7 @@ function Router() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -101,5 +92,3 @@ function App() {
     </QueryClientProvider>
   );
 }
-
-export default App;
