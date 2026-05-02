@@ -6,42 +6,37 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function usePwa() {
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(
+    () => (window as any).__pwaInstallPrompt ?? null
+  );
+  const [isInstalled, setIsInstalled] = useState(
+    () => window.matchMedia("(display-mode: standalone)").matches
+  );
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
   useEffect(() => {
-    // Online/offline detection
+    // Online / offline
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
 
-    // Install prompt capture
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setInstallPrompt(e as BeforeInstallPromptEvent);
+    // Install prompt (may arrive after mount)
+    const onReady = () => {
+      setInstallPrompt((window as any).__pwaInstallPrompt ?? null);
     };
-    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("pwaInstallReady", onReady);
 
-    // Check if already installed
+    // Installed detection
     const mq = window.matchMedia("(display-mode: standalone)");
-    setIsInstalled(mq.matches);
-    const onDisplayChange = (e: MediaQueryListEvent) => setIsInstalled(e.matches);
-    mq.addEventListener("change", onDisplayChange);
-
-    // Register service worker
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/sw.js")
-        .catch((err) => console.warn("SW registration failed:", err));
-    }
+    const onDisplay = (e: MediaQueryListEvent) => setIsInstalled(e.matches);
+    mq.addEventListener("change", onDisplay);
 
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      mq.removeEventListener("change", onDisplayChange);
+      window.removeEventListener("pwaInstallReady", onReady);
+      mq.removeEventListener("change", onDisplay);
     };
   }, []);
 
@@ -50,10 +45,11 @@ export function usePwa() {
     await installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
     if (outcome === "accepted") {
+      (window as any).__pwaInstallPrompt = null;
       setInstallPrompt(null);
       setIsInstalled(true);
     }
   };
 
-  return { isOnline, isInstalled, canInstall: !!installPrompt, install };
+  return { isOnline, isInstalled, canInstall: !!installPrompt && !isInstalled, install };
 }
