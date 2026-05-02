@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -12,29 +13,34 @@ import Teachers from "@/pages/teachers";
 import Classes from "@/pages/classes";
 import Subjects from "@/pages/subjects";
 import Rooms from "@/pages/rooms";
+import SettingsPage from "@/pages/settings";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
-  
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-500">Yuklanmoqda...</p>
+        </div>
       </div>
     );
   }
-  
+
   if (!user) {
     return <Redirect to="/login" />;
   }
 
   return (
     <div className="min-h-screen flex bg-gray-50">
-      <Sidebar />
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <Header onMenuClick={() => setSidebarOpen(true)} />
         <div className="flex-1 overflow-auto">
           {children}
         </div>
@@ -48,34 +54,25 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/">
-        <ProtectedRoute>
-          <Dashboard />
-        </ProtectedRoute>
+        <ProtectedLayout><Dashboard /></ProtectedLayout>
       </Route>
       <Route path="/timetables">
-        <ProtectedRoute>
-          <Timetables />
-        </ProtectedRoute>
+        <ProtectedLayout><Timetables /></ProtectedLayout>
       </Route>
       <Route path="/teachers">
-        <ProtectedRoute>
-          <Teachers />
-        </ProtectedRoute>
+        <ProtectedLayout><Teachers /></ProtectedLayout>
       </Route>
       <Route path="/classes">
-        <ProtectedRoute>
-          <Classes />
-        </ProtectedRoute>
+        <ProtectedLayout><Classes /></ProtectedLayout>
       </Route>
       <Route path="/subjects">
-        <ProtectedRoute>
-          <Subjects />
-        </ProtectedRoute>
+        <ProtectedLayout><Subjects /></ProtectedLayout>
       </Route>
       <Route path="/rooms">
-        <ProtectedRoute>
-          <Rooms />
-        </ProtectedRoute>
+        <ProtectedLayout><Rooms /></ProtectedLayout>
+      </Route>
+      <Route path="/settings">
+        <ProtectedLayout><SettingsPage /></ProtectedLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

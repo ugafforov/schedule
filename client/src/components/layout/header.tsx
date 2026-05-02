@@ -10,55 +10,62 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   "/classes": { title: "Sinflar", subtitle: "Sinf va bo'limlarni boshqarish" },
   "/subjects": { title: "Fanlar", subtitle: "O'quv fanlarini boshqarish" },
   "/rooms": { title: "Xonalar", subtitle: "Xona va auditoriyalarni boshqarish" },
+  "/settings": { title: "Sozlamalar", subtitle: "Tizim sozlamalari va kirish kodlari" },
 };
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const { user } = useAuth();
   const [location] = useLocation();
   const pageInfo = pageTitles[location] || { title: "Sahifa", subtitle: "" };
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+    <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3.5 flex-shrink-0">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
+          {/* Hamburger for mobile */}
           <Button
             variant="ghost"
             size="sm"
-            className="lg:hidden"
+            className="lg:hidden h-9 w-9 p-0 text-gray-600 hover:bg-gray-100"
+            onClick={onMenuClick}
           >
             <Menu className="h-5 w-5" />
           </Button>
           <div>
-            <div className="flex items-center space-x-2 text-xs text-gray-500 mb-0.5">
+            <div className="hidden sm:flex items-center space-x-2 text-xs text-gray-400 mb-0.5">
               <span>Maktab Dars Jadvali</span>
               <ChevronRight className="h-3 w-3" />
               <span className="text-blue-600 font-medium">{pageInfo.title}</span>
             </div>
-            <h2 className="text-xl font-bold text-gray-900">{pageInfo.title}</h2>
+            <h2 className="text-lg font-bold text-gray-900 leading-tight">{pageInfo.title}</h2>
           </div>
         </div>
-        
-        <div className="flex items-center space-x-3">
+
+        <div className="flex items-center space-x-2">
           <Button
             variant="ghost"
             size="sm"
-            className="relative text-gray-500 hover:text-gray-900"
+            className="relative text-gray-500 hover:text-gray-900 h-9 w-9 p-0"
           >
             <Bell className="h-5 w-5" />
           </Button>
-          
-          <div className="flex items-center space-x-2 pl-3 border-l border-gray-200">
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+
+          <div className="flex items-center space-x-2 pl-2 border-l border-gray-200">
+            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
               <span className="text-white font-semibold text-xs">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
+                {user?.firstName?.[0] || "?"}{user?.lastName?.[0] || ""}
               </span>
             </div>
             <div className="hidden md:block">
-              <p className="text-sm font-medium text-gray-900 leading-tight">
+              <p className="text-sm font-semibold text-gray-900 leading-tight">
                 {user?.firstName} {user?.lastName}
               </p>
-              <p className="text-xs text-gray-500 capitalize leading-tight">
-                {user?.role === 'admin' ? 'Administrator' : user?.role === 'teacher' ? "O'qituvchi" : user?.role}
+              <p className="text-xs text-gray-400 leading-tight">
+                {user?.role === "admin" ? "Administrator" : user?.role === "teacher" ? "O'qituvchi" : "Maktab"}
               </p>
             </div>
           </div>
