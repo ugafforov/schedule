@@ -147,6 +147,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
+  // ── Bulk create subjects ────────────────────────────────────────────────────
+  app.post("/api/subjects/bulk", auth, async (req, res) => {
+    try {
+      const items: Array<{ name: string; code: string; color: string; weeklyHours: number; requiredRoomType: string; description?: string }> = req.body.subjects;
+      if (!Array.isArray(items) || items.length === 0)
+        return res.status(400).json({ message: "Fanlar ro'yxati bo'sh" });
+      const created = [];
+      for (const item of items) {
+        const code = item.code + "_" + Date.now().toString().slice(-4) + Math.floor(Math.random()*99);
+        const data = insertSubjectSchema.parse({ ...item, code, isActive: true });
+        created.push(await storage.createSubject(data));
+      }
+      res.status(201).json(created);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message || "Xatolik" });
+    }
+  });
+
   // ─── TEACHERS ─────────────────────────────────────────────────────────────
   app.get("/api/teachers", auth, async (_req, res) => {
     res.json(await storage.getTeachers());
