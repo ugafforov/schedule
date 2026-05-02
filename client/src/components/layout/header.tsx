@@ -15,26 +15,35 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
 
 interface HeaderProps {
   onMenuClick?: () => void;
+  onCollapseClick?: () => void;
+  sidebarCollapsed?: boolean;
 }
 
-export default function Header({ onMenuClick }: HeaderProps) {
+export default function Header({ onMenuClick, onCollapseClick, sidebarCollapsed }: HeaderProps) {
   const { user } = useAuth();
   const [location] = useLocation();
   const pageInfo = pageTitles[location] || { title: "Sahifa", subtitle: "" };
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3.5 flex-shrink-0">
+    <header className="bg-white border-b border-gray-200 px-4 py-3.5 flex-shrink-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          {/* Hamburger for mobile */}
+          {/* Desktop: toggle collapse | Mobile: open drawer */}
           <Button
             variant="ghost"
             size="sm"
-            className="lg:hidden h-9 w-9 p-0 text-gray-600 hover:bg-gray-100"
-            onClick={onMenuClick}
+            className="h-9 w-9 p-0 text-gray-600 hover:bg-gray-100"
+            onClick={() => {
+              if (window.innerWidth >= 1024) {
+                onCollapseClick?.();
+              } else {
+                onMenuClick?.();
+              }
+            }}
           >
             <Menu className="h-5 w-5" />
           </Button>
+
           <div>
             <div className="hidden sm:flex items-center space-x-2 text-xs text-gray-400 mb-0.5">
               <span>Maktab Dars Jadvali</span>
