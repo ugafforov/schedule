@@ -25,7 +25,7 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center space-y-3">
-          <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-10 h-10 border-[3px] border-blue-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-gray-500">Yuklanmoqda...</p>
         </div>
       </div>

@@ -50,6 +50,7 @@ export function LoginForm() {
             id="accessCode"
             type={showCode ? "text" : "password"}
             placeholder="Kirish kodingizni kiriting"
+            autoComplete="current-password"
             {...register("accessCode")}
             className="pl-10 pr-10 h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
           />
