@@ -22,6 +22,8 @@ export const subjects = pgTable("subjects", {
   description: text("description"),
   color: text("color").notNull().default("#1976D2"),
   weeklyHours: integer("weekly_hours").notNull().default(2),
+  // room type required: "classroom" | "lab" | "gym" | "computer" | "music" | "art" | "any"
+  requiredRoomType: text("required_room_type").notNull().default("any"),
   isActive: boolean("is_active").notNull().default(true),
 });
 
@@ -36,6 +38,14 @@ export const teachers = pgTable("teachers", {
   phone: text("phone"),
   maxHoursPerWeek: integer("max_hours_per_week").default(30),
   isActive: boolean("is_active").notNull().default(true),
+});
+
+// Teacher unavailability — which day/period a teacher cannot teach
+export const teacherUnavailability = pgTable("teacher_unavailability", {
+  id: serial("id").primaryKey(),
+  teacherId: integer("teacher_id").references(() => teachers.id, { onDelete: "cascade" }).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 1=Mon … 5=Fri
+  periodNumber: integer("period_number").notNull(), // 1-6
 });
 
 // Classes table
@@ -57,6 +67,7 @@ export const rooms = pgTable("rooms", {
   building: text("building"),
   floor: text("floor"),
   capacity: integer("capacity").notNull(),
+  // "classroom" | "lab" | "gym" | "computer" | "music" | "art"
   roomType: text("room_type").notNull().default("classroom"),
   isActive: boolean("is_active").notNull().default(true),
 });
@@ -119,6 +130,11 @@ export const teachersRelations = relations(teachers, ({ many }) => ({
   teacherSubjects: many(teacherSubjects),
   classSubjects: many(classSubjects),
   scheduleEntries: many(scheduleEntries),
+  unavailability: many(teacherUnavailability),
+}));
+
+export const teacherUnavailabilityRelations = relations(teacherUnavailability, ({ one }) => ({
+  teacher: one(teachers, { fields: [teacherUnavailability.teacherId], references: [teachers.id] }),
 }));
 
 export const subjectsRelations = relations(subjects, ({ many }) => ({
@@ -164,6 +180,7 @@ export const scheduleEntriesRelations = relations(scheduleEntries, ({ one }) => 
 export const insertAccessCodeSchema = createInsertSchema(accessCodes).omit({ id: true, createdAt: true, lastUsed: true });
 export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true });
 export const insertTeacherSchema = createInsertSchema(teachers).omit({ id: true });
+export const insertTeacherUnavailabilitySchema = createInsertSchema(teacherUnavailability).omit({ id: true });
 export const insertClassSchema = createInsertSchema(classes).omit({ id: true });
 export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
 export const insertTimeSlotSchema = createInsertSchema(timeSlots).omit({ id: true });
@@ -179,6 +196,8 @@ export type Subject = typeof subjects.$inferSelect;
 export type InsertSubject = z.infer<typeof insertSubjectSchema>;
 export type Teacher = typeof teachers.$inferSelect;
 export type InsertTeacher = z.infer<typeof insertTeacherSchema>;
+export type TeacherUnavailability = typeof teacherUnavailability.$inferSelect;
+export type InsertTeacherUnavailability = z.infer<typeof insertTeacherUnavailabilitySchema>;
 export type Class = typeof classes.$inferSelect;
 export type InsertClass = z.infer<typeof insertClassSchema>;
 export type Room = typeof rooms.$inferSelect;
@@ -209,3 +228,16 @@ export type User = {
   username: string;
   email: string;
 };
+
+// Room type labels
+export const ROOM_TYPE_LABELS: Record<string, string> = {
+  classroom: "Sinf xonasi",
+  lab: "Laboratoriya",
+  gym: "Sport zali",
+  computer: "Kompyuter xonasi",
+  music: "Musiqa xonasi",
+  art: "Rasm xonasi",
+  any: "Istalgan xona",
+};
+
+export const ROOM_TYPES = Object.keys(ROOM_TYPE_LABELS);

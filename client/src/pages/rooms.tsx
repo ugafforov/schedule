@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell } from "lucide-react";
+import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell, Monitor, Palette } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { ROOM_TYPE_LABELS } from "@shared/schema";
 import type { Room } from "@shared/schema";
 
 interface RoomFormData {
@@ -22,15 +23,16 @@ interface RoomFormData {
 
 const EMPTY_FORM: RoomFormData = { name: "", roomNumber: "", building: "", floor: "", capacity: 30, roomType: "classroom" };
 
-const ROOM_TYPES = [
-  { value: "classroom", label: "Darsxona", icon: BookOpen, bg: "bg-blue-50", color: "text-blue-600", badge: "bg-blue-100 text-blue-700" },
-  { value: "lab", label: "Laboratoriya", icon: FlaskConical, bg: "bg-green-50", color: "text-green-600", badge: "bg-green-100 text-green-700" },
-  { value: "auditorium", label: "Auditoriya", icon: Music, bg: "bg-purple-50", color: "text-purple-600", badge: "bg-purple-100 text-purple-700" },
-  { value: "gym", label: "Sporzal", icon: Dumbbell, bg: "bg-orange-50", color: "text-orange-600", badge: "bg-orange-100 text-orange-700" },
-  { value: "library", label: "Kutubxona", icon: BookOpen, bg: "bg-amber-50", color: "text-amber-600", badge: "bg-amber-100 text-amber-700" },
-];
+const ROOM_TYPE_DISPLAY: Record<string, { icon: any; bg: string; color: string; badge: string }> = {
+  classroom: { icon: BookOpen,     bg: "bg-blue-50",   color: "text-blue-600",   badge: "bg-blue-100 text-blue-700 border-blue-200" },
+  lab:       { icon: FlaskConical, bg: "bg-green-50",  color: "text-green-600",  badge: "bg-green-100 text-green-700 border-green-200" },
+  gym:       { icon: Dumbbell,     bg: "bg-orange-50", color: "text-orange-600", badge: "bg-orange-100 text-orange-700 border-orange-200" },
+  computer:  { icon: Monitor,      bg: "bg-purple-50", color: "text-purple-600", badge: "bg-purple-100 text-purple-700 border-purple-200" },
+  music:     { icon: Music,        bg: "bg-pink-50",   color: "text-pink-600",   badge: "bg-pink-100 text-pink-700 border-pink-200" },
+  art:       { icon: Palette,      bg: "bg-yellow-50", color: "text-yellow-600", badge: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+};
 
-const getRoomTypeInfo = (type: string) => ROOM_TYPES.find(t => t.value === type) || ROOM_TYPES[0];
+const getTypeDisplay = (type: string) => ROOM_TYPE_DISPLAY[type] || ROOM_TYPE_DISPLAY.classroom;
 
 export default function Rooms() {
   const [search, setSearch] = useState("");
@@ -91,6 +93,12 @@ export default function Rooms() {
     r.building?.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Group rooms by type for stats
+  const typeCounts = rooms.reduce((acc, r) => {
+    acc[r.roomType] = (acc[r.roomType] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
@@ -103,6 +111,23 @@ export default function Rooms() {
           Xona qo'shish
         </Button>
       </div>
+
+      {/* Room type summary pills */}
+      {rooms.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(typeCounts).map(([type, cnt]) => {
+            const d = getTypeDisplay(type);
+            const Icon = d.icon;
+            return (
+              <div key={type} className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${d.badge}`}>
+                <Icon className="h-3 w-3" />
+                <span>{ROOM_TYPE_LABELS[type] || type}</span>
+                <span className="opacity-70">— {cnt} ta</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <Card className="border border-gray-100 shadow-sm">
         <CardHeader className="pb-3">
@@ -136,13 +161,13 @@ export default function Rooms() {
           ) : filtered.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map(room => {
-                const typeInfo = getRoomTypeInfo(room.roomType);
-                const Icon = typeInfo.icon;
+                const d = getTypeDisplay(room.roomType);
+                const Icon = d.icon;
                 return (
                   <div key={room.id} className="group border border-gray-100 rounded-xl p-4 hover:border-orange-200 hover:shadow-sm transition-all bg-white">
                     <div className="flex items-start justify-between mb-3">
-                      <div className={`w-10 h-10 ${typeInfo.bg} rounded-xl flex items-center justify-center`}>
-                        <Icon className={`${typeInfo.color} h-5 w-5`} />
+                      <div className={`w-10 h-10 ${d.bg} rounded-xl flex items-center justify-center`}>
+                        <Icon className={`${d.color} h-5 w-5`} />
                       </div>
                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => openEdit(room)}>
@@ -158,19 +183,18 @@ export default function Rooms() {
                         </Button>
                       </div>
                     </div>
-
                     <h3 className="font-semibold text-gray-900 text-sm">{room.name}</h3>
                     <p className="text-xs text-gray-400 mt-0.5 font-mono">#{room.roomNumber}</p>
-
                     {(room.building || room.floor) && (
                       <div className="flex items-center space-x-1 mt-1.5">
                         <Building2 className="h-3 w-3 text-gray-400 flex-shrink-0" />
                         <p className="text-xs text-gray-500">{room.building}{room.floor && `, ${room.floor}-qavat`}</p>
                       </div>
                     )}
-
                     <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-50">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeInfo.badge}`}>{typeInfo.label}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${d.badge}`}>
+                        {ROOM_TYPE_LABELS[room.roomType] || room.roomType}
+                      </span>
                       <div className="flex items-center space-x-1 text-gray-500">
                         <Users className="h-3 w-3" />
                         <span className="text-xs">{room.capacity} o'rin</span>
@@ -195,7 +219,7 @@ export default function Rooms() {
       </Card>
 
       <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setEditing(null); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Xonani tahrirlash" : "Yangi xona qo'shish"}</DialogTitle>
           </DialogHeader>
@@ -227,19 +251,21 @@ export default function Rooms() {
             <div className="space-y-2">
               <Label className="text-sm">Xona turi</Label>
               <div className="grid grid-cols-2 gap-2">
-                {ROOM_TYPES.map(type => {
-                  const Icon = type.icon;
+                {Object.entries(ROOM_TYPE_DISPLAY).map(([value, info]) => {
+                  const Icon = info.icon;
                   return (
                     <button
-                      key={type.value}
+                      key={value}
                       type="button"
-                      onClick={() => setForm(p => ({ ...p, roomType: type.value }))}
+                      onClick={() => setForm(p => ({ ...p, roomType: value }))}
                       className={`flex items-center space-x-2 p-2.5 rounded-lg border transition-all text-left ${
-                        form.roomType === type.value ? "border-blue-500 bg-blue-50" : "border-gray-100 hover:border-gray-200"
+                        form.roomType === value ? "border-blue-500 bg-blue-50" : "border-gray-100 hover:border-gray-200 hover:bg-gray-50"
                       }`}
                     >
-                      <Icon className={`h-4 w-4 ${form.roomType === type.value ? "text-blue-600" : "text-gray-400"}`} />
-                      <span className={`text-sm font-medium ${form.roomType === type.value ? "text-blue-700" : "text-gray-600"}`}>{type.label}</span>
+                      <Icon className={`h-4 w-4 ${form.roomType === value ? "text-blue-600" : "text-gray-400"}`} />
+                      <span className={`text-sm font-medium ${form.roomType === value ? "text-blue-700" : "text-gray-600"}`}>
+                        {ROOM_TYPE_LABELS[value]}
+                      </span>
                     </button>
                   );
                 })}
@@ -250,8 +276,8 @@ export default function Rooms() {
             <Button variant="outline" onClick={() => setOpen(false)}>Bekor qilish</Button>
             <Button
               onClick={() => {
-                if (!form.name && !form.roomNumber) {
-                  toast({ title: "Xatolik", description: "Xona nomi kiritilishi shart", variant: "destructive" });
+                if (!form.name || !form.roomNumber) {
+                  toast({ title: "Xatolik", description: "Xona nomi va raqami kiritilishi shart", variant: "destructive" });
                   return;
                 }
                 upsertMutation.mutate(form);

@@ -168,7 +168,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: true,
       });
       const teacher = await storage.createTeacher(data);
-      // Set subject assignments
       if (Array.isArray(body.subjectIds) && body.subjectIds.length > 0) {
         await storage.setTeacherSubjects(teacher.id, body.subjectIds);
       }
@@ -210,6 +209,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { subjectIds } = req.body;
     await storage.setTeacherSubjects(teacherId, subjectIds || []);
     res.json({ ok: true });
+  });
+
+  // ─── TEACHER UNAVAILABILITY ───────────────────────────────────────────────
+  app.get("/api/teachers/:id/unavailability", auth, async (req, res) => {
+    const teacherId = parseInt(req.params.id);
+    res.json(await storage.getTeacherUnavailability(teacherId));
+  });
+
+  app.put("/api/teachers/:id/unavailability", auth, async (req, res) => {
+    try {
+      const teacherId = parseInt(req.params.id);
+      const { slots } = req.body; // [{ dayOfWeek, periodNumber }]
+      await storage.setTeacherUnavailability(teacherId, slots || []);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
   });
 
   // ─── CLASSES ──────────────────────────────────────────────────────────────
@@ -335,9 +351,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ─── SCHEDULE ENTRIES ─────────────────────────────────────────────────────
   app.get("/api/schedule-entries", auth, async (req, res) => {
     try {
-      const { classId, weekStart } = req.query;
+      const { classId, weekStart, teacherId } = req.query;
       let entries: any[];
-      if (classId) {
+      if (teacherId && weekStart) {
+        entries = await storage.getScheduleEntriesByTeacher(
+          parseInt(teacherId as string),
+          new Date(weekStart as string)
+        );
+      } else if (classId) {
         entries = await storage.getScheduleEntriesByClass(parseInt(classId as string));
       } else if (weekStart) {
         entries = await storage.getScheduleEntriesForWeek(new Date(weekStart as string));
@@ -382,7 +403,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (weekStart) {
         await storage.clearScheduleForWeek(new Date(weekStart as string));
       } else {
-        // Clear all
         await db.update(scheduleEntries).set({ isActive: false });
       }
       res.status(204).send();
@@ -391,7 +411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ─── GENERATE SCHEDULE ────────────────────────────────────────────────────
+  // ─── GENERATE SCHEDULE (Improved Algorithm) ───────────────────────────────
   app.post("/api/generate-schedule", auth, async (req, res) => {
     try {
       const { weekStart, classIds, clearExisting } = req.body;
@@ -399,23 +419,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const weekStartDate = new Date(weekStart);
 
-      // Clear existing schedule for this week if requested
       if (clearExisting) {
         await storage.clearScheduleForWeek(weekStartDate);
         await storage.clearConflicts();
       }
 
-      // Ensure time slots exist
       const slots = await ensureTimeSlots();
       const activeSlots = slots.filter(s => !s.isBreak);
 
-      // Get all resources
       const allClasses = await storage.getClasses();
       const allRooms = await storage.getRooms();
       const allClassSubjects = await storage.getAllClassSubjects();
+      const allSubjects = await storage.getSubjects();
+      const allUnavailability = await storage.getAllTeacherUnavailability();
+      const allTeachers = await storage.getTeachers();
 
       const targetClasses = classIds?.length
-        ? allClasses.filter(c => classIds.includes(c.id))
+        ? allClasses.filter((c: any) => classIds.includes(c.id))
         : allClasses;
 
       if (targetClasses.length === 0) {
@@ -425,10 +445,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Xonalar mavjud emas. Avval xona qo'shing." });
       }
 
-      // Occupancy tracking: `${teacherId}_${slotId}`, `${roomId}_${slotId}`, `${classId}_${slotId}`
-      const teacherBusy = new Set<string>();
-      const roomBusy = new Set<string>();
-      const classBusy = new Set<string>();
+      // Build teacher unavailability set: `${teacherId}_${dayOfWeek}_${periodNumber}`
+      const unavailSet = new Set<string>(
+        allUnavailability.map((u: any) => `${u.teacherId}_${u.dayOfWeek}_${u.periodNumber}`)
+      );
+
+      // Build teacher workload tracker
+      const teacherHoursCount: Record<number, number> = {};
+      for (const t of allTeachers) {
+        teacherHoursCount[t.id] = 0;
+      }
+
+      // Occupancy tracking
+      const teacherBusy = new Set<string>(); // `${teacherId}_${slotId}`
+      const roomBusy = new Set<string>();    // `${roomId}_${slotId}`
+      const classBusy = new Set<string>();   // `${classId}_${slotId}`
+      // Track lessons per day per class: `${classId}_${dayOfWeek}` → count
+      const classPerDay = new Map<string, number>();
+      // Track same subject per day: `${classId}_${subjectId}_${dayOfWeek}` → count
+      const subjectPerDay = new Map<string, number>();
 
       // Load existing entries for this week to populate occupancy
       const existingEntries = await storage.getScheduleEntriesForWeek(weekStartDate);
@@ -436,70 +471,179 @@ export async function registerRoutes(app: Express): Promise<Server> {
         teacherBusy.add(`${e.teacherId}_${e.timeSlotId}`);
         roomBusy.add(`${e.roomId}_${e.timeSlotId}`);
         classBusy.add(`${e.classId}_${e.timeSlotId}`);
+        teacherHoursCount[e.teacherId] = (teacherHoursCount[e.teacherId] || 0) + 1;
       }
 
+      // Group active slots by day
+      const slotsByDay: Record<number, any[]> = {};
+      for (const s of activeSlots) {
+        if (!slotsByDay[s.dayOfWeek]) slotsByDay[s.dayOfWeek] = [];
+        slotsByDay[s.dayOfWeek].push(s);
+      }
+      // Sort each day's slots by period number (early periods first = harder subjects early)
+      for (const day of DAYS) {
+        slotsByDay[day] = (slotsByDay[day] || []).sort((a: any, b: any) => a.periodNumber - b.periodNumber);
+      }
+
+      // Subject lookup map
+      const subjectMap = new Map(allSubjects.map((s: any) => [s.id, s]));
+
       const toCreate: any[] = [];
+      const stats: Record<number, { className: string; scheduled: number; total: number }> = {};
 
       for (const cls of targetClasses) {
-        const subjects = allClassSubjects.filter(cs => cs.classId === cls.id);
-        if (subjects.length === 0) continue;
+        const classSubjectList = allClassSubjects
+          .filter((cs: any) => cs.classId === cls.id)
+          // Sort by weeklyHours DESC — harder to schedule subjects first (more hours = priority)
+          .sort((a: any, b: any) => b.weeklyHours - a.weeklyHours);
 
-        // Shuffle slots for variety - group by day for good distribution
-        const slotsByDay: Record<number, any[]> = {};
-        for (const s of activeSlots) {
-          if (!slotsByDay[s.dayOfWeek]) slotsByDay[s.dayOfWeek] = [];
-          slotsByDay[s.dayOfWeek].push(s);
-        }
+        if (classSubjectList.length === 0) continue;
 
-        for (const cs of subjects) {
+        const totalNeeded = classSubjectList.reduce((s: number, cs: any) => s + cs.weeklyHours, 0);
+        stats[cls.id] = { className: cls.name, scheduled: 0, total: totalNeeded };
+
+        for (const cs of classSubjectList) {
           if (!cs.teacherId) continue;
-          let scheduled = 0;
+
+          const subject = subjectMap.get(cs.subjectId);
+          const requiredRoomType = subject?.requiredRoomType || "any";
           const needed = cs.weeklyHours;
+          let scheduled = 0;
 
-          // Try to spread across all days first
-          const dayOrder = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5];
+          // Max same subject per day: if weeklyHours >= 5, allow 2; otherwise 1
+          const maxSameSubjectPerDay = cs.weeklyHours >= 5 ? 2 : 1;
 
-          for (const day of dayOrder) {
-            if (scheduled >= needed) break;
-            const daySlots = slotsByDay[day] || [];
+          // Max lessons per class per day: aim for balanced spread
+          const maxPerDay = Math.ceil(needed / 5) + 1; // e.g., 4h/week → max 2/day
 
-            for (const slot of daySlots) {
+          // Teacher max hours check
+          const teacher = allTeachers.find((t: any) => t.id === cs.teacherId);
+          const teacherMax = teacher?.maxHoursPerWeek || 30;
+
+          // Try to spread across all 5 days, cycling through days
+          // Rotate day order to ensure even distribution
+          const dayRotations = [
+            [1, 2, 3, 4, 5],
+            [2, 3, 4, 5, 1],
+            [3, 4, 5, 1, 2],
+            [4, 5, 1, 2, 3],
+            [5, 1, 2, 3, 4],
+          ];
+
+          for (let attempt = 0; attempt < 5 && scheduled < needed; attempt++) {
+            const dayOrder = dayRotations[attempt % 5];
+
+            for (const day of dayOrder) {
               if (scheduled >= needed) break;
 
-              const tk = `${cs.teacherId}_${slot.id}`;
-              const ck = `${cls.id}_${slot.id}`;
+              const daySlots = slotsByDay[day] || [];
+              const classDay = `${cls.id}_${day}`;
+              const subjectDay = `${cls.id}_${cs.subjectId}_${day}`;
 
-              if (teacherBusy.has(tk) || classBusy.has(ck)) continue;
+              // Check class daily limit
+              const classCount = classPerDay.get(classDay) || 0;
+              if (classCount >= 6) continue; // max 6 periods/day/class (hard limit)
 
-              // Find available room
-              const room = allRooms.find(r => !roomBusy.has(`${r.id}_${slot.id}`));
-              if (!room) continue;
+              // Check same subject per day limit
+              const subjectCount = subjectPerDay.get(subjectDay) || 0;
+              if (subjectCount >= maxSameSubjectPerDay) continue;
 
-              const rk = `${room.id}_${slot.id}`;
-              teacherBusy.add(tk);
-              classBusy.add(ck);
-              roomBusy.add(rk);
+              for (const slot of daySlots) {
+                if (scheduled >= needed) break;
 
-              toCreate.push({
-                classId: cls.id,
-                subjectId: cs.subjectId,
-                teacherId: cs.teacherId,
-                roomId: room.id,
-                timeSlotId: slot.id,
-                weekStartDate: weekStartDate,
-                isActive: true,
-              });
-              scheduled++;
+                const tk = `${cs.teacherId}_${slot.id}`;
+                const ck = `${cls.id}_${slot.id}`;
+
+                // Hard constraint: teacher busy
+                if (teacherBusy.has(tk)) continue;
+                // Hard constraint: class busy
+                if (classBusy.has(ck)) continue;
+                // Hard constraint: teacher unavailability
+                if (unavailSet.has(`${cs.teacherId}_${day}_${slot.periodNumber}`)) continue;
+                // Soft constraint: teacher max hours
+                if ((teacherHoursCount[cs.teacherId] || 0) >= teacherMax) continue;
+
+                // Find best available room
+                // Priority 1: matching room type AND sufficient capacity
+                // Priority 2: matching room type (any capacity)
+                // Priority 3: any available room with sufficient capacity
+                // Priority 4: any available room
+                let selectedRoom: any = null;
+
+                const classStudents = cls.totalStudents || 25;
+                const availableRooms = allRooms.filter((r: any) => !roomBusy.has(`${r.id}_${slot.id}`));
+
+                if (availableRooms.length === 0) continue;
+
+                // Priority 1: type match + capacity
+                if (requiredRoomType !== "any") {
+                  selectedRoom = availableRooms.find((r: any) =>
+                    r.roomType === requiredRoomType && r.capacity >= classStudents
+                  );
+                  // Priority 2: type match only
+                  if (!selectedRoom) {
+                    selectedRoom = availableRooms.find((r: any) => r.roomType === requiredRoomType);
+                  }
+                }
+                // Priority 3: capacity match (any type)
+                if (!selectedRoom) {
+                  selectedRoom = availableRooms.find((r: any) => r.capacity >= classStudents);
+                }
+                // Priority 4: any available room
+                if (!selectedRoom) {
+                  selectedRoom = availableRooms[0];
+                }
+
+                if (!selectedRoom) continue;
+
+                const rk = `${selectedRoom.id}_${slot.id}`;
+                teacherBusy.add(tk);
+                classBusy.add(ck);
+                roomBusy.add(rk);
+                teacherHoursCount[cs.teacherId] = (teacherHoursCount[cs.teacherId] || 0) + 1;
+                classPerDay.set(classDay, (classPerDay.get(classDay) || 0) + 1);
+                subjectPerDay.set(subjectDay, (subjectPerDay.get(subjectDay) || 0) + 1);
+
+                toCreate.push({
+                  classId: cls.id,
+                  subjectId: cs.subjectId,
+                  teacherId: cs.teacherId,
+                  roomId: selectedRoom.id,
+                  timeSlotId: slot.id,
+                  weekStartDate: weekStartDate,
+                  isActive: true,
+                });
+                scheduled++;
+                stats[cls.id].scheduled++;
+              }
             }
           }
         }
       }
 
       const created = await storage.createScheduleEntriesBulk(toCreate);
+
+      // Build per-class result summary
+      const classResults = Object.values(stats).map((s: any) => ({
+        className: s.className,
+        scheduled: s.scheduled,
+        total: s.total,
+        coverage: s.total > 0 ? Math.round((s.scheduled / s.total) * 100) : 0,
+      }));
+
+      const totalNeeded = classResults.reduce((s, r) => s + r.total, 0);
+      const totalScheduled = classResults.reduce((s, r) => s + r.scheduled, 0);
+      const coverage = totalNeeded > 0 ? Math.round((totalScheduled / totalNeeded) * 100) : 100;
+
       res.json({
-        message: `${created.length} ta dars muvaffaqiyatli jadvallandi`,
+        message: `${created.length} ta dars muvaffaqiyatli jadvallandi (${coverage}% qoplanish)`,
         count: created.length,
         classesScheduled: targetClasses.length,
+        coverage,
+        classResults,
+        warnings: classResults
+          .filter((r) => r.coverage < 100)
+          .map((r) => `${r.className}: ${r.scheduled}/${r.total} dars jadvallandi`),
       });
     } catch (e: any) {
       console.error("[generate-schedule]", e);

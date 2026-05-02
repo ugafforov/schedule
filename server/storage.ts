@@ -1,8 +1,9 @@
 import {
   subjects, teachers, classes, rooms, timeSlots, scheduleEntries, scheduleConflicts,
-  accessCodes, teacherSubjects, classSubjects,
+  accessCodes, teacherSubjects, classSubjects, teacherUnavailability,
   type Subject, type InsertSubject,
   type Teacher, type InsertTeacher,
+  type TeacherUnavailability, type InsertTeacherUnavailability,
   type Class, type InsertClass,
   type Room, type InsertRoom,
   type TimeSlot, type InsertTimeSlot,
@@ -35,6 +36,10 @@ export interface IStorage {
   getTeacherSubjects(teacherId: number): Promise<TeacherSubject[]>;
   setTeacherSubjects(teacherId: number, subjectIds: number[]): Promise<void>;
 
+  getTeacherUnavailability(teacherId: number): Promise<TeacherUnavailability[]>;
+  getAllTeacherUnavailability(): Promise<TeacherUnavailability[]>;
+  setTeacherUnavailability(teacherId: number, slots: Array<{ dayOfWeek: number; periodNumber: number }>): Promise<void>;
+
   getClasses(): Promise<Class[]>;
   createClass(data: InsertClass): Promise<Class>;
   updateClass(id: number, data: Partial<InsertClass>): Promise<Class | undefined>;
@@ -56,6 +61,7 @@ export interface IStorage {
   getScheduleEntries(): Promise<ScheduleEntry[]>;
   getScheduleEntriesByClass(classId: number): Promise<ScheduleEntry[]>;
   getScheduleEntriesForWeek(weekStart: Date): Promise<ScheduleEntry[]>;
+  getScheduleEntriesByTeacher(teacherId: number, weekStart: Date): Promise<ScheduleEntry[]>;
   createScheduleEntry(data: InsertScheduleEntry): Promise<ScheduleEntry>;
   createScheduleEntriesBulk(data: InsertScheduleEntry[]): Promise<ScheduleEntry[]>;
   updateScheduleEntry(id: number, data: Partial<InsertScheduleEntry>): Promise<ScheduleEntry | undefined>;
@@ -143,6 +149,25 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // ─── TEACHER UNAVAILABILITY ──────────────────────────────────────────────────
+  async getTeacherUnavailability(teacherId: number): Promise<TeacherUnavailability[]> {
+    return db.select().from(teacherUnavailability).where(eq(teacherUnavailability.teacherId, teacherId));
+  }
+  async getAllTeacherUnavailability(): Promise<TeacherUnavailability[]> {
+    return db.select().from(teacherUnavailability);
+  }
+  async setTeacherUnavailability(
+    teacherId: number,
+    slots: Array<{ dayOfWeek: number; periodNumber: number }>
+  ): Promise<void> {
+    await db.delete(teacherUnavailability).where(eq(teacherUnavailability.teacherId, teacherId));
+    if (slots.length > 0) {
+      await db.insert(teacherUnavailability).values(
+        slots.map(s => ({ teacherId, dayOfWeek: s.dayOfWeek, periodNumber: s.periodNumber }))
+      );
+    }
+  }
+
   // ─── CLASSES ─────────────────────────────────────────────────────────────────
   async getClasses(): Promise<Class[]> {
     return db.select().from(classes).where(eq(classes.isActive, true));
@@ -218,6 +243,14 @@ export class DatabaseStorage implements IStorage {
   async getScheduleEntriesForWeek(weekStart: Date): Promise<ScheduleEntry[]> {
     return db.select().from(scheduleEntries)
       .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.weekStartDate, weekStart)));
+  }
+  async getScheduleEntriesByTeacher(teacherId: number, weekStart: Date): Promise<ScheduleEntry[]> {
+    return db.select().from(scheduleEntries)
+      .where(and(
+        eq(scheduleEntries.isActive, true),
+        eq(scheduleEntries.teacherId, teacherId),
+        eq(scheduleEntries.weekStartDate, weekStart)
+      ));
   }
   async createScheduleEntry(data: InsertScheduleEntry): Promise<ScheduleEntry> {
     const [r] = await db.insert(scheduleEntries).values(data).returning();
