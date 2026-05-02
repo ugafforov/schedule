@@ -199,6 +199,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
+  // ── Bulk create teachers ────────────────────────────────────────────────────
+  app.post("/api/teachers/bulk", auth, async (req, res) => {
+    try {
+      const items: Array<{ firstName: string; lastName: string; maxHoursPerWeek?: number }> = req.body.teachers;
+      if (!Array.isArray(items) || items.length === 0)
+        return res.status(400).json({ message: "O'qituvchilar ro'yxati bo'sh" });
+      const created = [];
+      for (const item of items) {
+        const slug = `${item.firstName}${item.lastName}`.replace(/\s+/g, "").toUpperCase().slice(0, 6);
+        const employeeId = `T_${slug || "NEW"}_${Date.now().toString().slice(-4)}`;
+        const data = insertTeacherSchema.parse({
+          firstName: item.firstName, lastName: item.lastName, employeeId,
+          department: null, specialization: null, phone: null,
+          maxHoursPerWeek: item.maxHoursPerWeek || 30, isActive: true,
+        });
+        created.push(await storage.createTeacher(data));
+      }
+      res.status(201).json(created);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message || "Xatolik" });
+    }
+  });
+
   app.get("/api/teachers/:id/subjects", auth, async (req, res) => {
     const teacherId = parseInt(req.params.id);
     res.json(await storage.getTeacherSubjects(teacherId));
@@ -276,6 +299,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
+  // ── Bulk create classes ─────────────────────────────────────────────────────
+  app.post("/api/classes/bulk", auth, async (req, res) => {
+    try {
+      const items: Array<{ grade: string; section: string; totalStudents: number }> = req.body.classes;
+      if (!Array.isArray(items) || items.length === 0)
+        return res.status(400).json({ message: "Sinflar ro'yxati bo'sh" });
+      const created = [];
+      for (const item of items) {
+        const name = `${item.grade}${item.section ? "-" + item.section : ""}`;
+        const data = insertClassSchema.parse({ name, grade: item.grade, section: item.section || null, totalStudents: item.totalStudents || 25, isActive: true });
+        created.push(await storage.createClass(data));
+      }
+      res.status(201).json(created);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message || "Xatolik" });
+    }
+  });
+
   app.get("/api/classes/:id/subjects", auth, async (req, res) => {
     res.json(await storage.getClassSubjects(parseInt(req.params.id)));
   });
@@ -326,6 +367,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/rooms/:id", auth, async (req, res) => {
     await storage.deleteRoom(parseInt(req.params.id));
     res.status(204).send();
+  });
+
+  // ── Bulk create rooms ───────────────────────────────────────────────────────
+  app.post("/api/rooms/bulk", auth, async (req, res) => {
+    try {
+      const items: Array<{ name: string; roomNumber: string; capacity: number; roomType: string; building?: string; floor?: string }> = req.body.rooms;
+      if (!Array.isArray(items) || items.length === 0)
+        return res.status(400).json({ message: "Xonalar ro'yxati bo'sh" });
+      const created = [];
+      for (const item of items) {
+        const data = insertRoomSchema.parse({
+          name: item.name, roomNumber: item.roomNumber, building: item.building || null,
+          floor: item.floor || null, capacity: item.capacity || 30,
+          roomType: item.roomType || "classroom", isActive: true,
+        });
+        created.push(await storage.createRoom(data));
+      }
+      res.status(201).json(created);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message || "Xatolik" });
+    }
   });
 
   // ─── TIME SLOTS ───────────────────────────────────────────────────────────
