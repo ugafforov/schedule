@@ -35,12 +35,12 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
   if (!user) return <Redirect to="/login" />;
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Full-width header */}
       <Header onMobileMenuClick={() => setMobileOpen(true)} />
 
-      {/* Sidebar + content row */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* Sidebar + content row — flex-1 + min-h-0 gives definite height so h-full works inside */}
+      <div className="flex flex-1 min-h-0">
         <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
         <main className="flex-1 overflow-auto min-w-0">
           {children}

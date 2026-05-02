@@ -64,13 +64,13 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
   const desktopSidebar = (
     <aside className={cn(
       "group/sidebar",
-      "hidden lg:flex flex-col flex-shrink-0",
-      "bg-slate-900 border-r border-slate-700/60 overflow-hidden",
+      "hidden lg:flex flex-col flex-shrink-0 h-full",
+      "bg-slate-900 border-r border-slate-700/60 overflow-x-hidden",
       "w-[60px] hover:w-[220px]",
       "transition-[width] duration-200 ease-in-out",
       "[will-change:width]"
     )}>
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-[10px] space-y-0.5">
+      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-3 px-[10px] space-y-0.5">
         {navItems.map((item) => (
           <button
             key={item.href}
