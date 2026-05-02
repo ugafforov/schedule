@@ -13,6 +13,8 @@ import Teachers from "@/pages/teachers";
 import Classes from "@/pages/classes";
 import Subjects from "@/pages/subjects";
 import Rooms from "@/pages/rooms";
+import Darslar from "@/pages/darslar";
+import Biriktirishlar from "@/pages/biriktirishlar";
 import SettingsPage from "@/pages/settings";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
@@ -71,6 +73,12 @@ function Router() {
       </Route>
       <Route path="/rooms">
         <ProtectedLayout><Rooms /></ProtectedLayout>
+      </Route>
+      <Route path="/darslar">
+        <ProtectedLayout><Darslar /></ProtectedLayout>
+      </Route>
+      <Route path="/biriktirishlar">
+        <ProtectedLayout><Biriktirishlar /></ProtectedLayout>
       </Route>
       <Route path="/settings">
         <ProtectedLayout><SettingsPage /></ProtectedLayout>

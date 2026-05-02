@@ -2,17 +2,19 @@ import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
   Calendar, LayoutDashboard, Users, GraduationCap, BookOpen,
-  DoorOpen, LogOut, Settings, X
+  DoorOpen, LogOut, Settings, X, Clock, Link2
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
-  { href: "/",           label: "Bosh sahifa",   icon: LayoutDashboard },
-  { href: "/timetables", label: "Dars jadvali",  icon: Calendar },
-  { href: "/teachers",   label: "O'qituvchilar", icon: Users },
-  { href: "/classes",    label: "Sinflar",       icon: GraduationCap },
-  { href: "/subjects",   label: "Fanlar",        icon: BookOpen },
-  { href: "/rooms",      label: "Xonalar",       icon: DoorOpen },
+  { href: "/",               label: "Bosh sahifa",    icon: LayoutDashboard },
+  { href: "/timetables",     label: "Dars jadvali",   icon: Calendar },
+  { href: "/teachers",       label: "O'qituvchilar",  icon: Users },
+  { href: "/subjects",       label: "Fanlar",         icon: BookOpen },
+  { href: "/rooms",          label: "Xonalar",        icon: DoorOpen },
+  { href: "/darslar",        label: "Dars soatlari",  icon: Clock },
+  { href: "/classes",        label: "Sinflar",        icon: GraduationCap },
+  { href: "/biriktirishlar", label: "Biriktirishlar", icon: Link2 },
 ];
 
 interface SidebarProps {

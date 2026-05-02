@@ -348,6 +348,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/time-slots/periods", auth, async (req, res) => {
+    try {
+      const periods: Array<{ periodNumber: number; startTime: string; endTime: string }> = req.body.periods;
+      if (!Array.isArray(periods) || periods.length === 0)
+        return res.status(400).json({ message: "Periods bo'sh bo'lmasligi kerak" });
+      await storage.deleteAllTimeSlots();
+      const toCreate: any[] = [];
+      for (const day of DAYS) {
+        for (const p of periods) {
+          toCreate.push({
+            name: `${DAY_NAMES[day]} ${p.periodNumber}-dars`,
+            startTime: p.startTime,
+            endTime: p.endTime,
+            dayOfWeek: day,
+            periodNumber: p.periodNumber,
+            isBreak: false,
+            isActive: true,
+          });
+        }
+      }
+      const created = [];
+      for (const s of toCreate) created.push(await storage.createTimeSlot(s));
+      res.json(created);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || "Server xatosi" });
+    }
+  });
+
   // ─── SCHEDULE ENTRIES ─────────────────────────────────────────────────────
   app.get("/api/schedule-entries", auth, async (req, res) => {
     try {
