@@ -121,8 +121,8 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
         <button
           onClick={logout}
           className={cn(
-            "relative flex items-center w-full rounded-lg py-2.5 px-[10px] outline-none",
-            "transition-colors duration-100 text-slate-400 hover:bg-red-900/30 hover:text-red-400"
+            "relative flex items-center w-full rounded-lg py-2.5 px-[10px] outline-none mt-1",
+            "transition-colors duration-100 text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300"
           )}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
@@ -169,7 +169,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
             <NavItem href="/settings" label="Sozlamalar" icon={Settings} expanded />
             <button
               onClick={logout}
-              className="flex items-center w-full rounded-lg py-2.5 px-3 text-slate-400 hover:bg-red-900/30 hover:text-red-400 transition-colors duration-100"
+              className="flex items-center w-full rounded-lg py-2.5 px-3 mt-1 text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 transition-colors duration-100"
             >
               <LogOut className="w-5 h-5 flex-shrink-0 mr-3" />
               <span className="text-sm font-medium">Chiqish</span>
