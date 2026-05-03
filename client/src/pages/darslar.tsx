@@ -218,8 +218,28 @@ export default function Darslar() {
 
   useEffect(() => {
     const built = fromSlots(savedSlots);
-    if (built.length > 0) setRows(built);
-    if (savedSlots.length > 0) loadedRef.current = true;
+    if (savedSlots.length > 0) {
+      loadedRef.current = true;
+      if (built.length > 0) setRows(built);
+      if (built.length > 0) {
+        const lessons = built.filter(r => r.type === "lesson");
+        const lunch = built.find(r => r.type === "lunch");
+        if (lessons.length > 0) {
+          setCfg(prev => ({
+            ...prev,
+            schoolStart: lessons[0].startTime,
+            schoolEnd: lessons[lessons.length - 1].endTime,
+            lessonMin: diff(lessons[0].startTime, lessons[0].endTime),
+            breakMin: lessons.length > 1 ? diff(lessons[0].endTime, lessons[1].startTime) : prev.breakMin,
+            useLunch: Boolean(lunch),
+            lunchAfterLesson: lunch ? lessons.filter(r => toMin(r.endTime) <= toMin(lunch.startTime)).length : prev.lunchAfterLesson,
+            lunchMin: lunch ? diff(lunch.startTime, lunch.endTime) : prev.lunchMin,
+          }));
+        }
+      }
+    } else if (!loadedRef.current) {
+      setRows([]);
+    }
   }, [savedSlots]);
 
   function handleGenerate() {
@@ -259,7 +279,7 @@ export default function Darslar() {
       })),
     }),
     onSuccess: () => {
-      qc.setQueryData(["/api/time-slots"], rows.map((row) => ({
+      const cached = rows.map((row) => ({
         id: 0,
         name: row.type === "lunch" ? "Tushlik tanaffusi" : `${row.periodNumber}-dars`,
         startTime: row.startTime,
@@ -268,7 +288,8 @@ export default function Darslar() {
         periodNumber: row.type === "lesson" ? row.periodNumber : 0,
         isBreak: row.type === "lunch",
         isActive: true,
-      })));
+      }));
+      qc.setQueryData(["/api/time-slots"], cached);
       qc.invalidateQueries({ queryKey: ["/api/time-slots"] });
       toast({ title: "Saqlandi", description: "Qo'ng'iroq jadvali saqlandi" });
     },
