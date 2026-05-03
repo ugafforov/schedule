@@ -323,6 +323,16 @@ export default function Subjects() {
     mutationFn: (id: number) => apiRequest("DELETE", `/api/subjects/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/subjects"] }); toast({ title: "Muvaffaqiyat", description: "Fan o'chirildi" }); },
   });
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all(subjects.map((s) => apiRequest("DELETE", `/api/subjects/${s.id}`)));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/subjects"] });
+      toast({ title: "Muvaffaqiyat", description: "Barcha fanlar tozalandi" });
+    },
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
+  });
   const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setOpen(true); };
   const openEdit = (s: Subject) => {
     setEditing(s);
@@ -338,6 +348,18 @@ export default function Subjects() {
           <p className="text-gray-500 text-sm mt-0.5">O'quv fanlarini va xona talablarini boshqarish</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (subjects.length === 0) return;
+              if (confirm("Barcha fanlar o'chirilsinmi?")) clearAllMutation.mutate();
+            }}
+            disabled={clearAllMutation.isPending || subjects.length === 0}
+            className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Barchasini tozalash
+          </Button>
           <Button variant="outline" onClick={() => setDtsOpen(true)} className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300">
             <GraduationCap className="mr-2 h-4 w-4 text-blue-600" /> DTS fanlarini qo'shish
           </Button>

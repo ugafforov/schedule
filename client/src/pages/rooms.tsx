@@ -197,6 +197,17 @@ export default function Rooms() {
       toast({ title: "Muvaffaqiyat", description: "Xona o'chirildi" });
     },
   });
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all(rooms.map((r) => apiRequest("DELETE", `/api/rooms/${r.id}`)));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/rooms"] });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({ title: "Muvaffaqiyat", description: "Barcha xonalar tozalandi" });
+    },
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
+  });
 
   const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setOpen(true); };
   const openEdit = (r: Room) => {
@@ -221,6 +232,18 @@ export default function Rooms() {
           <p className="text-gray-500 text-sm mt-0.5">Xona va auditoriyalarni boshqarish</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (rooms.length === 0) return;
+              if (confirm("Barcha xonalar o'chirilsinmi?")) clearAllMutation.mutate();
+            }}
+            disabled={clearAllMutation.isPending || rooms.length === 0}
+            className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Barchasini tozalash
+          </Button>
           <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300">
             <Zap className="mr-2 h-4 w-4 text-amber-500" />
             Ko'p yaratish

@@ -172,6 +172,16 @@ export default function Classes() {
     mutationFn: (id: number) => apiRequest("DELETE", `/api/classes/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/classes"] }); toast({ title: "Muvaffaqiyat", description: "Sinf o'chirildi" }); },
   });
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all(classes.map((c) => apiRequest("DELETE", `/api/classes/${c.id}`)));
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/classes"] });
+      toast({ title: "Muvaffaqiyat", description: "Barcha sinflar tozalandi" });
+    },
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
+  });
 
   const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setActiveTab("info"); setOpen(true); };
   const openEdit = async (cls: Class) => {
@@ -206,6 +216,18 @@ export default function Classes() {
           <p className="text-gray-500 text-sm mt-0.5">Sinflar va ularga biriktirilgan fanlarni boshqarish</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (classes.length === 0) return;
+              if (confirm("Barcha sinflar o'chirilsinmi?")) clearAllMutation.mutate();
+            }}
+            disabled={clearAllMutation.isPending || classes.length === 0}
+            className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Barchasini tozalash
+          </Button>
           <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300">
             <Zap className="mr-2 h-4 w-4 text-amber-500" />
             Tez yaratish
