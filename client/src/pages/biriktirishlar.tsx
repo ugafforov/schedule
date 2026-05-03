@@ -179,7 +179,8 @@ function pickTeacherForSubject(
     );
   });
 
-  const pool = matches.length > 0 ? matches : teachers;
+  const pool = matches;
+  if (pool.length === 0) return null;
   return pool
     .slice()
     .sort((a, b) => (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0))[0] || null;
