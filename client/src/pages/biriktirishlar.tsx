@@ -65,6 +65,35 @@ function loadBg(pct: number) {
   return "text-emerald-700 bg-emerald-50 border-emerald-200";
 }
 
+function ClearAssignmentsDialog({
+  open,
+  onClose,
+  onConfirm,
+  className,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  className?: string;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className={className || "sm:max-w-sm"}>
+        <DialogHeader>
+          <DialogTitle>Tez tozalashni tasdiqlash</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-gray-600">
+          Ushbu sinfdagi barcha fan-o'qituvchi biriktirishlari o'chiriladi.
+        </p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
+          <Button variant="destructive" onClick={onConfirm}>Tozalash</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Auto-assign dialog ────────────────────────────────────────────────────────
 function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, teachers, teacherLoadMap }: {
   open: boolean; onClose: () => void;
@@ -291,6 +320,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [autoDialogOpen, setAutoDialogOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
   const isLoadingRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -320,6 +350,21 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     onError: () => {
       setSaveStatus("error");
       toast({ title: "Saqlashda xatolik", variant: "destructive" });
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: () => apiRequest("PUT", `/api/classes/${selectedClassId}/subjects`, { subjects: [] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
+      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
+      setAssignments([]);
+      setSaveStatus("idle");
+      setClearOpen(false);
+      toast({ title: "Muvaffaqiyat", description: "Biriktirishlar tez tozalandi" });
+    },
+    onError: () => {
+      toast({ title: "Xatolik", description: "Tozalash amalga oshmadi", variant: "destructive" });
     },
   });
 
@@ -443,6 +488,10 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                     className="h-8 border-blue-200 text-blue-700 hover:bg-blue-50" disabled={assignLoading}>
                     <Zap className="mr-1.5 h-3.5 w-3.5 text-blue-500" /> DTS biriktirish
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => setClearOpen(true)}
+                    className="h-8 border-red-200 text-red-700 hover:bg-red-50" disabled={assignLoading || assignments.length === 0}>
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5 text-red-500" /> Tez tozalash
+                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -561,6 +610,12 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
         subjects={subjects}
         teachers={teachers}
         teacherLoadMap={teacherHoursMap}
+      />
+
+      <ClearAssignmentsDialog
+        open={clearOpen}
+        onClose={() => setClearOpen(false)}
+        onConfirm={() => clearMutation.mutate()}
       />
     </div>
   );
