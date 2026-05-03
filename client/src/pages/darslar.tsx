@@ -33,6 +33,9 @@ interface GenConfig {
   useLunch: boolean;
   lunchAfterLesson: number;
   lunchMin: number;
+  useEveningLunch: boolean;
+  eveningLunchAfterLesson: number;
+  eveningLunchMin: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -69,6 +72,10 @@ function generate(cfg: GenConfig): SlotRow[] {
 
     if (cfg.useLunch && num === cfg.lunchAfterLesson) {
       const lend = addMin(cur, cfg.lunchMin);
+      rows.push({ key: mk(), type: "lunch", periodNumber: 0, startTime: cur, endTime: lend });
+      cur = lend;
+    } else if (cfg.useEveningLunch && num === cfg.eveningLunchAfterLesson) {
+      const lend = addMin(cur, cfg.eveningLunchMin);
       rows.push({ key: mk(), type: "lunch", periodNumber: 0, startTime: cur, endTime: lend });
       cur = lend;
     } else {
@@ -201,6 +208,7 @@ const DEFAULT_CFG: GenConfig = {
   schoolStart: "08:00", schoolEnd: "14:00",
   lessonMin: 45, breakMin: 10,
   useLunch: false, lunchAfterLesson: 3, lunchMin: 30,
+  useEveningLunch: false, eveningLunchAfterLesson: 5, eveningLunchMin: 20,
 };
 
 export default function Darslar() {
@@ -225,6 +233,7 @@ export default function Darslar() {
         const lessons = built.filter(r => r.type === "lesson");
         const lunch = built.find(r => r.type === "lunch");
         if (lessons.length > 0) {
+          const firstLunchIndex = lunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(lunch.startTime)) : -1;
           setCfg(prev => ({
             ...prev,
             schoolStart: lessons[0].startTime,
@@ -232,8 +241,11 @@ export default function Darslar() {
             lessonMin: diff(lessons[0].startTime, lessons[0].endTime),
             breakMin: lessons.length > 1 ? diff(lessons[0].endTime, lessons[1].startTime) : prev.breakMin,
             useLunch: Boolean(lunch),
-            lunchAfterLesson: lunch ? lessons.filter(r => toMin(r.endTime) <= toMin(lunch.startTime)).length : prev.lunchAfterLesson,
+            lunchAfterLesson: lunch && firstLunchIndex >= 0 ? firstLunchIndex + 1 : prev.lunchAfterLesson,
             lunchMin: lunch ? diff(lunch.startTime, lunch.endTime) : prev.lunchMin,
+            useEveningLunch: false,
+            eveningLunchAfterLesson: prev.eveningLunchAfterLesson,
+            eveningLunchMin: prev.eveningLunchMin,
           }));
         }
       }
@@ -355,43 +367,44 @@ export default function Darslar() {
           </div>
 
           <div className="space-y-3 rounded-xl border border-gray-100 bg-white p-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium text-gray-800">Tushlik tanaffusi</p>
-              <p className="text-xs text-gray-500">Yoqilganda qo'shimcha tushlik vaqti so'raladi.</p>
-              </div>
-              <Switch
-                checked={cfg.useLunch}
-                id="lunch-sw"
-                onCheckedChange={v => setCfg(p => ({ ...p, useLunch: v }))}
-              />
-            </div>
-            {cfg.useLunch && (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-600">Nechi darsdan keyin</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={8}
-                    value={cfg.lunchAfterLesson}
-                    onChange={e => setCfg(p => ({ ...p, lunchAfterLesson: Number(e.target.value) }))}
-                    className="w-full bg-white"
-                  />
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium text-gray-800">Tushlik tanaffusi</p>
+                  <p className="text-xs text-gray-500">Kun o‘rtasidagi tushlik vaqti.</p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-gray-600">Tushlik davomiyligi (daq)</Label>
-                  <Input
-                    type="number"
-                    min={10}
-                    max={60}
-                    value={cfg.lunchMin}
-                    onChange={e => setCfg(p => ({ ...p, lunchMin: Number(e.target.value) }))}
-                    className="w-full bg-white"
-                  />
-                </div>
+                <Switch checked={cfg.useLunch} id="lunch-sw" onCheckedChange={v => setCfg(p => ({ ...p, useLunch: v }))} />
               </div>
-            )}
+              {cfg.useLunch && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-gray-600">Nechi darsdan keyin</Label>
+                    <Input type="number" min={1} max={8} value={cfg.lunchAfterLesson} onChange={e => setCfg(p => ({ ...p, lunchAfterLesson: Number(e.target.value) }))} className="w-full bg-white" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-gray-600">Tushlik davomiyligi (daq)</Label>
+                    <Input type="number" min={10} max={60} value={cfg.lunchMin} onChange={e => setCfg(p => ({ ...p, lunchMin: Number(e.target.value) }))} className="w-full bg-white" />
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium text-gray-800">Kechki tushlik</p>
+                  <p className="text-xs text-gray-500">Ikkinchi tushlik varianti.</p>
+                </div>
+                <Switch checked={cfg.useEveningLunch} id="evening-lunch-sw" onCheckedChange={v => setCfg(p => ({ ...p, useEveningLunch: v }))} />
+              </div>
+              {cfg.useEveningLunch && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-gray-600">Nechi darsdan keyin</Label>
+                    <Input type="number" min={1} max={8} value={cfg.eveningLunchAfterLesson} onChange={e => setCfg(p => ({ ...p, eveningLunchAfterLesson: Number(e.target.value) }))} className="w-full bg-white" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-gray-600">Davomiyligi (daq)</Label>
+                    <Input type="number" min={10} max={60} value={cfg.eveningLunchMin} onChange={e => setCfg(p => ({ ...p, eveningLunchMin: Number(e.target.value) }))} className="w-full bg-white" />
+                  </div>
+                </div>
+              )}
           </div>
 
           <Button onClick={handleGenerate} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
