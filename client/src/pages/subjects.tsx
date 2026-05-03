@@ -39,6 +39,23 @@ const ROOM_TYPE_COLORS: Record<string, string> = {
   art: "bg-yellow-50 text-yellow-700 border-yellow-200",
 };
 
+function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; title: string; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-gray-600">{title}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
+          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface DtsSubject {
   name: string; code: string; color: string;
   weeklyHours: number; requiredRoomType: string; description: string;
@@ -306,6 +323,7 @@ export default function Subjects() {
   const [form, setForm] = useState<SubjectFormData>(EMPTY_FORM);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [clearOpen, setClearOpen] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: subjects = [], isLoading } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
@@ -354,10 +372,7 @@ export default function Subjects() {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
-            onClick={() => {
-              if (subjects.length === 0) return;
-              if (confirm("Barcha fanlar o'chirilsinmi?")) clearAllMutation.mutate();
-            }}
+            onClick={() => subjects.length > 0 && setClearOpen(true)}
             disabled={clearAllMutation.isPending || subjects.length === 0}
             className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
           >
@@ -470,6 +485,16 @@ export default function Subjects() {
       </Dialog>
 
       <DtsDialog open={dtsOpen} onClose={() => setDtsOpen(false)} onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/subjects"] })} />
+
+      <ClearAllDialog
+        open={clearOpen}
+        title="Barcha fanlar o'chirilsinmi?"
+        onClose={() => setClearOpen(false)}
+        onConfirm={() => {
+          setClearOpen(false);
+          clearAllMutation.mutate();
+        }}
+      />
 
       <DeleteConfirmDialog
         open={deleteId !== null}

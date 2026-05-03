@@ -33,6 +33,23 @@ function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boole
   );
 }
 
+function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; title: string; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-gray-600">{title}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
+          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const ROOM_TYPE_DISPLAY: Record<string, { icon: any; bg: string; color: string; badge: string }> = {
   classroom: { icon: BookOpen,     bg: "bg-blue-50",   color: "text-blue-600",   badge: "bg-blue-100 text-blue-700 border-blue-200" },
   lab:       { icon: FlaskConical, bg: "bg-green-50",  color: "text-green-600",  badge: "bg-green-100 text-green-700 border-green-200" },
@@ -169,6 +186,8 @@ export default function Rooms() {
   const [form, setForm] = useState<RoomFormData>(EMPTY_FORM);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -234,10 +253,7 @@ export default function Rooms() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            onClick={() => {
-              if (rooms.length === 0) return;
-              if (confirm("Barcha xonalar o'chirilsinmi?")) clearAllMutation.mutate();
-            }}
+            onClick={() => rooms.length > 0 && setClearOpen(true)}
             disabled={clearAllMutation.isPending || rooms.length === 0}
             className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
           >
@@ -421,6 +437,26 @@ export default function Rooms() {
       </Dialog>
 
       <BulkAddRooms open={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={() => { qc.invalidateQueries({ queryKey: ["/api/rooms"] }); qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] }); }} />
+
+      <ClearAllDialog
+        open={clearOpen}
+        title="Barcha xonalar o'chirilsinmi?"
+        onClose={() => setClearOpen(false)}
+        onConfirm={() => {
+          setClearOpen(false);
+          clearAllMutation.mutate();
+        }}
+      />
+
+      <ClearAllDialog
+        open={clearOpen}
+        title="Barcha xonalar o'chirilsinmi?"
+        onClose={() => setClearOpen(false)}
+        onConfirm={() => {
+          setClearOpen(false);
+          clearAllMutation.mutate();
+        }}
+      />
 
       <DeleteConfirmDialog
         open={deleteId !== null}

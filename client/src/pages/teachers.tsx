@@ -39,6 +39,23 @@ function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boole
   );
 }
 
+function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; title: string; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-gray-600">{title}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
+          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ── Bulk add dialog ─────────────────────────────────────────────────────── */
 function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
   const { toast } = useToast();
@@ -206,6 +223,7 @@ export default function Teachers() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [subjectDialogOpen, setSubjectDialogOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -289,10 +307,7 @@ export default function Teachers() {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            onClick={() => {
-              if (teachers.length === 0) return;
-              if (confirm("Barcha o'qituvchilar o'chirilsinmi?")) clearAllMutation.mutate();
-            }}
+            onClick={() => teachers.length > 0 && setClearOpen(true)}
             disabled={clearAllMutation.isPending || teachers.length === 0}
             className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
           >
@@ -508,6 +523,36 @@ export default function Teachers() {
 
 
       <BulkAddTeachers open={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/teachers"] })} />
+
+      <ClearAllDialog
+        open={clearOpen}
+        title="Barcha o'qituvchilar o'chirilsinmi?"
+        onClose={() => setClearOpen(false)}
+        onConfirm={() => {
+          setClearOpen(false);
+          clearAllMutation.mutate();
+        }}
+      />
+
+      <ClearAllDialog
+        open={clearOpen}
+        title="Barcha o'qituvchilar o'chirilsinmi?"
+        onClose={() => setClearOpen(false)}
+        onConfirm={() => {
+          setClearOpen(false);
+          clearAllMutation.mutate();
+        }}
+      />
+
+      <ClearAllDialog
+        open={clearOpen}
+        title="Barcha o'qituvchilar o'chirilsinmi?"
+        onClose={() => setClearOpen(false)}
+        onConfirm={() => {
+          setClearOpen(false);
+          clearAllMutation.mutate();
+        }}
+      />
 
       <DeleteConfirmDialog
         open={deleteId !== null}
