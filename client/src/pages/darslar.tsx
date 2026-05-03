@@ -217,7 +217,7 @@ export default function Darslar() {
 
   // Load saved data on mount
   useEffect(() => {
-    if (savedSlots.length > 0 && rows.length === 0) {
+    if (savedSlots.length > 0) {
       const built = fromSlots(savedSlots);
       if (built.length > 0) setRows(built);
     }
