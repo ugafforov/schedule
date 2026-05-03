@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -214,13 +214,12 @@ export default function Darslar() {
   const [editTarget, setEditTarget] = useState<SlotRow | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
+  const loadedRef = useRef(false);
 
-  // Load saved data on mount
   useEffect(() => {
-    if (savedSlots.length > 0) {
-      const built = fromSlots(savedSlots);
-      if (built.length > 0) setRows(built);
-    }
+    const built = fromSlots(savedSlots);
+    if (built.length > 0) setRows(built);
+    if (savedSlots.length > 0) loadedRef.current = true;
   }, [savedSlots]);
 
   function handleGenerate() {
@@ -260,6 +259,16 @@ export default function Darslar() {
       })),
     }),
     onSuccess: () => {
+      qc.setQueryData(["/api/time-slots"], rows.map((row) => ({
+        id: 0,
+        name: row.type === "lunch" ? "Tushlik tanaffusi" : `${row.periodNumber}-dars`,
+        startTime: row.startTime,
+        endTime: row.endTime,
+        dayOfWeek: 1,
+        periodNumber: row.type === "lesson" ? row.periodNumber : 0,
+        isBreak: row.type === "lunch",
+        isActive: true,
+      })));
       qc.invalidateQueries({ queryKey: ["/api/time-slots"] });
       toast({ title: "Saqlandi", description: "Qo'ng'iroq jadvali saqlandi" });
     },
