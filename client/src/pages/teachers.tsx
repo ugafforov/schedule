@@ -248,7 +248,7 @@ export default function Teachers() {
             <CardTitle className="text-base font-semibold flex items-center">
               <Users className="mr-2 h-4 w-4 text-emerald-600" />
               O'qituvchilar ro'yxati
-              <Badge variant="secondary" className="ml-2 text-xs">{teachers.length} ta</Badge>
+              <Badge variant="secondary" className="ml-2 text-xs">{filtered.length} ta</Badge>
             </CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative w-60">
