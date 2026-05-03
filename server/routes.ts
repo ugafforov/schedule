@@ -366,6 +366,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ ok: true });
   });
 
+  // ─── TEACHER LOAD (aggregated analytics) ─────────────────────────────────
+  app.get("/api/teacher-load", auth, async (_req, res) => {
+    try {
+      const [allCS, allTeachers, allSubjects] = await Promise.all([
+        storage.getAllClassSubjects(),
+        storage.getTeachers(),
+        storage.getSubjects(),
+      ]);
+
+      // ── Per-subject summary ──────────────────────────────────────────────
+      type SubEntry = {
+        subjectId: number; subjectName: string; subjectColor: string;
+        totalClasses: number; totalHours: number; assignedCount: number;
+        teachers: Map<number, { teacherId: number; teacherName: string; hours: number; classCount: number }>;
+      };
+      const subjectMap = new Map<number, SubEntry>();
+      for (const cs of allCS) {
+        if (!subjectMap.has(cs.subjectId)) {
+          const sub = allSubjects.find(s => s.id === cs.subjectId);
+          subjectMap.set(cs.subjectId, {
+            subjectId: cs.subjectId,
+            subjectName: sub?.name || `Fan #${cs.subjectId}`,
+            subjectColor: sub?.color || "#3B82F6",
+            totalClasses: 0, totalHours: 0, assignedCount: 0,
+            teachers: new Map(),
+          });
+        }
+        const entry = subjectMap.get(cs.subjectId)!;
+        entry.totalClasses++;
+        entry.totalHours += cs.weeklyHours;
+        if (cs.teacherId) {
+          entry.assignedCount++;
+          const t = allTeachers.find(x => x.id === cs.teacherId);
+          if (t) {
+            const tId = cs.teacherId;
+            const prev = entry.teachers.get(tId) || { teacherId: tId, teacherName: `${t.firstName} ${t.lastName}`, hours: 0, classCount: 0 };
+            prev.hours += cs.weeklyHours;
+            prev.classCount++;
+            entry.teachers.set(tId, prev);
+          }
+        }
+      }
+
+      // ── Per-teacher summary ──────────────────────────────────────────────
+      type TEntry = { teacherId: number; teacherName: string; maxHours: number; totalAssignedHours: number; subjects: string[] };
+      const teacherMap = new Map<number, TEntry>();
+      for (const t of allTeachers) {
+        teacherMap.set(t.id, {
+          teacherId: t.id,
+          teacherName: `${t.firstName} ${t.lastName}`.trim() || `O'qituvchi #${t.id}`,
+          maxHours: t.maxHoursPerWeek || 30,
+          totalAssignedHours: 0,
+          subjects: [],
+        });
+      }
+      for (const cs of allCS) {
+        if (!cs.teacherId) continue;
+        const entry = teacherMap.get(cs.teacherId);
+        if (!entry) continue;
+        entry.totalAssignedHours += cs.weeklyHours;
+        const sub = allSubjects.find(s => s.id === cs.subjectId);
+        if (sub && !entry.subjects.includes(sub.name)) entry.subjects.push(sub.name);
+      }
+
+      res.json({
+        subjects: Array.from(subjectMap.values())
+          .map(s => ({ ...s, teachers: Array.from(s.teachers.values()) }))
+          .sort((a, b) => b.totalHours - a.totalHours),
+        teachers: Array.from(teacherMap.values())
+          .sort((a, b) => b.totalAssignedHours - a.totalAssignedHours),
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || "Server xatosi" });
+    }
+  });
+
+  // ─── BULK ASSIGN teacher to ALL classes that have a given subject ─────────
+  app.post("/api/class-subjects/bulk-assign", auth, async (req, res) => {
+    try {
+      const { subjectId, teacherId } = req.body;
+      if (!subjectId) return res.status(400).json({ message: "subjectId kiritilishi kerak" });
+      const allCS = await storage.getAllClassSubjects();
+      // Group by classId
+      const byClass = new Map<number, typeof allCS>();
+      for (const cs of allCS) {
+        if (!byClass.has(cs.classId)) byClass.set(cs.classId, []);
+        byClass.get(cs.classId)!.push(cs);
+      }
+      let updatedCount = 0;
+      for (const entry of Array.from(byClass.entries())) {
+        const classId = entry[0];
+        const items = entry[1];
+        const hasSubject = items.some((x: any) => x.subjectId === subjectId);
+        if (!hasSubject) continue;
+        const updated = items.map((x: any) => ({
+          subjectId: x.subjectId,
+          teacherId: x.subjectId === subjectId ? (teacherId ?? null) : x.teacherId,
+          weeklyHours: x.weeklyHours,
+        }));
+        await storage.setClassSubjects(classId, updated);
+        updatedCount++;
+      }
+      res.json({ updated: updatedCount });
+    } catch (e: any) {
+      res.status(400).json({ message: e.message || "Xatolik" });
+    }
+  });
+
   // ─── ROOMS ────────────────────────────────────────────────────────────────
   app.get("/api/rooms", auth, async (_req, res) => {
     res.json(await storage.getRooms());
