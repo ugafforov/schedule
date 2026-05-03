@@ -2,38 +2,36 @@
 // 10.04.2025 yildagi 121-sonli buyrug'i bilan tasdiqlangan
 // 2025-2026 o'quv yili Tayanch O'quv Rejasi (DTS)
 //
-// Manba: xalqtaliminfo.uz/storage/documents/1744872734O'quv_reja_2026_xalq860.pdf
-// (1-ILOVA — ta'lim o'zbek tilida olib boriladigan maktablar uchun)
+// Manba: 1-ILOVA — ta'lim o'zbek tilida olib boriladigan maktablar uchun
 //
-// Tekshirilgan jami soatlar (haftalik):
-//  1=21, 2=24, 3=24, 4=24, 5=29, 6=30, 7=35, 8=33, 9=34, 10=31, 11=31  Jami=316
+// Jami haftalik soatlar: 1=21, 2=24, 3=24, 4=24, 5=29, 6=30, 7=35, 8=33, 9=34, 10=31, 11=31
+//
+// MUHIM: Har bir fan PDFdagi kabi ALOHIDA (birlashtirilmagan).
+// Masalan: "Ona tili" va "Adabiyot" — ikki mustaqil fan.
+//          "O'zbekiston tarixi" va "Jahon tarixi" — ikki mustaqil fan.
 
 export interface DtsCurriculumEntry {
   name: string;
-  codes: string[];     // birinchi mos kelgani ishlatiladi
-  keywords: string[];  // nomdan qidirish uchun
-  hours: Record<number, number>; // sinf → haftalik soat
+  codes: string[];
+  keywords: string[];
+  hours: Record<number, number>;
 }
 
 export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
 
-  // ── I. FILOLOGIYA FANLARI ─────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // I. FILOLOGIYA FANLARI (jadval satr 1–5)
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // Ona tili + O'qish savodxonligi birlashtirilgan holda saqlanadigan maktablar uchun
+  // 1. Ona tili — 1-sinfdan 11-sinfgacha (soatlar sinf bo'yicha farqlanadi)
   {
-    name: "Ona tili va o'qish savodxonligi (1–4-sinf)",
-    codes: ["ONA4"],
-    keywords: ["ona tili va o'qish", "o'qish savodxonligi"],
-    // 1-sinf: Ona=4 + O'qish=4=8; 2: 4+3=7; 3: 4+3=7; 4: 4+3=7
-    hours: { 1: 8, 2: 7, 3: 7, 4: 7 },
-  },
-  // Agar "Ona tili" va "O'qish savodxonligi" alohida bo'lsa — ikki alohida entry
-  {
-    name: "Ona tili (1–4-sinf)",
-    codes: ["ONA", "ONA1"],
+    name: "Ona tili",
+    codes: ["ONA", "ONA1", "ONA4"],
     keywords: ["ona tili"],
-    hours: { 1: 4, 2: 4, 3: 4, 4: 4 },
+    hours: { 1: 4, 2: 4, 3: 4, 4: 4, 5: 4, 6: 4, 7: 3, 8: 3, 9: 3, 10: 2, 11: 2 },
   },
+
+  // 2. O'qish savodxonligi — faqat 1–4-sinf
   {
     name: "O'qish savodxonligi",
     codes: ["OQISH", "SAVOD"],
@@ -41,29 +39,7 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 1: 4, 2: 3, 3: 3, 4: 3 },
   },
 
-  // Ona tili va adabiyot birlashtirilgan (5–11-sinf)
-  {
-    name: "Ona tili va adabiyoti (5–9-sinf)",
-    codes: ["ONA9"],
-    keywords: ["ona tili va adabiyoti"],
-    // 5: Ona=4+Adabiyot=2=6; 6: 4+2=6; 7: 3+2=5; 8: 3+2=5; 9: 3+2=5
-    hours: { 5: 6, 6: 6, 7: 5, 8: 5, 9: 5 },
-  },
-  {
-    name: "Ona tili va adabiyoti (10–11-sinf)",
-    codes: ["ONA11"],
-    keywords: ["ona tili va adabiyoti (10", "ona tili va adabiyoti (11"],
-    // 10: Ona=2+Adabiyot=2=4; 11: 2+2=4
-    hours: { 10: 4, 11: 4 },
-  },
-
-  // Agar "Ona tili" va "Adabiyot" alohida bo'lsa
-  {
-    name: "Ona tili (5–11-sinf)",
-    codes: ["ONA5", "ONAT"],
-    keywords: ["ona tili"],
-    hours: { 5: 4, 6: 4, 7: 3, 8: 3, 9: 3, 10: 2, 11: 2 },
-  },
+  // 3. Adabiyot — 5-sinfdan 11-sinfgacha
   {
     name: "Adabiyot",
     codes: ["ADAB"],
@@ -71,13 +47,7 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
   },
 
-  {
-    name: "Chet tili (Ingliz/Nemis/Fransuz tili)",
-    codes: ["ING", "XORT4", "XORT11", "XORT"],
-    keywords: ["ingliz tili", "chet tili", "xorijiy til", "nemis tili", "fransuz tili"],
-    hours: { 1: 1, 2: 2, 3: 2, 4: 2, 5: 4, 6: 4, 7: 4, 8: 3, 9: 3, 10: 2, 11: 2 },
-  },
-
+  // 4. Rus tili — 2-sinfdan 11-sinfgacha (1-sinfda yo'q)
   {
     name: "Rus tili",
     codes: ["RUS"],
@@ -85,32 +55,51 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
   },
 
-  // ── II. IJTIMOIY FANLAR ───────────────────────────────────────────────────
+  // 5. Chet tili (ingliz/nemis/fransuz) — 1-sinfdan 11-sinfgacha
+  {
+    name: "Chet tili",
+    codes: ["ING", "XORT4", "XORT"],
+    keywords: ["ingliz tili", "chet tili", "xorijiy til", "nemis tili", "fransuz tili"],
+    hours: { 1: 1, 2: 2, 3: 2, 4: 2, 5: 4, 6: 4, 7: 4, 8: 3, 9: 3, 10: 2, 11: 2 },
+  },
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // II. IJTIMOIY FANLAR (jadval satr 6–11)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 6. Tarixdan hikoyalar — faqat 5-sinf
   {
     name: "Tarixdan hikoyalar",
     codes: ["TARHIK"],
     keywords: ["tarixdan hikoyalar"],
     hours: { 5: 2 },
   },
+
+  // 7. Qadimgi dunyo tarixi — faqat 6-sinf
   {
     name: "Qadimgi dunyo tarixi",
     codes: ["QADTARIX"],
     keywords: ["qadimgi dunyo tarixi", "qadimgi dunyo"],
     hours: { 6: 2 },
   },
+
+  // 8. O'zbekiston tarixi — 7–11-sinf (7-9: 2s, 10-11: 1s)
   {
     name: "O'zbekiston tarixi",
-    codes: ["UZBT", "UZBT11"],
+    codes: ["UZBT"],
     keywords: ["o'zbekiston tarixi"],
     hours: { 7: 2, 8: 2, 9: 2, 10: 1, 11: 1 },
   },
+
+  // 9. Jahon tarixi — 7–11-sinf (har birida 1s)
   {
     name: "Jahon tarixi",
-    codes: ["JTAR", "JTAR11"],
+    codes: ["JTAR"],
     keywords: ["jahon tarixi", "umumiy tarix"],
     hours: { 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
   },
+
+  // 10. Davlat va huquq asoslari — 8–11-sinf
   {
     name: "Davlat va huquq asoslari",
     codes: ["DHQ", "HUQ"],
@@ -118,131 +107,169 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 8: 1, 9: 1, 10: 1, 11: 1 },
   },
 
-  // ── III. ANIQ FANLAR ──────────────────────────────────────────────────────
-
-  // Matematika (1–7-sinf, yagona fan)
+  // 11. Tarbiya (Sinf soati / Kelajak soati) — 1–11-sinf
   {
-    name: "Matematika (1–7-sinf)",
-    codes: ["MATH4", "MATH", "MATH5", "MATH57"],
+    name: "Tarbiya",
+    codes: ["TARB", "SINF"],
+    keywords: ["tarbiya", "sinf soati", "kelajak soati"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // III. ANIQ FANLAR (jadval satr 12–15)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 12. Matematika — 1–7-sinf (8-sinfdan Algebra va Geometriyaga bo'linadi)
+  {
+    name: "Matematika",
+    codes: ["MATH4", "MATH", "MATH5"],
     keywords: ["matematika"],
     hours: { 1: 5, 2: 5, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5 },
   },
-  // Algebra (8–11-sinf)
+
+  // 13. Algebra — 8–11-sinf
   {
     name: "Algebra",
     codes: ["ALG", "MATH11"],
     keywords: ["algebra"],
     hours: { 8: 3, 9: 3, 10: 3, 11: 3 },
   },
-  // Geometriya (8–11-sinf)
+
+  // 14. Geometriya — 8–11-sinf
   {
     name: "Geometriya",
     codes: ["GEOM"],
     keywords: ["geometriya"],
     hours: { 8: 2, 9: 2, 10: 2, 11: 2 },
   },
+
+  // 15. Informatika va axborot texnologiyalari
+  // DIQQAT: 4-sinfda YO'Q (2025-yildan 3-sinfga kiritildi, 4-sinfga emas)
   {
     name: "Informatika va axborot texnologiyalari",
     codes: ["INF4", "INF9", "INF11", "INF"],
     keywords: ["informatika"],
-    // Grade 4 = 0! (rasmiy DTS da 4-sinfda yo'q)
     hours: { 1: 1, 2: 1, 3: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 2, 10: 2, 11: 2 },
   },
 
-  // ── IV. TABIIY VA IQTISODIY FANLAR ───────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IV. TABIIY VA IQTISODIY FANLAR (jadval satr 16–23)
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // Tabiiy fanlar (Science) — 1–6-sinf
+  // 23. Tabiiy fanlar (Science) / Atrofimizdagi olam — 1–6-sinf
   {
-    name: "Tabiiy fanlar (Science) / Atrofimizdagi olam",
+    name: "Tabiiy fanlar (Science)",
     codes: ["ATRO", "TABIIY"],
     keywords: ["tabiiy fanlar", "atrofimizdagi olam", "science", "tabiat"],
     hours: { 1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 3 },
   },
+
+  // 16. Fizika — 7–11-sinf
   {
     name: "Fizika",
     codes: ["FIZ", "FIZ11"],
     keywords: ["fizika"],
     hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
   },
+
+  // 17. Astronomiya — faqat 11-sinf
   {
     name: "Astronomiya",
     codes: ["ASTRO"],
     keywords: ["astronomiya"],
     hours: { 11: 1 },
   },
+
+  // 18. Kimyo — 7–11-sinf
+  {
+    name: "Kimyo",
+    codes: ["KIM", "KIM11"],
+    keywords: ["kimyo"],
+    hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
+  },
+
+  // 19. Biologiya — 7–11-sinf
   {
     name: "Biologiya",
     codes: ["BIO", "BIO11"],
     keywords: ["biologiya"],
     hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
   },
+
+  // 20. Geografiya — 7–10-sinf (11-sinfda yo'q)
+  // DIQQAT: 8-9-sinfda 1.5 soat (Iqtisodiy bilim asoslari 0.5s bilan juft)
   {
-    name: "Kimyo",
-    codes: ["KIM", "KIM11"],
-    keywords: ["kimyo"],
-    // Rasmiy DTS: 7-11-sinf barcha sinflarda 2 soat
-    hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
-  },
-  {
-    // Rasmiy DTS: 7=2, 8=1.5, 9=1.5, 10=2 — 11-sinfda YO'Q
-    // 8-9-sinfda "Iqtisodiy bilim asoslari" bilan juftlashgan (1.5+0.5=2 soat)
     name: "Geografiya",
-    codes: ["GEOG", "GEOG11"],
+    codes: ["GEOG"],
     keywords: ["geografiya"],
     hours: { 7: 2, 8: 1.5, 9: 1.5, 10: 2 },
   },
+
+  // 21. Iqtisodiy bilim asoslari — faqat 8–9-sinf (0.5 soat)
   {
     name: "Iqtisodiy bilim asoslari",
     codes: ["IQT", "IQTISOD"],
     keywords: ["iqtisodiy bilim", "iqtisodiyot"],
     hours: { 8: 0.5, 9: 0.5 },
   },
+
+  // 22. Tadbirkorlik asoslari — faqat 11-sinf
   {
     name: "Tadbirkorlik asoslari",
-    codes: ["TADBIR", "TADBIRKORLIK"],
+    codes: ["TADBIR"],
     keywords: ["tadbirkorlik"],
     hours: { 11: 1 },
   },
-  // ── V. BADIIY FANLAR ──────────────────────────────────────────────────────
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // V. AMALIY FANLAR (jadval satr 24–29)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 24. Musiqa madaniyati — 1–7-sinf
   {
-    name: "Musiqa",
+    name: "Musiqa madaniyati",
     codes: ["MUS", "MUS9"],
-    keywords: ["musiqa"],
+    keywords: ["musiqa madaniyati", "musiqa"],
     hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1 },
   },
+
+  // 25. Tasviriy san'at — 1–7-sinf
   {
     name: "Tasviriy san'at",
     codes: ["TASV", "TASV9"],
-    keywords: ["tasviriy"],
+    keywords: ["tasviriy san'at", "tasviriy"],
     hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1 },
   },
 
-  // ── VI. JISMONIY VA TEXNOLOGIK FANLAR ────────────────────────────────────
-
-  {
-    name: "Texnologiya (Mehnat ta'limi)",
-    codes: ["TECH4", "TECH9", "TECH"],
-    keywords: ["texnologiya", "mehnat"],
-    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2, 7: 2, 8: 1, 9: 1 },
-  },
+  // 26. Chizmachilik — faqat 8–9-sinf
   {
     name: "Chizmachilik",
     codes: ["CHIZMA"],
     keywords: ["chizmachilik"],
     hours: { 8: 1, 9: 1 },
   },
+
+  // 27. Texnologiya (Mehnat ta'limi) — 1–9-sinf
+  {
+    name: "Texnologiya",
+    codes: ["TECH4", "TECH9", "TECH"],
+    keywords: ["texnologiya", "mehnat ta'limi", "mehnat"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2, 7: 2, 8: 1, 9: 1 },
+  },
+
+  // 28. Jismoniy tarbiya — 1–11-sinf
   {
     name: "Jismoniy tarbiya",
     codes: ["JT4", "JT9", "JT11", "JT"],
     keywords: ["jismoniy tarbiya"],
-    // Rasmiy DTS: 1-sinf=1soat, 2-11=2soat
     hours: { 1: 1, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
   },
+
+  // 29. Chaqiruvga qadar boshlang'ich tayyorgarlik (CHQBT) — 10–11-sinf
   {
-    name: "Chaqiruvga qadar boshlang'ich tayyorgarlik (CHQBT)",
+    name: "Chaqiruvga qadar boshlang'ich tayyorgarlik",
     codes: ["CHQBT"],
-    keywords: ["chqbt", "chaqiruvga qadar", "harbiy tayyorgarlik"],
+    keywords: ["chqbt", "chaqiruvga qadar", "boshlang'ich tayyorgarlik"],
     hours: { 10: 2, 11: 2 },
   },
 ];

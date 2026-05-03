@@ -45,67 +45,71 @@ interface DtsSubject {
 }
 
 // DTS 2025-2026 — 121-son buyruq (10.04.2025)
-// Haftalik soatlar rasmiy jadvaldan: Jami 1=21, 2=24, 3=24, 4=24, 5=29, 6=30, 7=35, 8=33, 9=34, 10=31, 11=31
+// PDF 1-ILOVA bo'yicha har bir fan ALOHIDA (birlashtirilmagan).
+// Jami 29 ta fan — 5 bo'lim: Filologiya, Ijtimoiy, Aniq, Tabiiy, Amaliy
 const DTS_GROUPS: { label: string; sinf: string; color: string; subjects: DtsSubject[] }[] = [
   {
-    label: "Boshlang'ich ta'lim", sinf: "1–4-sinf", color: "blue",
+    label: "I. Filologiya", sinf: "1–11-sinf", color: "blue",
     subjects: [
-      { name: "Ona tili va o'qish savodxonligi", code: "ONA4", color: "#3B82F6", weeklyHours: 8, requiredRoomType: "classroom", description: "1-sinf=8soat (4+4), 2-4=7soat (4+3)" },
-      { name: "Matematika", code: "MATH4", color: "#EF4444", weeklyHours: 5, requiredRoomType: "classroom", description: "1–4-sinf, haftasiga 5 soat" },
-      { name: "Tabiiy fanlar (Atrofimizdagi olam)", code: "ATRO", color: "#10B981", weeklyHours: 2, requiredRoomType: "classroom", description: "1-3=1soat, 4-sinf=2soat" },
-      { name: "Chet tili (Ingliz/Nemis/Fransuz)", code: "XORT4", color: "#06B6D4", weeklyHours: 2, requiredRoomType: "classroom", description: "1-sinf=1soat, 2-4=2soat" },
-      { name: "Informatika va AT", code: "INF4", color: "#6366F1", weeklyHours: 1, requiredRoomType: "computer", description: "1-3-sinf=1soat (4-sinfda yo'q!)" },
-      { name: "Musiqa", code: "MUS", color: "#EC4899", weeklyHours: 1, requiredRoomType: "music", description: "1–7-sinf, haftasiga 1 soat" },
-      { name: "Tasviriy san'at", code: "TASV", color: "#F59E0B", weeklyHours: 1, requiredRoomType: "art", description: "1–7-sinf, haftasiga 1 soat" },
-      { name: "Texnologiya (Mehnat ta'limi)", code: "TECH4", color: "#8B5CF6", weeklyHours: 1, requiredRoomType: "classroom", description: "1–4-sinf=1soat" },
-      { name: "Jismoniy tarbiya", code: "JT4", color: "#F97316", weeklyHours: 2, requiredRoomType: "gym", description: "1-sinf=1soat, 2-4=2soat" },
+      { name: "Ona tili",                               code: "ONA",      color: "#3B82F6", weeklyHours: 4, requiredRoomType: "classroom", description: "1–6: 4s | 7–9: 3s | 10–11: 2s (haftalik)" },
+      { name: "O'qish savodxonligi",                    code: "OQISH",    color: "#60A5FA", weeklyHours: 4, requiredRoomType: "classroom", description: "Faqat 1–4-sinf: 1=4s, 2-4=3s" },
+      { name: "Adabiyot",                               code: "ADAB",     color: "#8B5CF6", weeklyHours: 2, requiredRoomType: "classroom", description: "5–11-sinf: 2s" },
+      { name: "Rus tili",                               code: "RUS",      color: "#6366F1", weeklyHours: 2, requiredRoomType: "classroom", description: "2–11-sinf: 2s" },
+      { name: "Chet tili",                              code: "ING",      color: "#06B6D4", weeklyHours: 4, requiredRoomType: "classroom", description: "1=1s | 2-4=2s | 5-7=4s | 8-9=3s | 10-11=2s" },
     ],
   },
   {
-    label: "Asosiy ta'lim", sinf: "5–9-sinf", color: "emerald",
+    label: "II. Ijtimoiy", sinf: "1–11-sinf", color: "amber",
     subjects: [
-      { name: "Ona tili va adabiyoti", code: "ONA9", color: "#3B82F6", weeklyHours: 5, requiredRoomType: "classroom", description: "5-6=6soat (4+2), 7-9=5soat (3+2)" },
-      { name: "Chet tili", code: "ING", color: "#06B6D4", weeklyHours: 4, requiredRoomType: "classroom", description: "5-6-7=4soat, 8-9=3soat" },
-      { name: "Rus tili", code: "RUS", color: "#6366F1", weeklyHours: 2, requiredRoomType: "classroom", description: "2–11-sinf, 2 soat" },
-      { name: "Matematika (5–7-sinf)", code: "MATH5", color: "#EF4444", weeklyHours: 5, requiredRoomType: "classroom", description: "5-6-7-sinf uchun yagona matematika (5soat)" },
-      { name: "Algebra (8–9-sinf)", code: "ALG", color: "#EF4444", weeklyHours: 3, requiredRoomType: "classroom", description: "8-11-sinf, 3 soat" },
-      { name: "Geometriya (8–9-sinf)", code: "GEOM", color: "#F97316", weeklyHours: 2, requiredRoomType: "classroom", description: "8-11-sinf, 2 soat" },
-      { name: "Informatika va AT", code: "INF9", color: "#6366F1", weeklyHours: 1, requiredRoomType: "computer", description: "5-8=1soat, 9=2soat" },
-      { name: "Tabiiy fanlar (Science, 5–6-sinf)", code: "TABIIY", color: "#10B981", weeklyHours: 2, requiredRoomType: "classroom", description: "5-sinf=2soat, 6-sinf=3soat" },
-      { name: "Fizika", code: "FIZ", color: "#8B5CF6", weeklyHours: 2, requiredRoomType: "lab", description: "7–11-sinf, haftasiga 2 soat" },
-      { name: "Kimyo", code: "KIM", color: "#10B981", weeklyHours: 2, requiredRoomType: "lab", description: "7–11-sinf, haftasiga 2 soat" },
-      { name: "Biologiya", code: "BIO", color: "#14B8A6", weeklyHours: 2, requiredRoomType: "lab", description: "7–11-sinf, haftasiga 2 soat" },
-      { name: "Geografiya", code: "GEOG", color: "#06B6D4", weeklyHours: 2, requiredRoomType: "classroom", description: "7=2, 8-9=1.5, 10=2 soat (11-sinfda yo'q)" },
-      { name: "Tarixdan hikoyalar", code: "TARHIK", color: "#F59E0B", weeklyHours: 2, requiredRoomType: "classroom", description: "Faqat 5-sinf, 2 soat" },
-      { name: "Qadimgi dunyo tarixi", code: "QADTARIX", color: "#F59E0B", weeklyHours: 2, requiredRoomType: "classroom", description: "Faqat 6-sinf, 2 soat" },
-      { name: "O'zbekiston tarixi", code: "UZBT", color: "#F59E0B", weeklyHours: 2, requiredRoomType: "classroom", description: "7-9=2soat, 10-11=1soat" },
-      { name: "Jahon tarixi", code: "JTAR", color: "#F59E0B", weeklyHours: 1, requiredRoomType: "classroom", description: "7–11-sinf, haftasiga 1 soat" },
-      { name: "Davlat va huquq asoslari", code: "DHQ", color: "#EC4899", weeklyHours: 1, requiredRoomType: "classroom", description: "8–11-sinf, haftasiga 1 soat" },
-      { name: "Musiqa (5–7-sinf)", code: "MUS9", color: "#EC4899", weeklyHours: 1, requiredRoomType: "music", description: "5–7-sinf, 1 soat" },
-      { name: "Tasviriy san'at (5–7-sinf)", code: "TASV9", color: "#F59E0B", weeklyHours: 1, requiredRoomType: "art", description: "5–7-sinf, 1 soat" },
-      { name: "Texnologiya (5–9-sinf)", code: "TECH9", color: "#8B5CF6", weeklyHours: 2, requiredRoomType: "classroom", description: "5-7=2soat, 8-9=1soat" },
-      { name: "Jismoniy tarbiya (5–9-sinf)", code: "JT9", color: "#F97316", weeklyHours: 2, requiredRoomType: "gym", description: "5–9-sinf, haftasiga 2 soat" },
+      { name: "Tarixdan hikoyalar",                     code: "TARHIK",   color: "#F59E0B", weeklyHours: 2, requiredRoomType: "classroom", description: "Faqat 5-sinf: 2s" },
+      { name: "Qadimgi dunyo tarixi",                   code: "QADTARIX", color: "#D97706", weeklyHours: 2, requiredRoomType: "classroom", description: "Faqat 6-sinf: 2s" },
+      { name: "O'zbekiston tarixi",                     code: "UZBT",     color: "#B45309", weeklyHours: 2, requiredRoomType: "classroom", description: "7–9: 2s | 10–11: 1s" },
+      { name: "Jahon tarixi",                           code: "JTAR",     color: "#92400E", weeklyHours: 1, requiredRoomType: "classroom", description: "7–11-sinf: 1s" },
+      { name: "Davlat va huquq asoslari",               code: "DHQ",      color: "#EC4899", weeklyHours: 1, requiredRoomType: "classroom", description: "8–11-sinf: 1s" },
+      { name: "Tarbiya",                                code: "TARB",     color: "#14B8A6", weeklyHours: 1, requiredRoomType: "classroom", description: "1–11-sinf: 1s (sinf soati)" },
     ],
   },
   {
-    label: "O'rta ta'lim", sinf: "10–11-sinf", color: "purple",
+    label: "III. Aniq fanlar", sinf: "1–11-sinf", color: "red",
     subjects: [
-      { name: "Ona tili va adabiyoti (10–11)", code: "ONA11", color: "#3B82F6", weeklyHours: 4, requiredRoomType: "classroom", description: "Ona tili=2soat + Adabiyot=2soat" },
-      { name: "Algebra (10–11)", code: "MATH11", color: "#EF4444", weeklyHours: 3, requiredRoomType: "classroom", description: "10-11-sinf Algebra, 3 soat" },
-      { name: "Geometriya (10–11)", code: "GEOM11", color: "#F97316", weeklyHours: 2, requiredRoomType: "classroom", description: "10-11-sinf Geometriya, 2 soat" },
-      { name: "Informatika va AT (10–11)", code: "INF11", color: "#6366F1", weeklyHours: 2, requiredRoomType: "computer", description: "10–11-sinf, 2 soat" },
-      { name: "Fizika (10–11)", code: "FIZ11", color: "#8B5CF6", weeklyHours: 2, requiredRoomType: "lab", description: "10–11-sinf, 2 soat" },
-      { name: "Kimyo (10–11)", code: "KIM11", color: "#10B981", weeklyHours: 2, requiredRoomType: "lab", description: "10–11-sinf, 2 soat" },
-      { name: "Biologiya (10–11)", code: "BIO11", color: "#14B8A6", weeklyHours: 2, requiredRoomType: "lab", description: "10–11-sinf, 2 soat" },
-      { name: "Jismoniy tarbiya (10–11)", code: "JT11", color: "#F97316", weeklyHours: 2, requiredRoomType: "gym", description: "10–11-sinf, 2 soat" },
+      { name: "Matematika",                             code: "MATH4",    color: "#EF4444", weeklyHours: 5, requiredRoomType: "classroom", description: "1–7-sinf: 5s" },
+      { name: "Algebra",                                code: "ALG",      color: "#DC2626", weeklyHours: 3, requiredRoomType: "classroom", description: "8–11-sinf: 3s" },
+      { name: "Geometriya",                             code: "GEOM",     color: "#F97316", weeklyHours: 2, requiredRoomType: "classroom", description: "8–11-sinf: 2s" },
+      { name: "Informatika va axborot texnologiyalari", code: "INF4",     color: "#6366F1", weeklyHours: 1, requiredRoomType: "computer",  description: "1–3=1s | 5–8=1s | 9–11=2s (4-sinfda yo'q)" },
+    ],
+  },
+  {
+    label: "IV. Tabiiy fanlar", sinf: "1–11-sinf", color: "emerald",
+    subjects: [
+      { name: "Tabiiy fanlar (Science)",                code: "ATRO",     color: "#10B981", weeklyHours: 2, requiredRoomType: "classroom", description: "1–3=1s | 4=2s | 5=2s | 6=3s" },
+      { name: "Fizika",                                 code: "FIZ",      color: "#8B5CF6", weeklyHours: 2, requiredRoomType: "lab",        description: "7–11-sinf: 2s" },
+      { name: "Astronomiya",                            code: "ASTRO",    color: "#7C3AED", weeklyHours: 1, requiredRoomType: "lab",        description: "Faqat 11-sinf: 1s" },
+      { name: "Kimyo",                                  code: "KIM",      color: "#059669", weeklyHours: 2, requiredRoomType: "lab",        description: "7–11-sinf: 2s" },
+      { name: "Biologiya",                              code: "BIO",      color: "#14B8A6", weeklyHours: 2, requiredRoomType: "lab",        description: "7–11-sinf: 2s" },
+      { name: "Geografiya",                             code: "GEOG",     color: "#06B6D4", weeklyHours: 2, requiredRoomType: "classroom", description: "7=2s | 8–9=1.5s | 10=2s (11-sinfda yo'q)" },
+      { name: "Iqtisodiy bilim asoslari",               code: "IQT",      color: "#0891B2", weeklyHours: 1, requiredRoomType: "classroom", description: "8–9-sinf: 0.5s" },
+      { name: "Tadbirkorlik asoslari",                  code: "TADBIR",   color: "#0E7490", weeklyHours: 1, requiredRoomType: "classroom", description: "Faqat 11-sinf: 1s" },
+    ],
+  },
+  {
+    label: "V. Amaliy fanlar", sinf: "1–11-sinf", color: "pink",
+    subjects: [
+      { name: "Musiqa madaniyati",                      code: "MUS",      color: "#EC4899", weeklyHours: 1, requiredRoomType: "music",     description: "1–7-sinf: 1s" },
+      { name: "Tasviriy san'at",                        code: "TASV",     color: "#F59E0B", weeklyHours: 1, requiredRoomType: "art",       description: "1–7-sinf: 1s" },
+      { name: "Chizmachilik",                           code: "CHIZMA",   color: "#78716C", weeklyHours: 1, requiredRoomType: "classroom", description: "8–9-sinf: 1s" },
+      { name: "Texnologiya",                            code: "TECH4",    color: "#8B5CF6", weeklyHours: 2, requiredRoomType: "classroom", description: "1–4=1s | 5–7=2s | 8–9=1s" },
+      { name: "Jismoniy tarbiya",                       code: "JT4",      color: "#F97316", weeklyHours: 2, requiredRoomType: "gym",       description: "1=1s | 2–11=2s" },
+      { name: "Chaqiruvga qadar boshlang'ich tayyorgarlik", code: "CHQBT", color: "#EF4444", weeklyHours: 2, requiredRoomType: "gym",      description: "10–11-sinf: 2s" },
     ],
   },
 ];
 
 const GROUP_STYLES: Record<string, { tab: string; badge: string; check: string; row: string }> = {
-  blue: { tab: "border-blue-500 text-blue-700 bg-blue-50", badge: "bg-blue-100 text-blue-700", check: "text-blue-600", row: "hover:bg-blue-50/50" },
+  blue:    { tab: "border-blue-500 text-blue-700 bg-blue-50",       badge: "bg-blue-100 text-blue-700",       check: "text-blue-600",    row: "hover:bg-blue-50/50" },
+  amber:   { tab: "border-amber-500 text-amber-700 bg-amber-50",    badge: "bg-amber-100 text-amber-700",    check: "text-amber-600",   row: "hover:bg-amber-50/50" },
+  red:     { tab: "border-red-500 text-red-700 bg-red-50",          badge: "bg-red-100 text-red-700",        check: "text-red-600",     row: "hover:bg-red-50/50" },
   emerald: { tab: "border-emerald-500 text-emerald-700 bg-emerald-50", badge: "bg-emerald-100 text-emerald-700", check: "text-emerald-600", row: "hover:bg-emerald-50/50" },
-  purple: { tab: "border-purple-500 text-purple-700 bg-purple-50", badge: "bg-purple-100 text-purple-700", check: "text-purple-600", row: "hover:bg-purple-50/50" },
+  pink:    { tab: "border-pink-500 text-pink-700 bg-pink-50",       badge: "bg-pink-100 text-pink-700",      check: "text-pink-600",    row: "hover:bg-pink-50/50" },
 };
 
 function DtsDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
