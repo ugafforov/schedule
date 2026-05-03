@@ -100,13 +100,6 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 6: 2 },
   },
   {
-    name: "Tarbiya (Sinf soati)",
-    codes: ["TARB", "SINF"],
-    keywords: ["tarbiya", "sinf soati", "kelajak soati"],
-    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
-  },
-
-  {
     name: "O'zbekiston tarixi",
     codes: ["UZBT", "UZBT11"],
     keywords: ["o'zbekiston tarixi"],
