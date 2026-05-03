@@ -304,7 +304,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
       })).json() as ClassSubject[];
       setAssignments(data.map(a => ({ subjectId: a.subjectId, teacherId: a.teacherId ?? null, weeklyHours: a.weeklyHours })));
       setSaveStatus("idle");
-      setTimeout(() => { isLoadingRef.current = false; }, 100);
+      isLoadingRef.current = false;
       return data;
     },
   });
@@ -315,7 +315,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
       setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2000);
+      setTimeout(() => setSaveStatus("idle"), 600);
     },
     onError: () => {
       setSaveStatus("error");
@@ -323,14 +323,12 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     },
   });
 
-  // Auto-save with 1.5s debounce after any assignment change
+  // Auto-save immediately after any assignment change
   useEffect(() => {
     if (isLoadingRef.current || selectedClassId === null) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setSaveStatus("saving");
-    debounceRef.current = setTimeout(() => {
-      saveMutation.mutate(assignments);
-    }, 1500);
+    saveMutation.mutate(assignments);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [assignments]);
 
