@@ -226,50 +226,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
         db.select().from(teacherSubjects),
       ]);
 
-      // subject → total weekly hours across all classes
       const subjectHoursMap = new Map<number, number>();
-      for (const cs of allClassSubjects) {
-        subjectHoursMap.set(cs.subjectId, (subjectHoursMap.get(cs.subjectId) || 0) + (cs.weeklyHours || 0));
-      }
-
-      // subject → count of classes that study it
       const subjectClassCountMap = new Map<number, number>();
       for (const cs of allClassSubjects) {
+        subjectHoursMap.set(cs.subjectId, (subjectHoursMap.get(cs.subjectId) || 0) + Number(cs.weeklyHours || 0));
         subjectClassCountMap.set(cs.subjectId, (subjectClassCountMap.get(cs.subjectId) || 0) + 1);
       }
 
-      // subject → set of teacherIds already linked
       const subjectTeacherMap = new Map<number, Set<number>>();
+      const teacherHoursMap = new Map<number, number>();
+      const teacherSubjectCountMap = new Map<number, number>();
       for (const ts of allTeacherSubjects) {
         if (!subjectTeacherMap.has(ts.subjectId)) subjectTeacherMap.set(ts.subjectId, new Set());
         subjectTeacherMap.get(ts.subjectId)!.add(ts.teacherId);
+        teacherSubjectCountMap.set(ts.teacherId, (teacherSubjectCountMap.get(ts.teacherId) || 0) + 1);
+      }
+      for (const cs of allClassSubjects) {
+        for (const ts of allTeacherSubjects) {
+          if (ts.subjectId === cs.subjectId) {
+            teacherHoursMap.set(ts.teacherId, (teacherHoursMap.get(ts.teacherId) || 0) + Number(cs.weeklyHours || 0));
+          }
+        }
       }
 
-      const DEFAULT_MAX_HOURS = 24; // 1 o'qituvchi uchun standart max soat
+      const DEFAULT_MAX_HOURS = 24;
+      const recommendations = allSubjects
+        .map((subject) => {
+          const totalHours = subjectHoursMap.get(subject.id) || 0;
+          const classCount = subjectClassCountMap.get(subject.id) || 0;
+          const existingTeacherIds = subjectTeacherMap.get(subject.id) || new Set();
+          const baseNeed = Math.ceil(totalHours / DEFAULT_MAX_HOURS);
+          const loadPenalty = Math.max(0, Math.ceil((totalHours - existingTeacherIds.size * DEFAULT_MAX_HOURS) / DEFAULT_MAX_HOURS));
+          const needed = Math.max(0, baseNeed + loadPenalty);
+          const vacancies = Math.max(0, needed - existingTeacherIds.size);
+          return {
+            subjectId: subject.id,
+            subjectName: subject.name,
+            subjectColor: subject.color,
+            totalWeeklyHours: totalHours,
+            classCount,
+            neededTeachers: needed,
+            existingTeachers: existingTeacherIds.size,
+            vacancies,
+            matchScore: Number((totalHours / Math.max(1, classCount || 1)).toFixed(2)),
+          };
+        })
+        .filter((item) => item.totalWeeklyHours > 0)
+        .sort((a, b) => b.vacancies - a.vacancies || b.totalWeeklyHours - a.totalWeeklyHours || b.matchScore - a.matchScore);
 
-      const recommendations = [];
-      for (const subject of allSubjects) {
-        const totalHours = subjectHoursMap.get(subject.id) || 0;
-        if (totalHours === 0) continue; // Bu fanni hech bir sinf o'qimaydi
-        const classCount = subjectClassCountMap.get(subject.id) || 0;
-        const existingTeacherIds = subjectTeacherMap.get(subject.id) || new Set();
-        const needed = Math.ceil(totalHours / DEFAULT_MAX_HOURS);
-        const existing = existingTeacherIds.size;
-        const vacancies = Math.max(0, needed - existing);
-        recommendations.push({
-          subjectId: subject.id,
-          subjectName: subject.name,
-          subjectColor: subject.color,
-          totalWeeklyHours: totalHours,
-          classCount,
-          neededTeachers: needed,
-          existingTeachers: existing,
-          vacancies,
-        });
-      }
-
-      // Sort by vacancies desc, then by totalHours desc
-      recommendations.sort((a, b) => b.vacancies - a.vacancies || b.totalWeeklyHours - a.totalWeeklyHours);
       res.json(recommendations);
     } catch (e: any) {
       console.error("[teacher-recommendation]", e);
