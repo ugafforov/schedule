@@ -12,13 +12,13 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Clock, RotateCcw, Save, Plus, Trash2, Pencil, Zap, Coffee, UtensilsCrossed, CheckCircle, AlertTriangle,
+  Clock, RotateCcw, Save, Plus, Trash2, Pencil, Zap, CheckCircle, AlertTriangle,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { TimeSlot } from "@shared/schema";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-type RowType = "lesson" | "break" | "lunch";
+type RowType = "lesson";
 
 interface SlotRow {
   key: string;
@@ -33,9 +33,6 @@ interface GenConfig {
   schoolEnd: string;
   lessonMin: number;
   breakMin: number;
-  useLunch: boolean;
-  lunchAfterLesson: number;
-  lunchMin: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -87,32 +84,7 @@ function generateSchedule(cfg: GenConfig): SlotRow[] {
     });
     current = lessonEnd;
 
-    if (cfg.useLunch && lessonNum === cfg.lunchAfterLesson) {
-      const lunchEnd = addMinutes(current, cfg.lunchMin);
-      rows.push({
-        key: newKey(),
-        type: "lunch",
-        periodNumber: 0,
-        startTime: current,
-        endTime: lunchEnd,
-      });
-      current = lunchEnd;
-    } else {
-      const breakEnd = addMinutes(current, cfg.breakMin);
-      const nextLessonEnd = addMinutes(breakEnd, cfg.lessonMin);
-      if (HHMMtoMinutes(nextLessonEnd) <= HHMMtoMinutes(cfg.schoolEnd)) {
-        rows.push({
-          key: newKey(),
-          type: "break",
-          periodNumber: 0,
-          startTime: current,
-          endTime: breakEnd,
-        });
-        current = breakEnd;
-      } else {
-        break;
-      }
-    }
+    current = addMinutes(current, cfg.breakMin);
   }
   return rows;
 }
@@ -129,7 +101,7 @@ function buildRowsFromSlots(slots: TimeSlot[]): SlotRow[] {
     })
     .map(s => ({
       key: newKey(),
-      type: (s.isBreak ? "lunch" : "lesson") as RowType,
+      type: "lesson",
       periodNumber: s.periodNumber,
       startTime: toHHMM(s.startTime),
       endTime: toHHMM(s.endTime),
@@ -145,10 +117,10 @@ function rowStyle(type: RowType) {
     label: (n: number) => `${n}-dars`,
   };
   return {
-    bg: "bg-orange-50/60 hover:bg-orange-50 border-orange-100",
-    badge: "bg-orange-100 text-orange-700",
-    icon: UtensilsCrossed,
-    label: () => "Tushlik",
+    bg: "bg-white hover:bg-blue-50/40 border-gray-100",
+    badge: "bg-blue-100 text-blue-700",
+    icon: null as any,
+    label: (n: number) => `${n}-dars`,
   };
 }
 
@@ -163,13 +135,10 @@ function EditDialog({
 }) {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [type, setType] = useState<RowType>("lesson");
-
   useEffect(() => {
     if (row) {
       setStart(row.startTime);
       setEnd(row.endTime);
-      setType(row.type);
     }
   }, [row]);
 
@@ -181,9 +150,7 @@ function EditDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-blue-600" />
-            {row?.type === "lesson"
-              ? `${row.periodNumber}-dars vaqtini o'zgartirish`
-              : "Tushlik vaqtini o'zgartirish"}
+            {`${row?.periodNumber || 0}-dars vaqtini o'zgartirish`}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -207,18 +174,6 @@ function EditDialog({
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-gray-500">Turi</Label>
-            <Select value={type} onValueChange={v => setType(v as RowType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="lesson">Dars</SelectItem>
-                <SelectItem value="lunch">Tushlik tanaffusi</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           {dur > 0 && (
             <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
               <CheckCircle className="h-4 w-4" />
@@ -235,7 +190,7 @@ function EditDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Bekor</Button>
           <Button
-            onClick={() => { onSave({ startTime: start, endTime: end, type }); onClose(); }}
+            onClick={() => { onSave({ startTime: start, endTime: end }); onClose(); }}
             disabled={dur <= 0}
             className="bg-blue-600 hover:bg-blue-700"
           >
@@ -257,8 +212,6 @@ function AddDialog({
 }) {
   const [start, setStart] = useState("08:00");
   const [end, setEnd] = useState("08:45");
-  const [type, setType] = useState<RowType>("lesson");
-
   const dur = minuteDiff(start, end);
 
   return (
@@ -281,16 +234,6 @@ function AddDialog({
               <Input type="time" value={end} onChange={e => setEnd(e.target.value)} className="font-mono" />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-gray-500">Turi</Label>
-            <Select value={type} onValueChange={v => setType(v as RowType)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="lesson">Dars</SelectItem>
-                <SelectItem value="lunch">Tushlik tanaffusi</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           {dur > 0 && (
             <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
               <CheckCircle className="h-4 w-4" />
@@ -302,7 +245,7 @@ function AddDialog({
           <Button variant="outline" onClick={onClose}>Bekor</Button>
           <Button
             onClick={() => {
-              onAdd({ type, periodNumber: 0, startTime: start, endTime: end });
+              onAdd({ type: "lesson", periodNumber: 0, startTime: start, endTime: end });
               onClose();
             }}
             disabled={dur <= 0}
