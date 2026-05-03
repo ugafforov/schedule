@@ -487,7 +487,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }> = req.body.rows;
       if (!Array.isArray(rows) || rows.length === 0)
         return res.status(400).json({ message: "Qatorlar bo'sh bo'lmasligi kerak" });
-      await storage.deleteAllTimeSlots();
       const toCreate: any[] = [];
       for (const day of DAYS) {
         for (const row of rows) {
@@ -507,6 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
+      await storage.deleteAllTimeSlots();
       const created = [];
       for (const s of toCreate) created.push(await storage.createTimeSlot(s));
       res.json(created);
