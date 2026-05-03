@@ -164,7 +164,6 @@ export default function Classes() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [clearOpen, setClearOpen] = useState(false);
-  const [clearOpen, setClearOpen] = useState(false);
 
   const { toast } = useToast();
   const qc = useQueryClient();
