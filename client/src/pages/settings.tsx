@@ -66,7 +66,23 @@ export default function SettingsPage() {
   });
 
   const toggleShow = (id: number) => setShowCode(p => ({ ...p, [id]: !p[id] }));
-  const confirmDelete = (message: string) => window.confirm(message);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
+    return (
+      <Dialog open={open} onOpenChange={v => !v && onCancel()}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">{title}</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
+            <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const generateCode = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -180,7 +196,7 @@ export default function SettingsPage() {
                   <Button
                     variant="ghost" size="sm"
                     className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50 flex-shrink-0"
-                    onClick={() => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(code.id); }}
+                    onClick={() => setDeleteId(code.id)}
                     disabled={deleteMutation.isPending}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

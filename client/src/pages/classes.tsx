@@ -22,7 +22,23 @@ const GRADE_COLORS = [
   "bg-red-100 text-red-700", "bg-yellow-100 text-yellow-700",
 ];
 const ALL_GRADES = ["1","2","3","4","5","6","7","8","9","10","11"];
-const confirmDelete = (message: string) => window.confirm(message);
+
+function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onCancel()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-gray-600">{title}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
+          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 /* ── Bulk add dialog ─────────────────────────────────────────────────────── */
 function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
@@ -244,7 +260,7 @@ export default function Classes() {
                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(cls)}><Edit className="h-3.5 w-3.5" /></Button>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
-                          onClick={() => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(cls.id); }} disabled={deleteMutation.isPending}>
+                          onClick={() => setDeleteId(cls.id)} disabled={deleteMutation.isPending}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -282,7 +298,7 @@ export default function Classes() {
                       <div className="text-sm text-gray-600 whitespace-nowrap">{cls.totalStudents} o'quvchi</div>
                       <div className="flex items-center justify-end gap-2">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(cls)}><Edit className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(cls.id); }} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setDeleteId(cls.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
                     </div>
                   );
