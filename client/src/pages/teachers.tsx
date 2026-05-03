@@ -159,6 +159,7 @@ export default function Teachers() {
   const [unavailSlots, setUnavailSlots] = useState<Set<string>>(new Set());
   const [unavailLoading, setUnavailLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -438,6 +439,16 @@ export default function Teachers() {
       </Dialog>
 
       <BulkAddTeachers open={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/teachers"] })} />
+
+      <DeleteConfirmDialog
+        open={deleteId !== null}
+        title="O'qituvchi o'chiriladi. Davom etasizmi?"
+        onCancel={() => setDeleteId(null)}
+        onConfirm={() => {
+          if (deleteId !== null) deleteMutation.mutate(deleteId);
+          setDeleteId(null);
+        }}
+      />
     </div>
   );
 }

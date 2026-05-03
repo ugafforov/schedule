@@ -33,10 +33,28 @@ const ROLE_COLORS: Record<string, string> = {
   school: "bg-green-100 text-green-700",
 };
 
+function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onCancel()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-gray-600">{title}</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
+          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SettingsPage() {
   const [open, setOpen] = useState(false);
   const [showCode, setShowCode] = useState<Record<number, boolean>>({});
   const [form, setForm] = useState<CodeForm>(EMPTY_FORM);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -66,23 +84,6 @@ export default function SettingsPage() {
   });
 
   const toggleShow = (id: number) => setShowCode(p => ({ ...p, [id]: !p[id] }));
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
-    return (
-      <Dialog open={open} onOpenChange={v => !v && onCancel()}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-gray-600">{title}</p>
-          <DialogFooter>
-            <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
-            <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   const generateCode = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -297,6 +298,16 @@ export default function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DeleteConfirmDialog
+        open={deleteId !== null}
+        title="Kirish kodi o'chiriladi. Davom etasizmi?"
+        onCancel={() => setDeleteId(null)}
+        onConfirm={() => {
+          if (deleteId !== null) deleteMutation.mutate(deleteId);
+          setDeleteId(null);
+        }}
+      />
     </div>
   );
 }

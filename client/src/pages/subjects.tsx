@@ -221,33 +221,6 @@ function DtsDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () =>
   );
 }
 
-function DeleteConfirmDialog({
-  open,
-  title,
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean;
-  title: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onCancel()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-gray-600">{title}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
-          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
   return (
     <Dialog open={open} onOpenChange={v => !v && onCancel()}>
@@ -328,6 +301,7 @@ export default function Subjects() {
   const [editing, setEditing] = useState<Subject | null>(null);
   const [form, setForm] = useState<SubjectFormData>(EMPTY_FORM);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: subjects = [], isLoading } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
@@ -470,6 +444,16 @@ export default function Subjects() {
       </Dialog>
 
       <DtsDialog open={dtsOpen} onClose={() => setDtsOpen(false)} onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/subjects"] })} />
+
+      <DeleteConfirmDialog
+        open={deleteId !== null}
+        title="Fan o'chiriladi. Davom etasizmi?"
+        onCancel={() => setDeleteId(null)}
+        onConfirm={() => {
+          if (deleteId !== null) deleteMutation.mutate(deleteId);
+          setDeleteId(null);
+        }}
+      />
     </div>
   );
 }

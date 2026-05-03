@@ -168,6 +168,7 @@ export default function Rooms() {
   const [editing, setEditing] = useState<Room | null>(null);
   const [form, setForm] = useState<RoomFormData>(EMPTY_FORM);
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -397,6 +398,16 @@ export default function Rooms() {
       </Dialog>
 
       <BulkAddRooms open={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={() => { qc.invalidateQueries({ queryKey: ["/api/rooms"] }); qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] }); }} />
+
+      <DeleteConfirmDialog
+        open={deleteId !== null}
+        title="Xona o'chiriladi. Davom etasizmi?"
+        onCancel={() => setDeleteId(null)}
+        onConfirm={() => {
+          if (deleteId !== null) deleteMutation.mutate(deleteId);
+          setDeleteId(null);
+        }}
+      />
     </div>
   );
 }

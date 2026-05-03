@@ -145,6 +145,7 @@ export default function Classes() {
   const [form, setForm] = useState<ClassFormData>(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState<"info" | "subjects">("info");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
+  const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -429,6 +430,16 @@ export default function Classes() {
       </Dialog>
 
       <BulkAddDialog open={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/classes"] })} />
+
+      <DeleteConfirmDialog
+        open={deleteId !== null}
+        title="Sinf o'chiriladi. Davom etasizmi?"
+        onCancel={() => setDeleteId(null)}
+        onConfirm={() => {
+          if (deleteId !== null) deleteMutation.mutate(deleteId);
+          setDeleteId(null);
+        }}
+      />
     </div>
   );
 }
