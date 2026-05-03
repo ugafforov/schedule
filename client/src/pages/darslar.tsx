@@ -251,7 +251,15 @@ export default function Darslar() {
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/time-slots/save", { rows }),
+    mutationFn: async () => {
+      const payloadRows = rows.map(row => ({
+        type: row.type === "lunch" ? "lunch" : "lesson",
+        periodNumber: row.type === "lesson" ? row.periodNumber : 0,
+        startTime: row.startTime,
+        endTime: row.endTime,
+      }));
+      return apiRequest("POST", "/api/time-slots/save", { rows: payloadRows });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/time-slots"] });
       toast({ title: "Saqlandi", description: "Qo'ng'iroq jadvali saqlandi" });
