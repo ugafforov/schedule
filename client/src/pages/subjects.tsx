@@ -221,6 +221,10 @@ function DtsDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () =>
   );
 }
 
+function confirmDelete(message: string) {
+  return window.confirm(message);
+}
+
 function SubjectCard({ subject, openEdit, onDelete }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void }) {
   const roomType = (subject as any).requiredRoomType || "any";
   return (
@@ -370,14 +374,14 @@ export default function Subjects() {
           ) : filtered.length > 0 ? (
             viewMode === "grid" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filtered.map(subject => <SubjectCard key={subject.id} subject={subject} openEdit={openEdit} onDelete={id => deleteMutation.mutate(id)} />)}
+                {filtered.map(subject => <SubjectCard key={subject.id} subject={subject} openEdit={openEdit} onDelete={id => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(id); }} />)}
               </div>
             ) : (
               <div className="space-y-3">
                 <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_130px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
                   <div>Fan</div><div>Tavsif</div><div>Xona turi</div><div className="text-right">Soat / Amal</div>
                 </div>
-                {filtered.map(subject => <SubjectRow key={subject.id} subject={subject} openEdit={openEdit} onDelete={id => deleteMutation.mutate(id)} />)}
+                {filtered.map(subject => <SubjectRow key={subject.id} subject={subject} openEdit={openEdit} onDelete={id => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(id); }} />)}
               </div>
             )
           ) : (

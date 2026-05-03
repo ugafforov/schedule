@@ -16,6 +16,7 @@ import type { Room } from "@shared/schema";
 interface RoomFormData { name: string; roomNumber: string; building: string; floor: string; capacity: number; roomType: string; }
 
 const EMPTY_FORM: RoomFormData = { name: "", roomNumber: "", building: "", floor: "", capacity: 30, roomType: "classroom" };
+const confirmDelete = (message: string) => window.confirm(message);
 
 const ROOM_TYPE_DISPLAY: Record<string, { icon: any; bg: string; color: string; badge: string }> = {
   classroom: { icon: BookOpen,     bg: "bg-blue-50",   color: "text-blue-600",   badge: "bg-blue-100 text-blue-700 border-blue-200" },
@@ -270,7 +271,7 @@ export default function Rooms() {
                       <div className={`w-10 h-10 ${d.bg} rounded-xl flex items-center justify-center`}><Icon className={`${d.color} h-5 w-5`} /></div>
                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => openEdit(room)}><Edit className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMutation.mutate(room.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(room.id); }} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
                     </div>
                     <h3 className="font-semibold text-gray-900 text-sm">{room.name}</h3>
@@ -314,7 +315,7 @@ export default function Rooms() {
                       <div className="text-sm text-gray-600 whitespace-nowrap">{room.capacity} o'rin</div>
                       <div className="flex items-center justify-end gap-2">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(room)}><Edit className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMutation.mutate(room.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(room.id); }} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
                     </div>
                   );

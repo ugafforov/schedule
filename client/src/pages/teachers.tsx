@@ -22,6 +22,7 @@ interface TeacherFormData {
 const EMPTY_FORM: TeacherFormData = {
   firstName: "", lastName: "", department: "", specialization: "", phone: "", maxHoursPerWeek: 30, subjectIds: [],
 };
+const confirmDelete = (message: string) => window.confirm(message);
 
 /* ── Bulk add dialog ─────────────────────────────────────────────────────── */
 function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
@@ -266,7 +267,7 @@ export default function Teachers() {
                     </div>
                     <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(teacher)}><Edit className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMutation.mutate(teacher.id)} disabled={deleteMutation.isPending}>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(teacher.id); }} disabled={deleteMutation.isPending}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -305,7 +306,7 @@ export default function Teachers() {
                     <div className="text-sm text-gray-600 whitespace-nowrap">{teacher.maxHoursPerWeek || 30} soat</div>
                     <div className="flex items-center justify-end gap-2">
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(teacher)}><Edit className="h-3.5 w-3.5" /></Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMutation.mutate(teacher.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => { if (confirmDelete("Haqiqatan ham o'chirmoqchimisiz?")) deleteMutation.mutate(teacher.id); }} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </div>
                 ))}
