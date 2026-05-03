@@ -169,7 +169,7 @@ function AddDialog({ open, onClose, onAdd }: {
         <div className="space-y-4 py-2">
           <div className="flex gap-2">
             <Button size="sm" variant={type === "lesson" ? "default" : "outline"} onClick={() => setType("lesson")} className={type === "lesson" ? "bg-blue-600 hover:bg-blue-700" : ""}>Dars</Button>
-            <Button size="sm" variant={type === "lunch" ? "default" : "outline"} onClick={() => setType("lunch")} className={type === "lunch" ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}>Kechki tushlik</Button>
+            <Button size="sm" variant={type === "lunch" ? "default" : "outline"} onClick={() => setType("lunch")} className={type === "lunch" ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}>Tushlik</Button>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -251,15 +251,7 @@ export default function Darslar() {
   }
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
-      const payloadRows = rows.map(row => ({
-        type: row.type === "lunch" ? "lunch" : "lesson",
-        periodNumber: row.type === "lesson" ? row.periodNumber : 0,
-        startTime: row.startTime,
-        endTime: row.endTime,
-      }));
-      return apiRequest("POST", "/api/time-slots/save", { rows: payloadRows });
-    },
+    mutationFn: () => apiRequest("POST", "/api/time-slots/save", { rows }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/time-slots"] });
       toast({ title: "Saqlandi", description: "Qo'ng'iroq jadvali saqlandi" });
