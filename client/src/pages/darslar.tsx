@@ -106,6 +106,30 @@ function fromSlots(slots: TimeSlot[]): SlotRow[] {
     }));
 }
 
+function deriveCfgFromRows(rows: SlotRow[]): GenConfig {
+  const lessons = rows.filter(r => r.type === "lesson");
+  const lunches = rows.filter(r => r.type === "lunch");
+  const dayLunch = lunches.find(r => r.meta !== "evening-lunch");
+  const eveningLunch = lunches.find(r => r.meta === "evening-lunch");
+  const firstLunchIndex = dayLunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(dayLunch.startTime)) : -1;
+  const eveningLunchIndex = eveningLunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(eveningLunch.startTime)) : -1;
+
+  if (lessons.length === 0) return { ...DEFAULT_CFG };
+
+  return {
+    schoolStart: lessons[0].startTime,
+    schoolEnd: lessons[lessons.length - 1].endTime,
+    lessonMin: diff(lessons[0].startTime, lessons[0].endTime),
+    breakMin: lessons.length > 1 ? diff(lessons[0].endTime, lessons[1].startTime) : DEFAULT_CFG.breakMin,
+    useLunch: Boolean(dayLunch),
+    lunchAfterLesson: dayLunch && firstLunchIndex >= 0 ? firstLunchIndex + 1 : DEFAULT_CFG.lunchAfterLesson,
+    lunchMin: dayLunch ? diff(dayLunch.startTime, dayLunch.endTime) : DEFAULT_CFG.lunchMin,
+    useEveningLunch: Boolean(eveningLunch),
+    eveningLunchAfterLesson: eveningLunch && eveningLunchIndex >= 0 ? eveningLunchIndex + 1 : DEFAULT_CFG.eveningLunchAfterLesson,
+    eveningLunchMin: eveningLunch ? diff(eveningLunch.startTime, eveningLunch.endTime) : DEFAULT_CFG.eveningLunchMin,
+  };
+}
+
 // Reindex lesson numbers sequentially
 function reindex(rows: SlotRow[]): SlotRow[] {
   let n = 0;
@@ -235,27 +259,7 @@ export default function Darslar() {
     if (savedSlots.length > 0) {
       loadedRef.current = true;
       if (built.length > 0) setRows(built);
-      if (built.length > 0) {
-        const lessons = built.filter(r => r.type === "lesson");
-        const lunch = built.find(r => r.type === "lunch" && r.meta !== "evening-lunch");
-        const eveningLunch = built.find(r => r.type === "lunch" && r.meta === "evening-lunch");
-        if (lessons.length > 0) {
-          const firstLunchIndex = lunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(lunch.startTime)) : -1;
-          const eveningLunchIndex = eveningLunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(eveningLunch.startTime)) : -1;
-          setCfg({
-            schoolStart: lessons[0].startTime,
-            schoolEnd: lessons[lessons.length - 1].endTime,
-            lessonMin: diff(lessons[0].startTime, lessons[0].endTime),
-            breakMin: lessons.length > 1 ? diff(lessons[0].endTime, lessons[1].startTime) : DEFAULT_CFG.breakMin,
-            useLunch: Boolean(lunch),
-            lunchAfterLesson: lunch && firstLunchIndex >= 0 ? firstLunchIndex + 1 : DEFAULT_CFG.lunchAfterLesson,
-            lunchMin: lunch ? diff(lunch.startTime, lunch.endTime) : DEFAULT_CFG.lunchMin,
-            useEveningLunch: Boolean(eveningLunch),
-            eveningLunchAfterLesson: eveningLunch && eveningLunchIndex >= 0 ? eveningLunchIndex + 1 : DEFAULT_CFG.eveningLunchAfterLesson,
-            eveningLunchMin: eveningLunch ? diff(eveningLunch.startTime, eveningLunch.endTime) : DEFAULT_CFG.eveningLunchMin,
-          });
-        }
-      }
+      setCfg(deriveCfgFromRows(built));
     } else if (!loadedRef.current) {
       setRows([]);
     }
@@ -301,7 +305,9 @@ export default function Darslar() {
     onSuccess: () => {
       const cached = rows.map((row) => ({
         id: 0,
-        name: row.type === "lunch" ? "Tushlik tanaffusi" : `${row.periodNumber}-dars`,
+        name: row.type === "lunch"
+          ? (row.meta === "evening-lunch" ? "Kechki tushlik" : "Tushlik tanaffusi")
+          : `${row.periodNumber}-dars`,
         startTime: row.startTime,
         endTime: row.endTime,
         dayOfWeek: 1,
