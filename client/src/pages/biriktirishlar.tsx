@@ -152,7 +152,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects }:
           <Button variant="outline" onClick={onClose}>
             Bekor qilish
           </Button>
-          <Button
+      <Button
             onClick={() => onConfirm(result.assignments)}
             disabled={result.assignments.length === 0}
             className="bg-blue-600 hover:bg-blue-700"

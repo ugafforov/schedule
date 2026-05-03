@@ -80,8 +80,8 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
 
   {
     name: "Rus tili",
-    codes: ["RUS", "UZB"],
-    keywords: ["rus tili", "o'zbek tili"],
+    codes: ["RUS"],
+    keywords: ["rus tili"],
     hours: { 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
   },
 
@@ -100,6 +100,13 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 6: 2 },
   },
   {
+    name: "Tarbiya (Sinf soati)",
+    codes: ["TARB", "SINF"],
+    keywords: ["tarbiya", "sinf soati", "kelajak soati"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
+  },
+
+  {
     name: "O'zbekiston tarixi",
     codes: ["UZBT", "UZBT11"],
     keywords: ["o'zbekiston tarixi"],
@@ -116,12 +123,6 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     codes: ["DHQ", "HUQ"],
     keywords: ["davlat va huquq", "huquq asoslari", "konstitutsiya"],
     hours: { 8: 1, 9: 1, 10: 1, 11: 1 },
-  },
-  {
-    name: "Tarbiya (Sinf soati)",
-    codes: ["TARB", "SINF"],
-    keywords: ["tarbiya", "sinf soati", "kelajak soati"],
-    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
   },
 
   // ── III. ANIQ FANLAR ──────────────────────────────────────────────────────
@@ -198,20 +199,17 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 7: 2, 8: 1.5, 9: 1.5, 10: 2 },
   },
   {
-    // 8-9-sinfda Geografiya bilan juftlashgan (0.5+1.5=2 soat)
     name: "Iqtisodiy bilim asoslari",
     codes: ["IQT", "IQTISOD"],
     keywords: ["iqtisodiy bilim", "iqtisodiyot"],
     hours: { 8: 0.5, 9: 0.5 },
   },
   {
-    // Faqat 11-sinf, 1 soat
     name: "Tadbirkorlik asoslari",
     codes: ["TADBIR", "TADBIRKORLIK"],
     keywords: ["tadbirkorlik"],
     hours: { 11: 1 },
   },
-
   // ── V. BADIIY FANLAR ──────────────────────────────────────────────────────
 
   {
