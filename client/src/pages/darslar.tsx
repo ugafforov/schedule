@@ -129,7 +129,7 @@ function buildRowsFromSlots(slots: TimeSlot[]): SlotRow[] {
     })
     .map(s => ({
       key: newKey(),
-      type: (s.isBreak ? (s.name.includes("Tushlik") ? "lunch" : "break") : "lesson") as RowType,
+      type: (s.isBreak ? "lunch" : "lesson") as RowType,
       periodNumber: s.periodNumber,
       startTime: toHHMM(s.startTime),
       endTime: toHHMM(s.endTime),
@@ -143,12 +143,6 @@ function rowStyle(type: RowType) {
     badge: "bg-blue-100 text-blue-700",
     icon: null as any,
     label: (n: number) => `${n}-dars`,
-  };
-  if (type === "break") return {
-    bg: "bg-amber-50/60 hover:bg-amber-50 border-amber-100",
-    badge: "bg-amber-100 text-amber-700",
-    icon: Coffee,
-    label: () => "Tanaffus",
   };
   return {
     bg: "bg-orange-50/60 hover:bg-orange-50 border-orange-100",
@@ -189,7 +183,7 @@ function EditDialog({
             <Clock className="h-4 w-4 text-blue-600" />
             {row?.type === "lesson"
               ? `${row.periodNumber}-dars vaqtini o'zgartirish`
-              : "Tanaffus vaqtini o'zgartirish"}
+              : "Tushlik vaqtini o'zgartirish"}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -221,7 +215,6 @@ function EditDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="lesson">Dars</SelectItem>
-                <SelectItem value="break">Tanaffus</SelectItem>
                 <SelectItem value="lunch">Tushlik tanaffusi</SelectItem>
               </SelectContent>
             </Select>
@@ -294,7 +287,6 @@ function AddDialog({
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="lesson">Dars</SelectItem>
-                <SelectItem value="break">Tanaffus</SelectItem>
                 <SelectItem value="lunch">Tushlik tanaffusi</SelectItem>
               </SelectContent>
             </Select>
@@ -425,8 +417,6 @@ export default function Darslar() {
   });
 
   const lessonCount = rows.filter(r => r.type === "lesson").length;
-  const breakCount = rows.filter(r => r.type === "break" || r.type === "lunch").length;
-
   return (
     <div className="p-6 space-y-6 max-w-3xl mx-auto">
       {/* Header */}
@@ -492,7 +482,7 @@ export default function Darslar() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-600">Tanaffus (daq)</Label>
+              <Label className="text-xs text-gray-600">Darslar oralig'i (daq)</Label>
               <Input
                 type="number"
                 min={5}
@@ -562,11 +552,6 @@ export default function Darslar() {
               <Clock className="h-4 w-4 text-blue-600" />
               Dars jadvali soatlari
               <Badge variant="secondary" className="text-xs ml-1">{lessonCount} ta dars</Badge>
-              {breakCount > 0 && (
-                <Badge variant="outline" className="text-xs text-amber-700 border-amber-200 bg-amber-50">
-                  {breakCount} ta tanaffus
-                </Badge>
-              )}
             </CardTitle>
             <Button
               size="sm"
