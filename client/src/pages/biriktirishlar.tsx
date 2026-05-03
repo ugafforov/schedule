@@ -77,10 +77,14 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
   if (!selectedClass) return null;
   const grade = parseInt(selectedClass.grade);
   const result = getAutoAssignments(grade, subjects);
+  const teacherSubjectMap = new Map<number, number[]>();
+  for (const teacher of teachers) {
+    teacherSubjectMap.set(teacher.id, teacher.subjectIds || []);
+  }
   const assignmentsWithTeachers = result.assignments.map((a) => {
     const subject = subjects.find((s) => s.id === a.subjectId);
     if (!subject) return a;
-    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap);
+    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap);
     return { ...a, teacherId: teacher?.id ?? null };
   });
   return (
@@ -166,33 +170,35 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
 function pickTeacherForSubject(
   subject: Subject,
   teachers: Teacher[],
-  teacherLoadMap: Map<number, number>
+  teacherLoadMap: Map<number, number>,
+  teacherSubjectMap: Map<number, number[]>
 ) {
-  const subjectName = subject.name.toLowerCase();
-  const subjectWords = subjectName.split(/[\s,./-]+/).filter((word) => word.length > 2);
-  const matches = teachers.filter((teacher) => {
-    const specialization = (teacher.specialization || "").toLowerCase();
-    if (!specialization) return false;
-    if (specialization === subjectName) return true;
-    if (specialization.includes(subjectName) || subjectName.includes(specialization)) return true;
-    return subjectWords.some((word) => specialization.includes(word));
-  });
+  const scored = teachers
+    .map((teacher) => {
+      const specialization = (teacher.specialization || "").toLowerCase();
+      const subjectIds = teacherSubjectMap.get(teacher.id) || [];
+      const currentHours = teacherLoadMap.get(teacher.id) || 0;
+      const maxHours = teacher.maxHoursPerWeek || 30;
+      const currentSubjects = subjectIds.length;
+      const hasSlot = currentSubjects < 2 && currentHours < maxHours;
+      const subjectMatch = subjectIds.includes(subject.id);
+      const specializationMatch = specialization.length > 0 && specialization.includes(subject.name.toLowerCase());
+      let score = 0;
+      if (subjectMatch) score += 100;
+      if (specializationMatch) score += 50;
+      if (!hasSlot) score = -1;
+      score -= currentHours;
+      score -= currentSubjects * 5;
+      return { teacher, score, hasSlot, subjectMatch, specializationMatch };
+    })
+    .filter((item) => item.score >= 0 && item.subjectMatch);
 
-  const pool = matches.filter((teacher) => {
-    const currentSubjects = teacher.subjectIds?.length || 0;
-    const currentHours = teacherLoadMap.get(teacher.id) || 0;
-    return currentSubjects < 2 && currentHours < (teacher.maxHoursPerWeek || 30);
-  });
-  if (pool.length === 0) return null;
-  return pool
+  if (scored.length === 0) return null;
+
+  return scored
     .slice()
-    .sort((a, b) => {
-      const diff = (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0);
-      if (diff !== 0) return diff;
-      const aSubjects = a.subjectIds?.length || 0;
-      const bSubjects = b.subjectIds?.length || 0;
-      return aSubjects - bSubjects;
-    })[0] || null;
+    .sort((a, b) => b.score - a.score || (teacherLoadMap.get(a.teacher.id) || 0) - (teacherLoadMap.get(b.teacher.id) || 0))[0]
+    ?.teacher || null;
 }
 
 // ─── Bulk assign dialog (Tab 2) ────────────────────────────────────────────────
