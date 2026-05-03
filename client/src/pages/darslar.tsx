@@ -86,12 +86,11 @@ function fromSlots(slots: TimeSlot[]): SlotRow[] {
     .sort((a, b) => toMin(toHHMM(a.startTime)) - toMin(toHHMM(b.startTime)))
     .map(s => ({
       key: mk(),
-      type: (s.isBreak ? "lunch" : "lesson") as RowType,
+      type: (s.isBreak && s.name.includes("Tushlik") ? "lunch" : "lesson") as RowType,
       periodNumber: s.periodNumber,
       startTime: toHHMM(s.startTime),
       endTime: toHHMM(s.endTime),
-    }))
-    .filter(r => r.type === "lesson" || r.type === "lunch");
+    }));
 }
 
 // Reindex lesson numbers sequentially
@@ -169,18 +168,8 @@ function AddDialog({ open, onClose, onAdd }: {
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={type === "lesson" ? "default" : "outline"}
-              onClick={() => setType("lesson")}
-              className={type === "lesson" ? "bg-blue-600 hover:bg-blue-700" : ""}
-            >Dars</Button>
-            <Button
-              size="sm"
-              variant={type === "lunch" ? "default" : "outline"}
-              onClick={() => setType("lunch")}
-              className={type === "lunch" ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}
-            >Tushlik</Button>
+            <Button size="sm" variant={type === "lesson" ? "default" : "outline"} onClick={() => setType("lesson")} className={type === "lesson" ? "bg-blue-600 hover:bg-blue-700" : ""}>Dars</Button>
+            <Button size="sm" variant={type === "lunch" ? "default" : "outline"} onClick={() => setType("lunch")} className={type === "lunch" ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}>Tushlik</Button>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -328,28 +317,41 @@ export default function Darslar() {
             </div>
           </div>
 
-          {/* Lunch toggle row */}
-          <div className="flex items-center gap-6 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Switch checked={cfg.useLunch} id="lunch-sw"
-                onCheckedChange={v => setCfg(p => ({ ...p, useLunch: v }))} />
-              <Label htmlFor="lunch-sw" className="text-sm text-gray-700 cursor-pointer select-none">
-                Tushlik tanaffusi
-              </Label>
+          <div className="space-y-3 rounded-xl border border-gray-100 bg-white p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium text-gray-800">Tushlik tanaffusi</p>
+              <p className="text-xs text-gray-500">Yoqilganda qo'shimcha tushlik vaqti so'raladi.</p>
+              </div>
+              <Switch
+                checked={cfg.useLunch}
+                id="lunch-sw"
+                onCheckedChange={v => setCfg(p => ({ ...p, useLunch: v }))}
+              />
             </div>
             {cfg.useLunch && (
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-600">Nechi darsdan keyin</Label>
-                  <Input type="number" min={1} max={8} value={cfg.lunchAfterLesson}
+                  <Input
+                    type="number"
+                    min={1}
+                    max={8}
+                    value={cfg.lunchAfterLesson}
                     onChange={e => setCfg(p => ({ ...p, lunchAfterLesson: Number(e.target.value) }))}
-                    className="w-24 bg-white" />
+                    className="w-full bg-white"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-600">Tushlik davomiyligi (daq)</Label>
-                  <Input type="number" min={10} max={60} value={cfg.lunchMin}
+                  <Input
+                    type="number"
+                    min={10}
+                    max={60}
+                    value={cfg.lunchMin}
                     onChange={e => setCfg(p => ({ ...p, lunchMin: Number(e.target.value) }))}
-                    className="w-28 bg-white" />
+                    className="w-full bg-white"
+                  />
                 </div>
               </div>
             )}
@@ -409,13 +411,8 @@ export default function Darslar() {
                     }`}>
 
                     {/* Badge */}
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      isLesson ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-600"
-                    }`}>
-                      {isLesson
-                        ? <span className="font-bold text-sm">{row.periodNumber}</span>
-                        : <UtensilsCrossed className="h-4 w-4" />
-                      }
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLesson ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-600"}`}>
+                      {isLesson ? <span className="font-bold text-sm">{row.periodNumber}</span> : <UtensilsCrossed className="h-4 w-4" />}
                     </div>
 
                     {/* Label */}
