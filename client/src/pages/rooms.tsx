@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell, Monitor, Palette, Zap } from "lucide-react";
+import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell, Monitor, Palette, Zap, LayoutGrid, List } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
 import type { Room } from "@shared/schema";
@@ -151,6 +151,7 @@ export default function Rooms() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editing, setEditing] = useState<Room | null>(null);
   const [form, setForm] = useState<RoomFormData>(EMPTY_FORM);
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -236,19 +237,30 @@ export default function Rooms() {
               Xonalar ro'yxati
               <Badge variant="secondary" className="ml-2 text-xs">{rooms.length} ta</Badge>
             </CardTitle>
-            <div className="relative w-60">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input placeholder="Qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
-              {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><X className="h-3.5 w-3.5" /></button>}
+            <div className="flex items-center gap-2">
+              <div className="relative w-60">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input placeholder="Qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
+                {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><X className="h-3.5 w-3.5" /></button>}
+              </div>
+              <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
+                <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" className={`h-8 px-3 ${viewMode === "grid" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("grid")}>
+                  <LayoutGrid className="h-4 w-4 mr-1.5" /> Grid
+                </Button>
+                <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={`h-8 px-3 ${viewMode === "list" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("list")}>
+                  <List className="h-4 w-4 mr-1.5" /> List
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-3"}>
               {Array(8).fill(0).map((_, i) => <div key={i} className="h-32 bg-gray-100 animate-pulse rounded-xl" />)}
             </div>
           ) : filtered.length > 0 ? (
+            viewMode === "grid" ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map(room => {
                 const d = getTypeDisplay(room.roomType); const Icon = d.icon;
@@ -277,6 +289,38 @@ export default function Rooms() {
                 );
               })}
             </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-[minmax(0,1.5fr)_110px_120px_120px_100px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
+                  <div>Xona</div>
+                  <div>Raqam</div>
+                  <div>Turi</div>
+                  <div>Sig'im</div>
+                  <div className="text-right">Amal</div>
+                </div>
+                {filtered.map(room => {
+                  const d = getTypeDisplay(room.roomType); const Icon = d.icon;
+                  return (
+                    <div key={room.id} className="grid grid-cols-[minmax(0,1.5fr)_110px_120px_120px_100px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 ${d.bg} rounded-xl flex items-center justify-center flex-shrink-0`}><Icon className={`${d.color} h-5 w-5`} /></div>
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-sm truncate">{room.name}</h3>
+                          <p className="text-xs text-gray-400 truncate">{room.building || "—"}{room.floor ? `, ${room.floor}-qavat` : ""}</p>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-600 font-mono truncate">#{room.roomNumber}</div>
+                      <div className="text-sm text-gray-600 truncate">{ROOM_TYPE_LABELS[room.roomType] || room.roomType}</div>
+                      <div className="text-sm text-gray-600 whitespace-nowrap">{room.capacity} o'rin</div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(room)}><Edit className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMutation.mutate(room.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           ) : (
             <div className="text-center py-16">
               <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3"><DoorOpen className="h-6 w-6 text-gray-400" /></div>

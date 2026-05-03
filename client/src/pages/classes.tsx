@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square } from "lucide-react";
+import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square, LayoutGrid, List } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher } from "@shared/schema";
 
@@ -127,6 +127,7 @@ export default function Classes() {
   const [editing, setEditing] = useState<Class | null>(null);
   const [form, setForm] = useState<ClassFormData>(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState<"info" | "subjects">("info");
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -206,19 +207,30 @@ export default function Classes() {
               Sinflar ro'yxati
               <Badge variant="secondary" className="ml-2 text-xs">{classes.length} ta</Badge>
             </CardTitle>
-            <div className="relative w-60">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input placeholder="Sinf nomini qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
-              {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><X className="h-3.5 w-3.5" /></button>}
+            <div className="flex items-center gap-2">
+              <div className="relative w-60">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input placeholder="Sinf nomini qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
+                {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><X className="h-3.5 w-3.5" /></button>}
+              </div>
+              <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
+                <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" className={`h-8 px-3 ${viewMode === "grid" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("grid")}>
+                  <LayoutGrid className="h-4 w-4 mr-1.5" /> Grid
+                </Button>
+                <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={`h-8 px-3 ${viewMode === "list" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("list")}>
+                  <List className="h-4 w-4 mr-1.5" /> List
+                </Button>
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" : "space-y-3"}>
               {Array(10).fill(0).map((_, i) => <div key={i} className="h-28 bg-gray-100 animate-pulse rounded-xl" />)}
             </div>
           ) : filtered.length > 0 ? (
+            viewMode === "grid" ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {filtered.map((cls, idx) => {
                 const [bg, text] = GRADE_COLORS[idx % GRADE_COLORS.length].split(" ");
@@ -244,6 +256,38 @@ export default function Classes() {
                 );
               })}
             </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-[minmax(0,1.6fr)_120px_120px_110px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
+                  <div>Sinf</div>
+                  <div>Raqam</div>
+                  <div>O'quvchi</div>
+                  <div className="text-right">Amal</div>
+                </div>
+                {filtered.map((cls, idx) => {
+                  const [bg, text] = GRADE_COLORS[idx % GRADE_COLORS.length].split(" ");
+                  return (
+                    <div key={cls.id} className="grid grid-cols-[minmax(0,1.6fr)_120px_120px_110px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+                          <span className={`font-bold text-lg ${text}`}>{cls.grade || cls.name?.[0] || "?"}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-sm truncate">{cls.name}</h3>
+                          <p className="text-xs text-gray-400 truncate">Guruh: {cls.section || "—"}</p>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-600 truncate">{cls.grade || "—"}</div>
+                      <div className="text-sm text-gray-600 whitespace-nowrap">{cls.totalStudents} o'quvchi</div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(cls)}><Edit className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMutation.mutate(cls.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           ) : (
             <div className="text-center py-16">
               <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
