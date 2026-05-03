@@ -479,38 +479,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save full bell schedule (lessons + breaks/lunch) for all days
   app.post("/api/time-slots/save", auth, async (req, res) => {
     try {
-      const rows: Array<{
-        type: "lesson" | "break" | "lunch";
-        periodNumber: number;
-        startTime: string;
-        endTime: string;
-      }> = req.body.rows;
-      if (!Array.isArray(rows) || rows.length === 0)
+      const rowsRaw = req.body.rows;
+      if (!Array.isArray(rowsRaw) || rowsRaw.length === 0) {
         return res.status(400).json({ message: "Qatorlar bo'sh bo'lmasligi kerak" });
-      const toCreate: any[] = [];
-      for (const day of DAYS) {
-        for (const row of rows) {
-          const isBreak = row.type === "break" || row.type === "lunch";
-          let name: string;
-          if (row.type === "lesson") name = `${DAY_NAMES[day]} ${row.periodNumber}-dars`;
-          else if (row.type === "lunch") name = `${DAY_NAMES[day]} Tushlik tanaffusi`;
-          else name = `${DAY_NAMES[day]} Tanaffus`;
-          toCreate.push({
-            name,
-            startTime: row.startTime,
-            endTime: row.endTime,
-            dayOfWeek: day,
-            periodNumber: row.type === "lesson" ? row.periodNumber : 0,
-            isBreak,
-            isActive: true,
-          });
-        }
       }
+
+      const rows = rowsRaw
+        .map((row: any) => ({
+          type: row.type === "lunch" ? "lunch" : "lesson",
+          periodNumber: Number(row.type === "lesson" ? row.periodNumber : 0),
+          startTime: String(row.startTime || "").slice(0, 5),
+          endTime: String(row.endTime || "").slice(0, 5),
+        }))
+        .filter((row: any) => row.startTime && row.endTime);
+
+      if (rows.length === 0) {
+        return res.status(400).json({ message: "Qatorlar bo'sh bo'lmasligi kerak" });
+      }
+
+      const toCreate = DAYS.flatMap((day) =>
+        rows.map((row) => ({
+          name:
+            row.type === "lesson"
+              ? `${DAY_NAMES[day]} ${row.periodNumber}-dars`
+              : `${DAY_NAMES[day]} Tushlik tanaffusi`,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          dayOfWeek: day,
+          periodNumber: row.type === "lesson" ? row.periodNumber : 0,
+          isBreak: row.type === "lunch",
+          isActive: true,
+        }))
+      );
+
       await db.transaction(async (tx) => {
         await tx.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.isActive, true));
-        await tx.delete(timeSlots);
+        await tx.update(timeSlots).set({ isActive: false }).where(eq(timeSlots.isActive, true));
         await tx.insert(timeSlots).values(toCreate);
       });
+
       const created = await storage.getTimeSlots();
       res.json(created);
     } catch (e: any) {

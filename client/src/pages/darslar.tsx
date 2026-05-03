@@ -255,8 +255,8 @@ export default function Darslar() {
       rows: rows.map((row) => ({
         type: row.type === "lunch" ? "lunch" : "lesson",
         periodNumber: row.type === "lesson" ? row.periodNumber : 0,
-        startTime: row.startTime,
-        endTime: row.endTime,
+        startTime: row.startTime.slice(0, 5),
+        endTime: row.endTime.slice(0, 5),
       })),
     }),
     onSuccess: () => {
