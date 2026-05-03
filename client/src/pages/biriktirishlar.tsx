@@ -66,7 +66,7 @@ function loadBg(pct: number) {
 }
 
 // ─── Auto-assign dialog ────────────────────────────────────────────────────────
-function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects }: {
+function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, teachers, teacherLoadMap }: {
   open: boolean; onClose: () => void;
   onConfirm: (a: Assignment[]) => void;
   selectedClass: Class | undefined;
