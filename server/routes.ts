@@ -223,8 +223,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const items: Array<{ firstName: string; lastName: string; maxHoursPerWeek?: number }> = req.body.teachers;
       if (!Array.isArray(items) || items.length === 0)
         return res.status(400).json({ message: "O'qituvchilar ro'yxati bo'sh" });
+      const existing = await storage.getTeachers();
+      const existingNames = new Set(existing.map(t => `${t.firstName.trim().toLowerCase()} ${t.lastName.trim().toLowerCase()}`.trim()));
       const created = [];
       for (const item of items) {
+        const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim().toLowerCase();
+        if (existingNames.has(fullName)) {
+          return res.status(400).json({ message: `Bunday o'qituvchi mavjud: ${item.firstName} ${item.lastName}`.trim() });
+        }
         const slug = `${item.firstName}${item.lastName}`.replace(/\s+/g, "").toUpperCase().slice(0, 6);
         const employeeId = `T_${slug || "NEW"}_${Date.now().toString().slice(-4)}`;
         const data = insertTeacherSchema.parse({
@@ -233,6 +239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           maxHoursPerWeek: item.maxHoursPerWeek || 30, isActive: true,
         });
         created.push(await storage.createTeacher(data));
+        existingNames.add(fullName);
       }
       res.status(201).json(created);
     } catch (e: any) {

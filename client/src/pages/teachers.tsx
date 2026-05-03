@@ -28,6 +28,7 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
   const { toast } = useToast();
   const [text, setText] = useState("");
   const [maxHours, setMaxHours] = useState(30);
+  const [count, setCount] = useState(5);
   const [loading, setLoading] = useState(false);
 
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
@@ -74,6 +75,11 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
             <Input type="number" min={1} max={40} value={maxHours} onChange={e => setMaxHours(parseInt(e.target.value) || 30)} className="w-32" />
           </div>
 
+          <div className="space-y-1.5">
+            <Label className="text-sm">Nechta qo'shish</Label>
+            <Input type="number" min={1} max={100} value={count} onChange={e => setCount(parseInt(e.target.value) || 1)} className="w-32" />
+          </div>
+
           {parsed.length > 0 && (
             <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl space-y-1.5">
               <p className="text-xs font-medium text-emerald-700">{parsed.length} ta o'qituvchi qo'shiladi:</p>
@@ -94,11 +100,11 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
           <div className="space-y-1.5">
             <p className="text-xs text-gray-500 font-medium">Tezkor namunalar:</p>
             <div className="flex flex-wrap gap-2">
-              {[
-                { label: "5 ta bo'sh", value: "O'qituvchi 1\nO'qituvchi 2\nO'qituvchi 3\nO'qituvchi 4\nO'qituvchi 5" },
-                { label: "Aniq fanlar", value: "Matematika o'qituvchisi\nFizika o'qituvchisi\nKimyo o'qituvchisi\nBiologiya o'qituvchisi\nInformatika o'qituvchisi" },
+                {[
+                { label: "Bo'sh ism", make: (n: number) => Array.from({ length: n }, (_, i) => `O'qituvchi ${i + 1}`).join("\n") },
+                { label: "Aniq fanlar", make: (n: number) => Array.from({ length: n }, (_, i) => ["Matematika", "Fizika", "Kimyo", "Biologiya", "Informatika"][i % 5] + " o'qituvchisi").join("\n") },
               ].map(t => (
-                <button key={t.label} onClick={() => setText(t.value)}
+                <button key={t.label} onClick={() => setText(t.make(count))}
                   className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                   {t.label}
                 </button>
