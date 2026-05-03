@@ -225,11 +225,11 @@ export default function Teachers() {
                 {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><X className="h-3.5 w-3.5" /></button>}
               </div>
               <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
-                <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" className={`h-8 px-3 ${viewMode === "grid" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("grid")}>
-                  <LayoutGrid className="h-4 w-4 mr-1.5" /> Grid
+                <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "grid" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("grid")} aria-label="Grid view">
+                  <LayoutGrid className="h-4 w-4" />
                 </Button>
-                <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={`h-8 px-3 ${viewMode === "list" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("list")}>
-                  <List className="h-4 w-4 mr-1.5" /> List
+                <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "list" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("list")} aria-label="List view">
+                  <List className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -242,7 +242,7 @@ export default function Teachers() {
             </div>
           ) : filtered.length > 0 ? (
             viewMode === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map(teacher => (
                 <div key={teacher.id} className="group border border-gray-100 rounded-xl p-4 hover:border-blue-200 hover:shadow-sm transition-all bg-white">
                   <div className="flex items-start justify-between mb-3">
