@@ -59,7 +59,6 @@ const DTS_GROUPS: { label: string; sinf: string; color: string; subjects: DtsSub
       { name: "Tasviriy san'at", code: "TASV", color: "#F59E0B", weeklyHours: 1, requiredRoomType: "art", description: "1–7-sinf, haftasiga 1 soat" },
       { name: "Texnologiya (Mehnat ta'limi)", code: "TECH4", color: "#8B5CF6", weeklyHours: 1, requiredRoomType: "classroom", description: "1–4-sinf=1soat" },
       { name: "Jismoniy tarbiya", code: "JT4", color: "#F97316", weeklyHours: 2, requiredRoomType: "gym", description: "1-sinf=1soat, 2-4=2soat" },
-      { name: "Tarbiya (Sinf soati)", code: "TARB", color: "#14B8A6", weeklyHours: 1, requiredRoomType: "classroom", description: "1–11-sinf, haftasiga 1 soat" },
     ],
   },
   {
