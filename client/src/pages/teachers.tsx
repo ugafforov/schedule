@@ -30,6 +30,8 @@ interface BulkTeacherItem {
   subjectColor?: string;
 }
 
+const CURRICULUM_MAX_HOURS = 24;
+
 const DAYS = ["Du", "Se", "Ch", "Pa", "Ju"];
 const PERIODS = [1, 2, 3, 4, 5, 6];
 const PERIOD_TIMES = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00"];
@@ -82,7 +84,6 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
   const [maxHours, setMaxHours] = useState(24);
   const [loading, setLoading] = useState(false);
   const [manualText, setManualText] = useState("");
-  // Generated teachers list from recommendations
   const [generatedList, setGeneratedList] = useState<BulkTeacherItem[]>([]);
 
   const { data: recs = [], isLoading: recsLoading } = useQuery<TeacherRecommendation[]>({
@@ -187,7 +188,7 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
           <div className="flex items-center gap-3">
             <div className="space-y-1">
               <Label className="text-sm">Max soat / hafta (har bir o'qituvchi uchun)</Label>
-              <Input type="number" min={1} max={40} value={maxHours} onChange={e => setMaxHours(parseInt(e.target.value) || 24)} className="w-28 h-8 text-sm" />
+              <Input type="number" min={1} max={40} value={maxHours} onChange={e => setMaxHours(parseInt(e.target.value) || CURRICULUM_MAX_HOURS)} className="w-28 h-8 text-sm" />
             </div>
           </div>
 
