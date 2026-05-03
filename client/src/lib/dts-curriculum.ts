@@ -186,14 +186,30 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     name: "Kimyo",
     codes: ["KIM", "KIM11"],
     keywords: ["kimyo"],
-    // 11-sinfda 1 soat (Astronomiya bilan almashtirilib 1h kam)
-    hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 1 },
+    // Rasmiy DTS: 7-11-sinf barcha sinflarda 2 soat
+    hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
   },
   {
+    // Rasmiy DTS: 7=2, 8=1.5, 9=1.5, 10=2 — 11-sinfda YO'Q
+    // 8-9-sinfda "Iqtisodiy bilim asoslari" bilan juftlashgan (1.5+0.5=2 soat)
     name: "Geografiya",
     codes: ["GEOG", "GEOG11"],
     keywords: ["geografiya"],
-    hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
+    hours: { 7: 2, 8: 1.5, 9: 1.5, 10: 2 },
+  },
+  {
+    // 8-9-sinfda Geografiya bilan juftlashgan (0.5+1.5=2 soat)
+    name: "Iqtisodiy bilim asoslari",
+    codes: ["IQT", "IQTISOD"],
+    keywords: ["iqtisodiy bilim", "iqtisodiyot"],
+    hours: { 8: 0.5, 9: 0.5 },
+  },
+  {
+    // Faqat 11-sinf, 1 soat
+    name: "Tadbirkorlik asoslari",
+    codes: ["TADBIR", "TADBIRKORLIK"],
+    keywords: ["tadbirkorlik"],
+    hours: { 11: 1 },
   },
 
   // ── V. BADIIY FANLAR ──────────────────────────────────────────────────────
