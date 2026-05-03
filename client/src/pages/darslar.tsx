@@ -6,24 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Clock, RotateCcw, Save, Plus, Trash2, Pencil, Zap, CheckCircle, AlertTriangle,
+  Clock, RotateCcw, Save, Plus, Trash2, Pencil, Zap, CheckCircle, AlertTriangle, UtensilsCrossed,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { TimeSlot } from "@shared/schema";
 
-// ─── Types ──────────────────────────────────────────────────────────────────
-type RowType = "lesson";
+// ─── Types ────────────────────────────────────────────────────────────────────
+type RowType = "lesson" | "lunch";
 
 interface SlotRow {
   key: string;
   type: RowType;
-  periodNumber: number;
+  periodNumber: number; // lesson number (1,2,3…); 0 for lunch
   startTime: string;
   endTime: string;
 }
@@ -33,194 +30,94 @@ interface GenConfig {
   schoolEnd: string;
   lessonMin: number;
   breakMin: number;
+  useLunch: boolean;
+  lunchAfterLesson: number;
+  lunchMin: number;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function toHHMM(t: string): string {
-  return (t || "").slice(0, 5);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function toHHMM(t: string) { return (t || "").slice(0, 5); }
+
+function minutesToHHMM(m: number) {
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
-function minutesToHHMM(total: number): string {
-  const h = Math.floor(total / 60).toString().padStart(2, "0");
-  const m = (total % 60).toString().padStart(2, "0");
-  return `${h}:${m}`;
-}
-
-function HHMMtoMinutes(t: string): number {
+function toMin(t: string) {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
 
-function minuteDiff(start: string, end: string): number {
-  return HHMMtoMinutes(end) - HHMMtoMinutes(start);
-}
+function addMin(t: string, m: number) { return minutesToHHMM(toMin(t) + m); }
+function diff(a: string, b: string) { return toMin(b) - toMin(a); }
 
-function addMinutes(time: string, mins: number): string {
-  return minutesToHHMM(HHMMtoMinutes(time) + mins);
-}
+let _k = 0;
+const mk = () => `r-${++_k}-${Date.now()}`;
 
-let keyCounter = 0;
-function newKey(): string {
-  return `row-${++keyCounter}-${Date.now()}`;
-}
-
-// ─── Generator ───────────────────────────────────────────────────────────────
-function generateSchedule(cfg: GenConfig): SlotRow[] {
+// ─── Generator ────────────────────────────────────────────────────────────────
+function generate(cfg: GenConfig): SlotRow[] {
   const rows: SlotRow[] = [];
-  let current = cfg.schoolStart;
-  let lessonNum = 0;
+  let cur = cfg.schoolStart;
+  let num = 0;
 
   while (true) {
-    const lessonEnd = addMinutes(current, cfg.lessonMin);
-    if (HHMMtoMinutes(lessonEnd) > HHMMtoMinutes(cfg.schoolEnd)) break;
+    const end = addMin(cur, cfg.lessonMin);
+    if (toMin(end) > toMin(cfg.schoolEnd)) break;
 
-    lessonNum++;
-    rows.push({
-      key: newKey(),
-      type: "lesson",
-      periodNumber: lessonNum,
-      startTime: current,
-      endTime: lessonEnd,
-    });
-    current = lessonEnd;
+    num++;
+    rows.push({ key: mk(), type: "lesson", periodNumber: num, startTime: cur, endTime: end });
+    cur = end;
 
-    current = addMinutes(current, cfg.breakMin);
+    if (cfg.useLunch && num === cfg.lunchAfterLesson) {
+      const lend = addMin(cur, cfg.lunchMin);
+      rows.push({ key: mk(), type: "lunch", periodNumber: 0, startTime: cur, endTime: lend });
+      cur = lend;
+    } else {
+      cur = addMin(cur, cfg.breakMin);
+    }
   }
   return rows;
 }
 
-// ─── Build local rows from saved DB slots ────────────────────────────────────
-function buildRowsFromSlots(slots: TimeSlot[]): SlotRow[] {
+// ─── Load from DB ─────────────────────────────────────────────────────────────
+function fromSlots(slots: TimeSlot[]): SlotRow[] {
   const day1 = slots.filter(s => s.dayOfWeek === 1);
-  if (day1.length === 0) return [];
+  if (!day1.length) return [];
   return day1
-    .sort((a, b) => {
-      const ta = HHMMtoMinutes(toHHMM(a.startTime));
-      const tb = HHMMtoMinutes(toHHMM(b.startTime));
-      return ta - tb;
-    })
+    .sort((a, b) => toMin(toHHMM(a.startTime)) - toMin(toHHMM(b.startTime)))
     .map(s => ({
-      key: newKey(),
-      type: "lesson",
+      key: mk(),
+      type: (s.isBreak ? "lunch" : "lesson") as RowType,
       periodNumber: s.periodNumber,
       startTime: toHHMM(s.startTime),
       endTime: toHHMM(s.endTime),
-    }));
+    }))
+    .filter(r => r.type === "lesson" || r.type === "lunch");
 }
 
-// ─── Row type badge styles ────────────────────────────────────────────────────
-function rowStyle(type: RowType) {
-  if (type === "lesson") return {
-    bg: "bg-white hover:bg-blue-50/40 border-gray-100",
-    badge: "bg-blue-100 text-blue-700",
-    icon: null as any,
-    label: (n: number) => `${n}-dars`,
-  };
-  return {
-    bg: "bg-white hover:bg-blue-50/40 border-gray-100",
-    badge: "bg-blue-100 text-blue-700",
-    icon: null as any,
-    label: (n: number) => `${n}-dars`,
-  };
+// Reindex lesson numbers sequentially
+function reindex(rows: SlotRow[]): SlotRow[] {
+  let n = 0;
+  return rows.map(r => r.type === "lesson" ? { ...r, periodNumber: ++n } : { ...r, periodNumber: 0 });
 }
 
-// ─── Edit Dialog ─────────────────────────────────────────────────────────────
-function EditDialog({
-  row, open, onClose, onSave,
-}: {
-  row: SlotRow | null;
-  open: boolean;
-  onClose: () => void;
-  onSave: (updated: Partial<SlotRow>) => void;
+// ─── Edit Dialog ──────────────────────────────────────────────────────────────
+function EditDialog({ row, open, onClose, onSave }: {
+  row: SlotRow | null; open: boolean; onClose: () => void; onSave: (u: Partial<SlotRow>) => void;
 }) {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  useEffect(() => {
-    if (row) {
-      setStart(row.startTime);
-      setEnd(row.endTime);
-    }
-  }, [row]);
-
-  const dur = minuteDiff(start, end);
+  useEffect(() => { if (row) { setStart(row.startTime); setEnd(row.endTime); } }, [row]);
+  const d = diff(start, end);
+  const title = row?.type === "lesson"
+    ? `${row.periodNumber}-dars vaqtini o'zgartirish`
+    : "Tushlik vaqtini o'zgartirish";
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-blue-600" />
-            {`${row?.periodNumber || 0}-dars vaqtini o'zgartirish`}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Boshlanish</Label>
-              <Input
-                type="time"
-                value={start}
-                onChange={e => setStart(e.target.value)}
-                className="font-mono"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Tugash</Label>
-              <Input
-                type="time"
-                value={end}
-                onChange={e => setEnd(e.target.value)}
-                className="font-mono"
-              />
-            </div>
-          </div>
-          {dur > 0 && (
-            <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
-              <CheckCircle className="h-4 w-4" />
-              Davomiyligi: <strong>{dur} daqiqa</strong>
-            </div>
-          )}
-          {dur <= 0 && (
-            <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-              <AlertTriangle className="h-4 w-4" />
-              Vaqt noto'g'ri
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Bekor</Button>
-          <Button
-            onClick={() => { onSave({ startTime: start, endTime: end }); onClose(); }}
-            disabled={dur <= 0}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            Saqlash
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Add Row Dialog ───────────────────────────────────────────────────────────
-function AddDialog({
-  open, onClose, onAdd,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onAdd: (row: Omit<SlotRow, "key">) => void;
-}) {
-  const [start, setStart] = useState("08:00");
-  const [end, setEnd] = useState("08:45");
-  const dur = minuteDiff(start, end);
-
-  return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-4 w-4 text-blue-600" />
-            Yangi qator qo'shish
+            <Clock className="h-4 w-4 text-blue-600" />{title}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -234,25 +131,76 @@ function AddDialog({
               <Input type="time" value={end} onChange={e => setEnd(e.target.value)} className="font-mono" />
             </div>
           </div>
-          {dur > 0 && (
-            <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
-              <CheckCircle className="h-4 w-4" />
-              Davomiyligi: <strong>{dur} daqiqa</strong>
+          {d > 0
+            ? <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+                <CheckCircle className="h-4 w-4" />Davomiyligi: <strong>{d} daqiqa</strong>
+              </div>
+            : <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                <AlertTriangle className="h-4 w-4" />Vaqt noto'g'ri
+              </div>
+          }
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Bekor</Button>
+          <Button onClick={() => { onSave({ startTime: start, endTime: end }); onClose(); }}
+            disabled={d <= 0} className="bg-blue-600 hover:bg-blue-700">Saqlash</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Add Dialog ───────────────────────────────────────────────────────────────
+function AddDialog({ open, onClose, onAdd }: {
+  open: boolean; onClose: () => void; onAdd: (r: Omit<SlotRow, "key">) => void;
+}) {
+  const [start, setStart] = useState("08:00");
+  const [end, setEnd] = useState("08:45");
+  const [type, setType] = useState<RowType>("lesson");
+  const d = diff(start, end);
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="h-4 w-4 text-blue-600" />Yangi qator qo'shish
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={type === "lesson" ? "default" : "outline"}
+              onClick={() => setType("lesson")}
+              className={type === "lesson" ? "bg-blue-600 hover:bg-blue-700" : ""}
+            >Dars</Button>
+            <Button
+              size="sm"
+              variant={type === "lunch" ? "default" : "outline"}
+              onClick={() => setType("lunch")}
+              className={type === "lunch" ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}
+            >Tushlik</Button>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Boshlanish</Label>
+              <Input type="time" value={start} onChange={e => setStart(e.target.value)} className="font-mono" />
             </div>
-          )}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-500">Tugash</Label>
+              <Input type="time" value={end} onChange={e => setEnd(e.target.value)} className="font-mono" />
+            </div>
+          </div>
+          {d > 0 && <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+            <CheckCircle className="h-4 w-4" />Davomiyligi: <strong>{d} daqiqa</strong>
+          </div>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Bekor</Button>
           <Button
-            onClick={() => {
-              onAdd({ type: "lesson", periodNumber: 0, startTime: start, endTime: end });
-              onClose();
-            }}
-            disabled={dur <= 0}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            Qo'shish
-          </Button>
+            onClick={() => { onAdd({ type, periodNumber: 0, startTime: start, endTime: end }); onClose(); }}
+            disabled={d <= 0} className="bg-blue-600 hover:bg-blue-700">Qo'shish</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -260,106 +208,71 @@ function AddDialog({
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
+const DEFAULT_CFG: GenConfig = {
+  schoolStart: "08:00", schoolEnd: "14:00",
+  lessonMin: 45, breakMin: 10,
+  useLunch: false, lunchAfterLesson: 3, lunchMin: 30,
+};
+
 export default function Darslar() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: savedSlots = [], isLoading } = useQuery<TimeSlot[]>({
-    queryKey: ["/api/time-slots"],
-  });
+  const { data: savedSlots = [], isLoading } = useQuery<TimeSlot[]>({ queryKey: ["/api/time-slots"] });
 
-  // Generator config state
-  const [cfg, setCfg] = useState<GenConfig>({
-    schoolStart: "08:00",
-    schoolEnd: "14:00",
-    lessonMin: 45,
-    breakMin: 10,
-    useLunch: false,
-    lunchAfterLesson: 3,
-    lunchMin: 30,
-  });
-
-  // Local editable rows
+  const [cfg, setCfg] = useState<GenConfig>({ ...DEFAULT_CFG });
   const [rows, setRows] = useState<SlotRow[]>([]);
   const [editTarget, setEditTarget] = useState<SlotRow | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
-  const [generated, setGenerated] = useState(false);
+  const [deleteKey, setDeleteKey] = useState<string | null>(null);
 
-  // Load from saved DB on mount
+  // Load saved data on mount
   useEffect(() => {
     if (savedSlots.length > 0 && rows.length === 0) {
-      const built = buildRowsFromSlots(savedSlots);
-      if (built.length > 0) {
-        setRows(built);
-        setGenerated(true);
-      }
+      const built = fromSlots(savedSlots);
+      if (built.length > 0) setRows(built);
     }
   }, [savedSlots]);
 
-  // Recompute period numbers to be sequential
-  function reindex(r: SlotRow[]): SlotRow[] {
-    let n = 0;
-    return r.map(row => {
-      if (row.type === "lesson") {
-        n++;
-        return { ...row, periodNumber: n };
-      }
-      return { ...row, periodNumber: 0 };
-    });
-  }
-
   function handleGenerate() {
-    const result = generateSchedule(cfg);
-    setRows(result);
-    setGenerated(true);
+    setRows(reindex(generate(cfg)));
   }
 
   function handleReset() {
-    const defaultCfg: GenConfig = {
-      schoolStart: "08:00", schoolEnd: "14:00",
-      lessonMin: 45, breakMin: 10,
-      useLunch: false, lunchAfterLesson: 3, lunchMin: 30,
-    };
-    setCfg(defaultCfg);
-    const result = generateSchedule(defaultCfg);
-    setRows(result);
-    setGenerated(true);
+    setCfg({ ...DEFAULT_CFG });
+    setRows(reindex(generate(DEFAULT_CFG)));
   }
 
-  function handleDeleteRow(key: string) {
-    setRows(prev => reindex(prev.filter(r => r.key !== key)));
-    setShowDeleteConfirm(null);
-  }
-
-  function handleEditSave(updated: Partial<SlotRow>) {
+  function handleEditSave(upd: Partial<SlotRow>) {
     if (!editTarget) return;
-    setRows(prev => reindex(prev.map(r =>
-      r.key === editTarget.key ? { ...r, ...updated } : r
-    )));
+    setRows(prev => reindex(prev.map(r => r.key === editTarget.key ? { ...r, ...upd } : r)));
     setEditTarget(null);
   }
 
   function handleAdd(data: Omit<SlotRow, "key">) {
-    const newRow: SlotRow = { ...data, key: newKey() };
-    setRows(prev => {
-      const sorted = [...prev, newRow].sort((a, b) =>
-        HHMMtoMinutes(a.startTime) - HHMMtoMinutes(b.startTime)
-      );
-      return reindex(sorted);
-    });
+    const nr: SlotRow = { ...data, key: mk() };
+    setRows(prev => reindex(
+      [...prev, nr].sort((a, b) => toMin(a.startTime) - toMin(b.startTime))
+    ));
+  }
+
+  function handleDelete(key: string) {
+    setRows(prev => reindex(prev.filter(r => r.key !== key)));
+    setDeleteKey(null);
   }
 
   const saveMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/time-slots/save", { rows }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/time-slots"] });
-      toast({ title: "Saqlandi", description: "Qo'ng'iroq jadvali muvaffaqiyatli saqlandi" });
+      toast({ title: "Saqlandi", description: "Qo'ng'iroq jadvali saqlandi" });
     },
     onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
   });
 
   const lessonCount = rows.filter(r => r.type === "lesson").length;
+  const lunchCount = rows.filter(r => r.type === "lunch").length;
+
   return (
     <div className="p-6 space-y-6 max-w-3xl mx-auto">
       {/* Header */}
@@ -370,119 +283,80 @@ export default function Darslar() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={handleReset} className="text-gray-600">
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Standartga qaytarish
+            <RotateCcw className="mr-2 h-4 w-4" />Standartga qaytarish
           </Button>
-          <Button
-            onClick={() => saveMutation.mutate()}
+          <Button onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending || rows.length === 0}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            Saqlash
+            className="bg-blue-600 hover:bg-blue-700">
+            <Save className="mr-2 h-4 w-4" />Saqlash
           </Button>
         </div>
       </div>
 
-      {/* Generator Card */}
+      {/* Generator */}
       <Card className="border border-blue-100 bg-blue-50/30 shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-800">
-            <Zap className="h-4 w-4" />
-            Avtomatik jadval generatori
+            <Zap className="h-4 w-4" />Avtomatik jadval generatori
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Row 1: school start/end times */}
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-gray-600">Maktab boshlanishi</Label>
-              <Input
-                type="time"
-                value={cfg.schoolStart}
+              <Input type="time" value={cfg.schoolStart}
                 onChange={e => setCfg(p => ({ ...p, schoolStart: e.target.value }))}
-                className="font-mono bg-white"
-              />
+                className="font-mono bg-white" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-gray-600">Maktab tugashi</Label>
-              <Input
-                type="time"
-                value={cfg.schoolEnd}
+              <Input type="time" value={cfg.schoolEnd}
                 onChange={e => setCfg(p => ({ ...p, schoolEnd: e.target.value }))}
-                className="font-mono bg-white"
-              />
+                className="font-mono bg-white" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-gray-600">Dars davomiyligi (daq)</Label>
-              <Input
-                type="number"
-                min={20}
-                max={90}
-                value={cfg.lessonMin}
+              <Input type="number" min={20} max={90} value={cfg.lessonMin}
                 onChange={e => setCfg(p => ({ ...p, lessonMin: Number(e.target.value) }))}
-                className="bg-white"
-              />
+                className="bg-white" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-600">Darslar oralig'i (daq)</Label>
-              <Input
-                type="number"
-                min={5}
-                max={30}
-                value={cfg.breakMin}
+              <Label className="text-xs text-gray-600">Tanaffus (daq)</Label>
+              <Input type="number" min={5} max={30} value={cfg.breakMin}
                 onChange={e => setCfg(p => ({ ...p, breakMin: Number(e.target.value) }))}
-                className="bg-white"
-              />
+                className="bg-white" />
             </div>
           </div>
 
-          {/* Row 2: Lunch settings */}
-          <div className="flex items-start gap-6 flex-wrap">
-            <div className="flex items-center gap-2 mt-1">
-              <Switch
-                checked={cfg.useLunch}
-                onCheckedChange={v => setCfg(p => ({ ...p, useLunch: v }))}
-                id="lunch-toggle"
-              />
-              <Label htmlFor="lunch-toggle" className="text-sm text-gray-700 cursor-pointer select-none">
-                Kechki tushlik vaqti
+          {/* Lunch toggle row */}
+          <div className="flex items-center gap-6 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Switch checked={cfg.useLunch} id="lunch-sw"
+                onCheckedChange={v => setCfg(p => ({ ...p, useLunch: v }))} />
+              <Label htmlFor="lunch-sw" className="text-sm text-gray-700 cursor-pointer select-none">
+                Tushlik tanaffusi
               </Label>
             </div>
             {cfg.useLunch && (
               <div className="flex items-center gap-3 flex-wrap">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-600">Nechi darsdan keyin</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={8}
-                    value={cfg.lunchAfterLesson}
+                  <Input type="number" min={1} max={8} value={cfg.lunchAfterLesson}
                     onChange={e => setCfg(p => ({ ...p, lunchAfterLesson: Number(e.target.value) }))}
-                    className="w-24 bg-white"
-                  />
+                    className="w-24 bg-white" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-gray-600">Tushlik davomiyligi (daq)</Label>
-                  <Input
-                    type="number"
-                    min={10}
-                    max={60}
-                    value={cfg.lunchMin}
+                  <Input type="number" min={10} max={60} value={cfg.lunchMin}
                     onChange={e => setCfg(p => ({ ...p, lunchMin: Number(e.target.value) }))}
-                    className="w-28 bg-white"
-                  />
+                    className="w-28 bg-white" />
                 </div>
               </div>
             )}
           </div>
 
-          <Button
-            onClick={handleGenerate}
-            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
-          >
-            <Zap className="mr-2 h-4 w-4" />
-            Jadval tuzish
+          <Button onClick={handleGenerate} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+            <Zap className="mr-2 h-4 w-4" />Jadval tuzish
           </Button>
         </CardContent>
       </Card>
@@ -495,15 +369,15 @@ export default function Darslar() {
               <Clock className="h-4 w-4 text-blue-600" />
               Dars jadvali soatlari
               <Badge variant="secondary" className="text-xs ml-1">{lessonCount} ta dars</Badge>
+              {lunchCount > 0 && (
+                <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
+                  {lunchCount} ta tushlik
+                </Badge>
+              )}
             </CardTitle>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowAdd(true)}
-              className="text-blue-600 border-blue-200 hover:bg-blue-50"
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Qo'shish
+            <Button size="sm" variant="outline" onClick={() => setShowAdd(true)}
+              className="text-blue-600 border-blue-200 hover:bg-blue-50">
+              <Plus className="h-4 w-4 mr-1" />Qo'shish
             </Button>
           </div>
           <p className="text-xs text-gray-400 mt-1">Bu vaqtlar Dushanba–Juma barcha kunlarga qo'llaniladi</p>
@@ -524,85 +398,70 @@ export default function Darslar() {
           ) : (
             <div className="space-y-2">
               {rows.map(row => {
-                const style = rowStyle(row.type);
-                const dur = minuteDiff(row.startTime, row.endTime);
-                const Icon = style.icon;
+                const isLesson = row.type === "lesson";
+                const d = diff(row.startTime, row.endTime);
                 return (
-                  <div
-                    key={row.key}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors group ${style.bg}`}
-                  >
-                    {/* Badge / icon */}
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${style.badge}`}>
-                      {row.type === "lesson" ? (
-                        <span className="font-bold text-sm">{row.periodNumber}</span>
-                      ) : (
-                        Icon && <Icon className="h-4 w-4" />
-                      )}
+                  <div key={row.key}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors group ${
+                      isLesson
+                        ? "bg-white hover:bg-blue-50/40 border-gray-100"
+                        : "bg-orange-50/70 hover:bg-orange-50 border-orange-100"
+                    }`}>
+
+                    {/* Badge */}
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      isLesson ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-600"
+                    }`}>
+                      {isLesson
+                        ? <span className="font-bold text-sm">{row.periodNumber}</span>
+                        : <UtensilsCrossed className="h-4 w-4" />
+                      }
                     </div>
 
                     {/* Label */}
                     <div className="w-20 flex-shrink-0">
-                      <span className="text-sm font-medium text-gray-700">
-                        {style.label(row.periodNumber)}
+                      <span className={`text-sm font-medium ${isLesson ? "text-gray-700" : "text-orange-700"}`}>
+                        {isLesson ? `${row.periodNumber}-dars` : "Tushlik"}
                       </span>
                     </div>
 
                     {/* Times */}
                     <div className="flex-1 flex items-center gap-2 min-w-0">
-                      <Input
-                        type="time"
-                        value={row.startTime}
+                      <Input type="time" value={row.startTime}
                         onChange={e => setRows(prev => reindex(prev.map(r =>
                           r.key === row.key ? { ...r, startTime: e.target.value } : r
                         )))}
-                        className="h-8 w-28 text-sm font-mono bg-white"
-                      />
+                        className="h-8 w-28 text-sm font-mono bg-white" />
                       <span className="text-gray-300">—</span>
-                      <Input
-                        type="time"
-                        value={row.endTime}
+                      <Input type="time" value={row.endTime}
                         onChange={e => setRows(prev => reindex(prev.map(r =>
                           r.key === row.key ? { ...r, endTime: e.target.value } : r
                         )))}
-                        className="h-8 w-28 text-sm font-mono bg-white"
-                      />
+                        className="h-8 w-28 text-sm font-mono bg-white" />
                     </div>
 
-                    {/* Duration badge */}
+                    {/* Duration */}
                     <div className="flex-shrink-0">
-                      {dur > 0 ? (
-                        <Badge
-                          variant="outline"
-                          className="text-xs text-emerald-700 border-emerald-200 bg-emerald-50"
-                        >
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          {dur} daqiqa
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs text-red-600 border-red-200 bg-red-50">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Noto'g'ri
-                        </Badge>
-                      )}
+                      {d > 0
+                        ? <Badge variant="outline" className="text-xs text-emerald-700 border-emerald-200 bg-emerald-50">
+                            <CheckCircle className="h-3 w-3 mr-1" />{d} daqiqa
+                          </Badge>
+                        : <Badge variant="outline" className="text-xs text-red-600 border-red-200 bg-red-50">
+                            <AlertTriangle className="h-3 w-3 mr-1" />Noto'g'ri
+                          </Badge>
+                      }
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        size="icon"
-                        variant="ghost"
+                      <Button size="icon" variant="ghost"
                         className="h-7 w-7 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
-                        onClick={() => setEditTarget(row)}
-                      >
+                        onClick={() => setEditTarget(row)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
+                      <Button size="icon" variant="ghost"
                         className="h-7 w-7 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                        onClick={() => setShowDeleteConfirm(row.key)}
-                      >
+                        onClick={() => setDeleteKey(row.key)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -630,41 +489,23 @@ export default function Darslar() {
         </CardContent>
       </Card>
 
-      {/* Edit dialog */}
-      <EditDialog
-        row={editTarget}
-        open={!!editTarget}
-        onClose={() => setEditTarget(null)}
-        onSave={handleEditSave}
-      />
+      {/* Dialogs */}
+      <EditDialog row={editTarget} open={!!editTarget}
+        onClose={() => setEditTarget(null)} onSave={handleEditSave} />
 
-      {/* Add dialog */}
-      <AddDialog
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        onAdd={handleAdd}
-      />
+      <AddDialog open={showAdd} onClose={() => setShowAdd(false)} onAdd={handleAdd} />
 
-      {/* Delete confirm dialog */}
-      <Dialog open={!!showDeleteConfirm} onOpenChange={v => { if (!v) setShowDeleteConfirm(null); }}>
+      <Dialog open={!!deleteKey} onOpenChange={v => { if (!v) setDeleteKey(null); }}>
         <DialogContent className="sm:max-w-xs">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-4 w-4 text-red-500" />
-              O'chirishni tasdiqlang
+              <Trash2 className="h-4 w-4 text-red-500" />O'chirishni tasdiqlang
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600 py-2">
-            Bu qatorni o'chirishni xohlaysizmi?
-          </p>
+          <p className="text-sm text-gray-600 py-2">Bu qatorni o'chirishni xohlaysizmi?</p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(null)}>Bekor</Button>
-            <Button
-              variant="destructive"
-              onClick={() => showDeleteConfirm && handleDeleteRow(showDeleteConfirm)}
-            >
-              O'chirish
-            </Button>
+            <Button variant="outline" onClick={() => setDeleteKey(null)}>Bekor</Button>
+            <Button variant="destructive" onClick={() => deleteKey && handleDelete(deleteKey)}>O'chirish</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
