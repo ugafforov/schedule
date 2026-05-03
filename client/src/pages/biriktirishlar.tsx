@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Plus, Trash2, Save, GraduationCap, BookOpen, Users,
+  Plus, Trash2, GraduationCap, BookOpen, Users,
   Clock, ChevronRight, AlertCircle, CheckCircle2, Zap, Info, X,
-  BarChart3, UserCheck, UserX, ArrowRight
+  BarChart3, UserCheck, UserX, ArrowRight, Loader2
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, ClassSubject } from "@shared/schema";
@@ -273,52 +273,67 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   const qc = useQueryClient();
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [dirty, setDirty] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [autoDialogOpen, setAutoDialogOpen] = useState(false);
+  const isLoadingRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { isLoading: assignLoading } = useQuery<ClassSubject[]>({
     queryKey: ["/api/classes", selectedClassId, "subjects"],
     enabled: selectedClassId !== null,
     queryFn: async () => {
+      isLoadingRef.current = true;
       const data = await (await fetch(`/api/classes/${selectedClassId}/subjects`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
       })).json() as ClassSubject[];
       setAssignments(data.map(a => ({ subjectId: a.subjectId, teacherId: a.teacherId ?? null, weeklyHours: a.weeklyHours })));
-      setDirty(false);
+      setSaveStatus("idle");
+      setTimeout(() => { isLoadingRef.current = false; }, 100);
       return data;
     },
   });
 
   const saveMutation = useMutation({
-    mutationFn: () => apiRequest("PUT", `/api/classes/${selectedClassId}/subjects`, { subjects: assignments }),
+    mutationFn: (toSave: Assignment[]) =>
+      apiRequest("PUT", `/api/classes/${selectedClassId}/subjects`, { subjects: toSave }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
-      setDirty(false);
-      toast({ title: "Saqlandi", description: "Fanlar biriktirildi" });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
     },
-    onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
+    onError: () => {
+      setSaveStatus("error");
+      toast({ title: "Saqlashda xatolik", variant: "destructive" });
+    },
   });
+
+  // Auto-save with 1.5s debounce after any assignment change
+  useEffect(() => {
+    if (isLoadingRef.current || selectedClassId === null) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setSaveStatus("saving");
+    debounceRef.current = setTimeout(() => {
+      saveMutation.mutate(assignments);
+    }, 1500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [assignments]);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
   const selectClass = (cls: Class) => {
-    if (dirty && !confirm("Saqllanmagan o'zgarishlar bor. Davom etasizmi?")) return;
     setSelectedClassId(cls.id);
     setAssignments([]);
-    setDirty(false);
+    setSaveStatus("idle");
   };
 
-  const addRow = () => { setAssignments(p => [...p, { subjectId: 0, teacherId: null, weeklyHours: 2 }]); setDirty(true); };
-  const updateRow = (i: number, field: keyof Assignment, val: any) => {
+  const addRow = () => setAssignments(p => [...p, { subjectId: 0, teacherId: null, weeklyHours: 2 }]);
+  const updateRow = (i: number, field: keyof Assignment, val: any) =>
     setAssignments(p => p.map((a, idx) => idx === i ? { ...a, [field]: val } : a));
-    setDirty(true);
-  };
-  const removeRow = (i: number) => { setAssignments(p => p.filter((_, idx) => idx !== i)); setDirty(true); };
+  const removeRow = (i: number) => setAssignments(p => p.filter((_, idx) => idx !== i));
 
   const handleAutoAssign = (newA: Assignment[]) => {
-    setAssignments(newA); setDirty(true); setAutoDialogOpen(false);
-    toast({ title: "Fanlar biriktirildi", description: `${newA.length} ta fan DTS bo'yicha. O'qituvchilarni "Yuk hisobi" tabidan biriktiring.` });
+    setAssignments(newA); setAutoDialogOpen(false);
+    toast({ title: "Fanlar biriktirildi", description: `${newA.length} ta fan DTS bo'yicha avtomatik saqlanmoqda...` });
   };
 
   const totalHours = assignments.reduce((s, a) => s + (a.weeklyHours || 0), 0);
@@ -395,12 +410,24 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                   <Badge variant="outline" className="text-xs text-blue-700 border-blue-200">
                     <Clock className="h-3 w-3 mr-1" /> Jami: {totalHours} soat/h
                   </Badge>
+                  {saveStatus === "saving" && (
+                    <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saqlanmoqda...
+                    </span>
+                  )}
+                  {saveStatus === "saved" && (
+                    <span className="flex items-center gap-1.5 text-xs text-emerald-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Saqlandi
+                    </span>
+                  )}
+                  {saveStatus === "error" && (
+                    <span className="flex items-center gap-1.5 text-xs text-red-500">
+                      <AlertCircle className="h-3.5 w-3.5" /> Xatolik
+                    </span>
+                  )}
                   <Button variant="outline" size="sm" onClick={() => setAutoDialogOpen(true)}
                     className="h-8 border-blue-200 text-blue-700 hover:bg-blue-50" disabled={assignLoading}>
                     <Zap className="mr-1.5 h-3.5 w-3.5 text-blue-500" /> DTS biriktirish
-                  </Button>
-                  <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !dirty} size="sm" className="bg-blue-600 hover:bg-blue-700 h-8">
-                    <Save className="mr-1.5 h-3.5 w-3.5" /> Saqlash
                   </Button>
                 </div>
               </div>
