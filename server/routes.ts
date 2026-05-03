@@ -490,6 +490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           periodNumber: Number(row.type === "lesson" ? row.periodNumber : 0),
           startTime: String(row.startTime || "").slice(0, 5),
           endTime: String(row.endTime || "").slice(0, 5),
+          meta: row.meta === "evening-lunch" ? "evening-lunch" : "day-lunch",
         }))
         .filter((row: any) => row.startTime && row.endTime);
 
@@ -502,7 +503,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name:
             row.type === "lesson"
               ? `${DAY_NAMES[day]} ${row.periodNumber}-dars`
-              : `${DAY_NAMES[day]} Tushlik tanaffusi`,
+              : row.meta === "evening-lunch"
+                ? `${DAY_NAMES[day]} Kechki tushlik`
+                : `${DAY_NAMES[day]} Tushlik tanaffusi`,
           startTime: row.startTime,
           endTime: row.endTime,
           dayOfWeek: day,

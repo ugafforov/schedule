@@ -98,9 +98,11 @@ function fromSlots(slots: TimeSlot[]): SlotRow[] {
       periodNumber: s.periodNumber,
       startTime: toHHMM(s.startTime),
       endTime: toHHMM(s.endTime),
-      meta: s.isBreak && s.name.toLowerCase().includes("tushlik")
-        ? (s.startTime >= "18:00" ? "evening-lunch" : "day-lunch")
-        : undefined,
+      meta: s.isBreak && s.name.toLowerCase().includes("kechki")
+        ? "evening-lunch"
+        : s.isBreak && s.name.toLowerCase().includes("tushlik")
+          ? "day-lunch"
+          : undefined,
     }));
 }
 
@@ -240,19 +242,18 @@ export default function Darslar() {
         if (lessons.length > 0) {
           const firstLunchIndex = lunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(lunch.startTime)) : -1;
           const eveningLunchIndex = eveningLunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(eveningLunch.startTime)) : -1;
-          setCfg(prev => ({
-            ...prev,
+          setCfg({
             schoolStart: lessons[0].startTime,
             schoolEnd: lessons[lessons.length - 1].endTime,
             lessonMin: diff(lessons[0].startTime, lessons[0].endTime),
-            breakMin: lessons.length > 1 ? diff(lessons[0].endTime, lessons[1].startTime) : prev.breakMin,
+            breakMin: lessons.length > 1 ? diff(lessons[0].endTime, lessons[1].startTime) : DEFAULT_CFG.breakMin,
             useLunch: Boolean(lunch),
-            lunchAfterLesson: lunch && firstLunchIndex >= 0 ? firstLunchIndex + 1 : prev.lunchAfterLesson,
-            lunchMin: lunch ? diff(lunch.startTime, lunch.endTime) : prev.lunchMin,
+            lunchAfterLesson: lunch && firstLunchIndex >= 0 ? firstLunchIndex + 1 : DEFAULT_CFG.lunchAfterLesson,
+            lunchMin: lunch ? diff(lunch.startTime, lunch.endTime) : DEFAULT_CFG.lunchMin,
             useEveningLunch: Boolean(eveningLunch),
-            eveningLunchAfterLesson: eveningLunch && eveningLunchIndex >= 0 ? eveningLunchIndex + 1 : prev.eveningLunchAfterLesson,
-            eveningLunchMin: eveningLunch ? diff(eveningLunch.startTime, eveningLunch.endTime) : prev.eveningLunchMin,
-          }));
+            eveningLunchAfterLesson: eveningLunch && eveningLunchIndex >= 0 ? eveningLunchIndex + 1 : DEFAULT_CFG.eveningLunchAfterLesson,
+            eveningLunchMin: eveningLunch ? diff(eveningLunch.startTime, eveningLunch.endTime) : DEFAULT_CFG.eveningLunchMin,
+          });
         }
       }
     } else if (!loadedRef.current) {
