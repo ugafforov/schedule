@@ -86,7 +86,7 @@ function fromSlots(slots: TimeSlot[]): SlotRow[] {
     .sort((a, b) => toMin(toHHMM(a.startTime)) - toMin(toHHMM(b.startTime)))
     .map(s => ({
       key: mk(),
-      type: (s.isBreak && s.name.includes("Tushlik") ? "lunch" : "lesson") as RowType,
+      type: (s.isBreak && s.name.toLowerCase().includes("tushlik") ? "lunch" : "lesson") as RowType,
       periodNumber: s.periodNumber,
       startTime: toHHMM(s.startTime),
       endTime: toHHMM(s.endTime),
