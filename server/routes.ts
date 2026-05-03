@@ -506,9 +506,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      await storage.deleteAllScheduleEntries();
-      await storage.deleteAllTimeSlots();
-      await db.insert(timeSlots).values(toCreate);
+      await db.transaction(async (tx) => {
+        await tx.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.isActive, true));
+        await tx.delete(timeSlots);
+        await tx.insert(timeSlots).values(toCreate);
+      });
       const created = await storage.getTimeSlots();
       res.json(created);
     } catch (e: any) {

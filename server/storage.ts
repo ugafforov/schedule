@@ -240,7 +240,7 @@ export class DatabaseStorage implements IStorage {
     return (r.rowCount || 0) > 0;
   }
   async deleteAllTimeSlots(): Promise<void> {
-    await db.delete(timeSlots);
+    await db.update(timeSlots).set({ isActive: false }).where(eq(timeSlots.isActive, true));
   }
 
   // ─── SCHEDULE ENTRIES ────────────────────────────────────────────────────────
