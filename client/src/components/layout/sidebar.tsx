@@ -72,7 +72,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
       "transition-[width] duration-200 ease-in-out",
       "[will-change:width]"
     )}>
-      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-3 px-[10px] space-y-0.5">
+      <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-3 px-[10px] space-y-1">
         {navItems.map((item) => (
           <button
             key={item.href}
@@ -98,7 +98,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
         ))}
       </nav>
 
-      <div className="border-t border-slate-700/60 py-3 px-[10px] space-y-0.5">
+      <div className="border-t border-slate-700/60 py-3 px-[10px] space-y-1">
         <button
           onClick={() => navigate("/settings")}
           className={cn(
@@ -162,12 +162,12 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
               <X className="h-5 w-5" />
             </button>
           </div>
-          <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+          <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
             {navItems.map(item => (
               <NavItem key={item.href} {...item} expanded />
             ))}
           </nav>
-          <div className="border-t border-slate-700 px-3 py-3 space-y-0.5">
+          <div className="border-t border-slate-700 px-3 py-3 space-y-1">
             <NavItem href="/settings" label="Sozlamalar" icon={Settings} expanded />
             <button
               onClick={logout}
