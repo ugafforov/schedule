@@ -5,13 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, Save, GraduationCap, BookOpen, Users,
-  Clock, ChevronRight, AlertCircle, CheckCircle2
+  Clock, ChevronRight, AlertCircle, CheckCircle2, Zap, Info, X
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, ClassSubject } from "@shared/schema";
+import { getAutoAssignments } from "@/lib/dts-curriculum";
 
 interface Assignment {
   subjectId: number;
@@ -38,6 +40,133 @@ function gradeColor(grade: string) {
   return GRADE_COLORS[(n - 1) % GRADE_COLORS.length] || GRADE_COLORS[0];
 }
 
+// ─── Auto-assign preview dialog ───────────────────────────────────────────────
+interface AutoAssignDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (assignments: Assignment[]) => void;
+  selectedClass: Class | undefined;
+  subjects: Subject[];
+}
+
+function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects }: AutoAssignDialogProps) {
+  if (!selectedClass) return null;
+
+  const grade = parseInt(selectedClass.grade);
+  const result = getAutoAssignments(grade, subjects);
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-blue-600" />
+            DTS bo'yicha avtomatik biriktirish
+          </DialogTitle>
+          <p className="text-xs text-gray-500 mt-1">
+            Maktabgacha va Maktab Ta'limi vazirligi №121-buyrug'i (10.04.2025) —{" "}
+            <span className="font-semibold text-gray-700">{selectedClass.name}</span> uchun
+          </p>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-3">
+          {/* Matched subjects */}
+          {result.assignments.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <span className="text-sm font-semibold text-gray-800">
+                  Topildi — {result.assignments.length} ta fan
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                {result.assignments.map((a, i) => {
+                  const sub = subjects.find((s) => s.id === a.subjectId);
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg border border-emerald-100 bg-emerald-50/60"
+                    >
+                      <div
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: sub?.color || "#3B82F6" }}
+                      />
+                      <span className="flex-1 text-sm text-gray-800 truncate">{sub?.name}</span>
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                        {a.weeklyHours} soat/hafta
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Missing subjects */}
+          {result.missingNames.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-semibold text-gray-800">
+                  Topilmadi — {result.missingNames.length} ta fan (DB da mavjud emas)
+                </span>
+              </div>
+              <div className="space-y-1">
+                {result.missingNames.map((name, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg border border-amber-100 bg-amber-50/60"
+                  >
+                    <X className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
+                    <span className="text-sm text-gray-600">{name}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-amber-700 mt-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                Topilmagan fanlarni avval <strong>Fanlar</strong> sahifasida DTS orqali qo'shib, keyin qaytadan urinib ko'ring.
+              </p>
+            </div>
+          )}
+
+          {result.assignments.length === 0 && (
+            <div className="text-center py-8">
+              <AlertCircle className="h-10 w-10 text-amber-400 mx-auto mb-3" />
+              <p className="text-sm font-semibold text-gray-700">Mos fan topilmadi</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Avval <strong>Fanlar</strong> sahifasida DTS fanlarini qo'shing.
+              </p>
+            </div>
+          )}
+
+          {/* Info note */}
+          <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+            <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700">
+              O'qituvchilar <strong>avtomatik biriktirilmaydi</strong> — ularni keyinchalik qo'lda belgilashingiz mumkin.
+              Mavjud barcha fanlar almashtiriladi.
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter className="flex-shrink-0 pt-3 border-t border-gray-100">
+          <Button variant="outline" onClick={onClose}>
+            Bekor qilish
+          </Button>
+          <Button
+            onClick={() => onConfirm(result.assignments)}
+            disabled={result.assignments.length === 0}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Zap className="mr-1.5 h-3.5 w-3.5" />
+            {result.assignments.length} ta fanni biriktirish
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 export default function Biriktirishlar() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -45,6 +174,7 @@ export default function Biriktirishlar() {
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [autoDialogOpen, setAutoDialogOpen] = useState(false);
 
   const { data: classes = [], isLoading: clsLoading } = useQuery<Class[]>({ queryKey: ["/api/classes"] });
   const { data: subjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
@@ -54,9 +184,11 @@ export default function Biriktirishlar() {
     queryKey: ["/api/classes", selectedClassId, "subjects"],
     enabled: selectedClassId !== null,
     queryFn: async () => {
-      const data = await (await fetch(`/api/classes/${selectedClassId}/subjects`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      })).json() as ClassSubject[];
+      const data = await (
+        await fetch(`/api/classes/${selectedClassId}/subjects`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        })
+      ).json() as ClassSubject[];
       setAssignments(
         data.map((a: ClassSubject) => ({
           subjectId: a.subjectId,
@@ -77,10 +209,11 @@ export default function Biriktirishlar() {
       setDirty(false);
       toast({ title: "Saqlandi", description: "Fanlar biriktirildi" });
     },
-    onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
+    onError: (e: any) =>
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
   });
 
-  const selectedClass = classes.find(c => c.id === selectedClassId);
+  const selectedClass = classes.find((c) => c.id === selectedClassId);
 
   const selectClass = (cls: Class) => {
     if (dirty) {
@@ -92,22 +225,31 @@ export default function Biriktirishlar() {
   };
 
   const addRow = () => {
-    setAssignments(prev => [...prev, { subjectId: 0, teacherId: null, weeklyHours: 2 }]);
+    setAssignments((prev) => [...prev, { subjectId: 0, teacherId: null, weeklyHours: 2 }]);
     setDirty(true);
   };
 
   const updateRow = (i: number, field: keyof Assignment, val: any) => {
-    setAssignments(prev => prev.map((a, idx) => idx === i ? { ...a, [field]: val } : a));
+    setAssignments((prev) => prev.map((a, idx) => (idx === i ? { ...a, [field]: val } : a)));
     setDirty(true);
   };
 
   const removeRow = (i: number) => {
-    setAssignments(prev => prev.filter((_, idx) => idx !== i));
+    setAssignments((prev) => prev.filter((_, idx) => idx !== i));
     setDirty(true);
   };
 
+  const handleAutoAssign = (newAssignments: Assignment[]) => {
+    setAssignments(newAssignments);
+    setDirty(true);
+    setAutoDialogOpen(false);
+    toast({
+      title: "Fanlar biriktirildi",
+      description: `${newAssignments.length} ta fan DTS bo'yicha biriktirildi. O'qituvchilarni qo'lda belgilang.`,
+    });
+  };
+
   const totalHours = assignments.reduce((s, a) => s + (a.weeklyHours || 0), 0);
-  const usedSubjectIds = assignments.map(a => a.subjectId).filter(Boolean);
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -126,15 +268,19 @@ export default function Biriktirishlar() {
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <GraduationCap className="h-4 w-4 text-blue-600" />
                 Sinflar
-                <Badge variant="secondary" className="text-xs ml-auto">{classes.length}</Badge>
+                <Badge variant="secondary" className="text-xs ml-auto">
+                  {classes.length}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="px-2 pb-3">
               {clsLoading ? (
                 <div className="space-y-2 px-2">
-                  {Array(5).fill(0).map((_, i) => (
-                    <div key={i} className="h-12 bg-gray-100 animate-pulse rounded-lg" />
-                  ))}
+                  {Array(5)
+                    .fill(0)
+                    .map((_, i) => (
+                      <div key={i} className="h-12 bg-gray-100 animate-pulse rounded-lg" />
+                    ))}
                 </div>
               ) : classes.length === 0 ? (
                 <div className="text-center py-8 px-4">
@@ -144,7 +290,7 @@ export default function Biriktirishlar() {
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {classes.map(cls => {
+                  {classes.map((cls) => {
                     const isActive = cls.id === selectedClassId;
                     return (
                       <button
@@ -156,13 +302,19 @@ export default function Biriktirishlar() {
                             : "text-gray-700 hover:bg-gray-100"
                         }`}
                       >
-                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${
-                          isActive ? "bg-white/20 text-white" : gradeColor(cls.grade)
-                        }`}>
+                        <span
+                          className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${
+                            isActive ? "bg-white/20 text-white" : gradeColor(cls.grade)
+                          }`}
+                        >
                           {cls.grade}
                         </span>
                         <span className="flex-1 text-sm font-medium truncate">{cls.name}</span>
-                        <ChevronRight className={`h-3.5 w-3.5 flex-shrink-0 ${isActive ? "text-white/70" : "text-gray-400"}`} />
+                        <ChevronRight
+                          className={`h-3.5 w-3.5 flex-shrink-0 ${
+                            isActive ? "text-white/70" : "text-gray-400"
+                          }`}
+                        />
                       </button>
                     );
                   })}
@@ -187,21 +339,38 @@ export default function Biriktirishlar() {
           ) : (
             <Card className="border border-gray-100 shadow-sm h-full flex flex-col">
               <CardHeader className="pb-3 flex-shrink-0">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center">
                       <GraduationCap className="h-4 w-4 text-blue-600" />
                     </div>
                     <div>
-                      <CardTitle className="text-base font-semibold">{selectedClass?.name}</CardTitle>
-                      <p className="text-xs text-gray-500">{selectedClass?.grade}-sinf • {selectedClass?.totalStudents || 0} o'quvchi</p>
+                      <CardTitle className="text-base font-semibold">
+                        {selectedClass?.name}
+                      </CardTitle>
+                      <p className="text-xs text-gray-500">
+                        {selectedClass?.grade}-sinf • {selectedClass?.totalStudents || 0} o'quvchi
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Badge variant="outline" className="text-xs text-blue-700 border-blue-200">
                       <Clock className="h-3 w-3 mr-1" />
                       Jami: {totalHours} soat/hafta
                     </Badge>
+
+                    {/* Auto-assign button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAutoDialogOpen(true)}
+                      className="h-8 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
+                      disabled={assignLoading}
+                    >
+                      <Zap className="mr-1.5 h-3.5 w-3.5 text-blue-500" />
+                      DTS biriktirish
+                    </Button>
+
                     <Button
                       onClick={() => saveMutation.mutate()}
                       disabled={saveMutation.isPending || !dirty}
@@ -218,7 +387,11 @@ export default function Biriktirishlar() {
               <CardContent className="flex-1 overflow-auto pb-4">
                 {assignLoading ? (
                   <div className="space-y-2">
-                    {Array(4).fill(0).map((_, i) => <div key={i} className="h-12 bg-gray-100 animate-pulse rounded-lg" />)}
+                    {Array(4)
+                      .fill(0)
+                      .map((_, i) => (
+                        <div key={i} className="h-12 bg-gray-100 animate-pulse rounded-lg" />
+                      ))}
                   </div>
                 ) : (
                   <>
@@ -228,7 +401,18 @@ export default function Biriktirishlar() {
                           <BookOpen className="h-5 w-5 text-gray-400" />
                         </div>
                         <p className="text-gray-500 text-sm">Hali fan biriktirilmagan</p>
-                        <p className="text-xs text-gray-400 mt-1">Quyidagi tugmani bosib fan qo'shing</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Quyidagi tugmani bosib fan qo'shing yoki DTS dan avtomatik biriktiring
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAutoDialogOpen(true)}
+                          className="mt-3 border-blue-200 text-blue-600 hover:bg-blue-50"
+                        >
+                          <Zap className="mr-1.5 h-3.5 w-3.5" />
+                          DTS bo'yicha avtomatik biriktirish
+                        </Button>
                       </div>
                     ) : (
                       <>
@@ -243,7 +427,7 @@ export default function Biriktirishlar() {
                         {/* Rows */}
                         <div className="space-y-2">
                           {assignments.map((a, i) => {
-                            const sub = subjects.find(s => s.id === a.subjectId);
+                            const sub = subjects.find((s) => s.id === a.subjectId);
                             const hasConflict = assignments.some(
                               (b, j) => j !== i && b.subjectId === a.subjectId && a.subjectId !== 0
                             );
@@ -251,28 +435,36 @@ export default function Biriktirishlar() {
                               <div
                                 key={i}
                                 className={`grid grid-cols-[2fr_2fr_1fr_40px] gap-2 items-center p-2 rounded-xl border transition-colors ${
-                                  hasConflict ? "border-red-200 bg-red-50" : "border-gray-100 bg-white hover:border-blue-100"
+                                  hasConflict
+                                    ? "border-red-200 bg-red-50"
+                                    : "border-gray-100 bg-white hover:border-blue-100"
                                 }`}
                               >
                                 <Select
                                   value={a.subjectId ? String(a.subjectId) : ""}
-                                  onValueChange={v => updateRow(i, "subjectId", parseInt(v))}
+                                  onValueChange={(v) => updateRow(i, "subjectId", parseInt(v))}
                                 >
                                   <SelectTrigger className="h-9 text-sm border-gray-200">
                                     <SelectValue placeholder="Fan tanlang">
                                       {sub ? (
                                         <span className="flex items-center gap-2">
-                                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || "#3B82F6" }} />
+                                          <span
+                                            className="w-2 h-2 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: sub.color || "#3B82F6" }}
+                                          />
                                           {sub.name}
                                         </span>
                                       ) : null}
                                     </SelectValue>
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {subjects.map(s => (
+                                    {subjects.map((s) => (
                                       <SelectItem key={s.id} value={String(s.id)}>
                                         <span className="flex items-center gap-2">
-                                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#3B82F6" }} />
+                                          <span
+                                            className="w-2 h-2 rounded-full"
+                                            style={{ backgroundColor: s.color || "#3B82F6" }}
+                                          />
                                           {s.name}
                                         </span>
                                       </SelectItem>
@@ -282,7 +474,9 @@ export default function Biriktirishlar() {
 
                                 <Select
                                   value={a.teacherId ? String(a.teacherId) : "none"}
-                                  onValueChange={v => updateRow(i, "teacherId", v === "none" ? null : parseInt(v))}
+                                  onValueChange={(v) =>
+                                    updateRow(i, "teacherId", v === "none" ? null : parseInt(v))
+                                  }
                                 >
                                   <SelectTrigger className="h-9 text-sm border-gray-200">
                                     <SelectValue placeholder="O'qituvchi (ixtiyoriy)" />
@@ -291,7 +485,7 @@ export default function Biriktirishlar() {
                                     <SelectItem value="none">
                                       <span className="text-gray-400">Tayinlanmagan</span>
                                     </SelectItem>
-                                    {teachers.map(t => (
+                                    {teachers.map((t) => (
                                       <SelectItem key={t.id} value={String(t.id)}>
                                         {t.firstName} {t.lastName}
                                       </SelectItem>
@@ -304,7 +498,13 @@ export default function Biriktirishlar() {
                                   min={1}
                                   max={10}
                                   value={a.weeklyHours}
-                                  onChange={e => updateRow(i, "weeklyHours", Math.max(1, parseInt(e.target.value) || 1))}
+                                  onChange={(e) =>
+                                    updateRow(
+                                      i,
+                                      "weeklyHours",
+                                      Math.max(1, parseInt(e.target.value) || 1)
+                                    )
+                                  }
                                   className="h-9 text-sm text-center border-gray-200"
                                 />
 
@@ -334,19 +534,22 @@ export default function Biriktirishlar() {
                     {assignments.length > 0 && (
                       <div className="mt-4 p-3 rounded-xl bg-gray-50 border border-gray-100">
                         <div className="flex items-start gap-2">
-                          {assignments.every(a => a.subjectId && a.teacherId) ? (
+                          {assignments.every((a) => a.subjectId && a.teacherId) ? (
                             <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
                           ) : (
                             <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
                           )}
                           <div className="text-xs text-gray-600 space-y-0.5">
                             <p className="font-medium">
-                              {assignments.filter(a => a.subjectId && a.teacherId).length}/{assignments.length} fan to'liq biriktirilgan
+                              {assignments.filter((a) => a.subjectId && a.teacherId).length}/
+                              {assignments.length} fan to'liq biriktirilgan
                             </p>
                             <div className="flex flex-wrap gap-x-4 text-gray-500">
                               <span>{assignments.length} ta fan</span>
                               <span>{totalHours} soat/hafta</span>
-                              <span>{assignments.filter(a => !a.teacherId).length} ta o'qituvchisiz</span>
+                              <span>
+                                {assignments.filter((a) => !a.teacherId).length} ta o'qituvchisiz
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -359,6 +562,15 @@ export default function Biriktirishlar() {
           )}
         </div>
       </div>
+
+      {/* Auto-assign dialog */}
+      <AutoAssignDialog
+        open={autoDialogOpen}
+        onClose={() => setAutoDialogOpen(false)}
+        onConfirm={handleAutoAssign}
+        selectedClass={selectedClass}
+        subjects={subjects}
+      />
     </div>
   );
 }
