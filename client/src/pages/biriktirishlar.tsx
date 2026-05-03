@@ -186,7 +186,7 @@ export default function Biriktirishlar() {
     queryFn: async () => {
       const data = await (
         await fetch(`/api/classes/${selectedClassId}/subjects`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
         })
       ).json() as ClassSubject[];
       setAssignments(

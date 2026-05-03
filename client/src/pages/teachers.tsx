@@ -199,7 +199,7 @@ export default function Teachers() {
     let subjectIds: number[] = []; let unavail: Set<string> = new Set();
     setUnavailLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("auth_token");
       const headers = { Authorization: `Bearer ${token}` };
       const [subRes, unavailRes] = await Promise.all([
         fetch(`/api/teachers/${t.id}/subjects`, { headers }),

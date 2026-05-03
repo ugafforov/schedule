@@ -178,7 +178,7 @@ export default function Classes() {
     setEditing(cls);
     let subs: SubjectAssignment[] = [];
     try {
-      const r = await fetch(`/api/classes/${cls.id}/subjects`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      const r = await fetch(`/api/classes/${cls.id}/subjects`, { headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` } });
       if (r.ok) subs = (await r.json()).map((cs: any) => ({ subjectId: cs.subjectId, teacherId: cs.teacherId, weeklyHours: cs.weeklyHours }));
     } catch {}
     setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", totalStudents: cls.totalStudents || 25, subjects: subs });
