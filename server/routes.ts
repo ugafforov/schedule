@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import {
   insertSubjectSchema, insertTeacherSchema, insertClassSchema,
   insertRoomSchema, insertTimeSlotSchema, insertScheduleEntrySchema, loginSchema,
-  timeSlots, scheduleEntries,
+  timeSlots, scheduleEntries, teacherSubjects,
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -217,10 +217,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
+  // ── Teacher recommendation (DTS asosida kerakli o'qituvchilar soni) ──────────
+  app.get("/api/teacher-recommendation", auth, async (_req, res) => {
+    try {
+      const [allSubjects, allClassSubjects, allTeacherSubjects] = await Promise.all([
+        storage.getSubjects(),
+        storage.getAllClassSubjects(),
+        db.select().from(teacherSubjects),
+      ]);
+
+      // subject → total weekly hours across all classes
+      const subjectHoursMap = new Map<number, number>();
+      for (const cs of allClassSubjects) {
+        subjectHoursMap.set(cs.subjectId, (subjectHoursMap.get(cs.subjectId) || 0) + (cs.weeklyHours || 0));
+      }
+
+      // subject → count of classes that study it
+      const subjectClassCountMap = new Map<number, number>();
+      for (const cs of allClassSubjects) {
+        subjectClassCountMap.set(cs.subjectId, (subjectClassCountMap.get(cs.subjectId) || 0) + 1);
+      }
+
+      // subject → set of teacherIds already linked
+      const subjectTeacherMap = new Map<number, Set<number>>();
+      for (const ts of allTeacherSubjects) {
+        if (!subjectTeacherMap.has(ts.subjectId)) subjectTeacherMap.set(ts.subjectId, new Set());
+        subjectTeacherMap.get(ts.subjectId)!.add(ts.teacherId);
+      }
+
+      const DEFAULT_MAX_HOURS = 24; // 1 o'qituvchi uchun standart max soat
+
+      const recommendations = [];
+      for (const subject of allSubjects) {
+        const totalHours = subjectHoursMap.get(subject.id) || 0;
+        if (totalHours === 0) continue; // Bu fanni hech bir sinf o'qimaydi
+        const classCount = subjectClassCountMap.get(subject.id) || 0;
+        const existingTeacherIds = subjectTeacherMap.get(subject.id) || new Set();
+        const needed = Math.ceil(totalHours / DEFAULT_MAX_HOURS);
+        const existing = existingTeacherIds.size;
+        const vacancies = Math.max(0, needed - existing);
+        recommendations.push({
+          subjectId: subject.id,
+          subjectName: subject.name,
+          subjectColor: subject.color,
+          totalWeeklyHours: totalHours,
+          classCount,
+          neededTeachers: needed,
+          existingTeachers: existing,
+          vacancies,
+        });
+      }
+
+      // Sort by vacancies desc, then by totalHours desc
+      recommendations.sort((a, b) => b.vacancies - a.vacancies || b.totalWeeklyHours - a.totalWeeklyHours);
+      res.json(recommendations);
+    } catch (e: any) {
+      console.error("[teacher-recommendation]", e);
+      res.status(500).json({ message: e.message || "Server xatosi" });
+    }
+  });
+
   // ── Bulk create teachers ────────────────────────────────────────────────────
   app.post("/api/teachers/bulk", auth, async (req, res) => {
     try {
-      const items: Array<{ firstName: string; lastName: string; maxHoursPerWeek?: number }> = req.body.teachers;
+      const items: Array<{ firstName: string; lastName: string; maxHoursPerWeek?: number; subjectId?: number }> = req.body.teachers;
       if (!Array.isArray(items) || items.length === 0)
         return res.status(400).json({ message: "O'qituvchilar ro'yxati bo'sh" });
       const normalizeName = (firstName: string, lastName: string) =>
@@ -251,7 +311,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           department: null, specialization: null, phone: null,
           maxHoursPerWeek: item.maxHoursPerWeek || 30, isActive: true,
         });
-        created.push(await storage.createTeacher(data));
+        const teacher = await storage.createTeacher(data);
+        // Agar subjectId berilgan bo'lsa, o'qituvchini fanga avtomatik bog'la
+        if (item.subjectId && typeof item.subjectId === "number") {
+          await storage.setTeacherSubjects(teacher.id, [item.subjectId]);
+        }
+        created.push(teacher);
         existingNames.add(fullName);
       }
       res.status(201).json(created);

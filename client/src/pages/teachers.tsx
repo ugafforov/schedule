@@ -7,9 +7,28 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, Users, Phone, BookOpen, X, Clock, CalendarX, Zap, LayoutGrid, List } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Users, Phone, BookOpen, X, Clock, CalendarX, Zap, LayoutGrid, List, Wand2, CheckCircle2, AlertCircle, ChevronRight } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Teacher, Subject } from "@shared/schema";
+
+interface TeacherRecommendation {
+  subjectId: number;
+  subjectName: string;
+  subjectColor: string;
+  totalWeeklyHours: number;
+  classCount: number;
+  neededTeachers: number;
+  existingTeachers: number;
+  vacancies: number;
+}
+
+interface BulkTeacherItem {
+  firstName: string;
+  lastName: string;
+  subjectId?: number;
+  subjectName?: string;
+  subjectColor?: string;
+}
 
 const DAYS = ["Du", "Se", "Ch", "Pa", "Ju"];
 const PERIODS = [1, 2, 3, 4, 5, 6];
@@ -59,105 +78,237 @@ function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; ti
 /* ── Bulk add dialog ─────────────────────────────────────────────────────── */
 function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
   const { toast } = useToast();
-  const [text, setText] = useState("");
-  const [maxHours, setMaxHours] = useState(30);
-  const [count, setCount] = useState(5);
+  const [mode, setMode] = useState<"recommend" | "manual">("recommend");
+  const [maxHours, setMaxHours] = useState(24);
   const [loading, setLoading] = useState(false);
+  const [manualText, setManualText] = useState("");
+  // Generated teachers list from recommendations
+  const [generatedList, setGeneratedList] = useState<BulkTeacherItem[]>([]);
 
-  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-  const normalizeName = (firstName: string, lastName: string) =>
-    `${firstName} ${lastName}`.replace(/\s+/g, " ").trim().toLowerCase();
-  const parsed: { firstName: string; lastName: string }[] = [];
+  const { data: recs = [], isLoading: recsLoading } = useQuery<TeacherRecommendation[]>({
+    queryKey: ["/api/teacher-recommendation"],
+    enabled: open,
+    refetchInterval: false,
+  });
+
+  const vacancyRecs = recs.filter(r => r.vacancies > 0);
+  const totalVacancies = vacancyRecs.reduce((s, r) => s + r.vacancies, 0);
+
+  const generateFromRecs = () => {
+    const items: BulkTeacherItem[] = [];
+    for (const rec of vacancyRecs) {
+      for (let i = 0; i < rec.vacancies; i++) {
+        const suffix = rec.vacancies === 1 ? "" : ` ${i + 1}`;
+        items.push({
+          firstName: rec.subjectName,
+          lastName: `vakant${suffix}`,
+          subjectId: rec.subjectId,
+          subjectName: rec.subjectName,
+          subjectColor: rec.subjectColor,
+        });
+      }
+    }
+    setGeneratedList(items);
+  };
+
+  const removeGenerated = (idx: number) => {
+    setGeneratedList(p => p.filter((_, i) => i !== idx));
+  };
+
+  // Manual mode parsed items
+  const manualParsed: BulkTeacherItem[] = [];
   const seen = new Set<string>();
-  for (const line of lines) {
+  for (const line of manualText.split("\n").map(l => l.trim()).filter(Boolean)) {
     const parts = line.split(/\s+/);
     const firstName = parts[0] || "";
     const lastName = parts.slice(1).join(" ") || "";
-    const key = normalizeName(firstName, lastName);
+    const key = `${firstName} ${lastName}`.toLowerCase();
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    parsed.push({ firstName, lastName });
+    manualParsed.push({ firstName, lastName });
   }
 
+  const activeList = mode === "recommend" ? generatedList : manualParsed;
+
   const handleCreate = async () => {
-    if (parsed.length === 0) { toast({ title: "Xatolik", description: "Hech bo'lmasa bitta ism kiriting", variant: "destructive" }); return; }
+    if (activeList.length === 0) {
+      toast({ title: "Xatolik", description: "Ro'yxat bo'sh", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
-      await apiRequest("POST", "/api/teachers/bulk", { teachers: parsed.map(p => ({ ...p, maxHoursPerWeek: maxHours })) });
-      toast({ title: "Muvaffaqiyat", description: `${parsed.length} ta o'qituvchi qo'shildi` });
-      setText(""); onSuccess(); onClose();
+      await apiRequest("POST", "/api/teachers/bulk", {
+        teachers: activeList.map(p => ({
+          firstName: p.firstName,
+          lastName: p.lastName,
+          maxHoursPerWeek: maxHours,
+          ...(p.subjectId ? { subjectId: p.subjectId } : {}),
+        })),
+      });
+      toast({ title: "Muvaffaqiyat", description: `${activeList.length} ta o'qituvchi qo'shildi va fanlariga biriktirildi` });
+      setGeneratedList([]);
+      setManualText("");
+      onSuccess();
+      onClose();
     } catch (e: any) {
       toast({ title: "Xatolik", description: e.message, variant: "destructive" });
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={v => { if (!v) { setGeneratedList([]); setManualText(""); onClose(); } }}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-amber-500" /> Ko'p o'qituvchi qo'shish
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-1">
-          <div className="space-y-1.5">
-            <Label className="text-sm">O'qituvchilar ro'yxati</Label>
-            <textarea
-              value={text}
-              onChange={e => setText(e.target.value)}
-              placeholder={"Alisher Karimov\nNilufar Yusupova\nBobur Rahimov\nMalika Toshmatova"}
-              rows={8}
-              className="w-full rounded-lg border border-gray-200 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
-            />
-            <p className="text-xs text-gray-400">Har bir qatorda bitta o'qituvchi: <span className="font-mono bg-gray-100 px-1 rounded">Ism Familiya</span></p>
+
+        {/* Mode tabs */}
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
+          <button
+            onClick={() => setMode("recommend")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "recommend" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+          >
+            <Wand2 className="h-3.5 w-3.5" /> DTS tavsiyasi
+          </button>
+          <button
+            onClick={() => setMode("manual")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "manual" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+          >
+            <Users className="h-3.5 w-3.5" /> Qo'lda kiritish
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Max hours (shared) */}
+          <div className="flex items-center gap-3">
+            <div className="space-y-1">
+              <Label className="text-sm">Max soat / hafta (har bir o'qituvchi uchun)</Label>
+              <Input type="number" min={1} max={40} value={maxHours} onChange={e => setMaxHours(parseInt(e.target.value) || 24)} className="w-28 h-8 text-sm" />
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-sm">Max soat / hafta (barchasi uchun)</Label>
-            <Input type="number" min={1} max={40} value={maxHours} onChange={e => setMaxHours(parseInt(e.target.value) || 30)} className="w-32" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-sm">Nechta qo'shish</Label>
-            <Input type="number" min={1} max={100} value={count} onChange={e => setCount(parseInt(e.target.value) || 1)} className="w-32" />
-          </div>
-
-          {parsed.length > 0 && (
-            <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl space-y-1.5">
-              <p className="text-xs font-medium text-emerald-700">{parsed.length} ta o'qituvchi qo'shiladi:</p>
-              <div className="space-y-1 max-h-32 overflow-y-auto">
-                {parsed.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-emerald-800">
-                    <div className="w-5 h-5 bg-emerald-200 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">
-                      {p.firstName[0]}{p.lastName?.[0] || ""}
+          {/* RECOMMEND MODE */}
+          {mode === "recommend" && (
+            <div className="space-y-3">
+              {recsLoading ? (
+                <div className="space-y-2">
+                  {Array(4).fill(0).map((_, i) => <div key={i} className="h-12 bg-gray-100 animate-pulse rounded-lg" />)}
+                </div>
+              ) : vacancyRecs.length === 0 ? (
+                <div className="text-center py-8 border border-dashed border-gray-200 rounded-xl">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
+                  <p className="text-sm font-medium text-gray-700">Barcha fanlar uchun o'qituvchilar yetarli</p>
+                  <p className="text-xs text-gray-400 mt-1">Sinflar va fanlar biriktirilgandan so'ng tavsiyalar paydo bo'ladi</p>
+                </div>
+              ) : (
+                <>
+                  <div className="border border-amber-100 bg-amber-50 rounded-xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-amber-100 flex items-center justify-between">
+                      <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        {vacancyRecs.length} ta fanda jami {totalVacancies} ta o'qituvchi vakant
+                      </p>
+                      <span className="text-xs text-amber-600">1 o'qituvchi = {maxHours} soat/hafta</span>
                     </div>
-                    {p.firstName} {p.lastName}
+                    <div className="divide-y divide-amber-100 max-h-52 overflow-y-auto">
+                      {vacancyRecs.map(rec => (
+                        <div key={rec.subjectId} className="flex items-center gap-3 px-3 py-2">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: rec.subjectColor || "#3B82F6" }} />
+                          <span className="text-sm font-medium text-gray-800 flex-1">{rec.subjectName}</span>
+                          <span className="text-xs text-gray-500">{rec.classCount} sinf · {rec.totalWeeklyHours} soat/hafta</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-gray-500">Bor: <span className="font-semibold text-gray-700">{rec.existingTeachers}</span></span>
+                            <ChevronRight className="h-3 w-3 text-gray-300" />
+                            <span className="text-xs text-red-600">Kerak: <span className="font-bold">{rec.neededTeachers}</span></span>
+                          </div>
+                          <Badge variant="outline" className="text-xs border-red-200 text-red-700 bg-red-50">
+                            +{rec.vacancies} vakant
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+
+                  <Button
+                    variant="outline"
+                    onClick={generateFromRecs}
+                    className="w-full border-dashed border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400"
+                  >
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    {totalVacancies} ta vakant o'qituvchi ro'yxatini yaratish
+                  </Button>
+                </>
+              )}
+
+              {/* Generated list preview */}
+              {generatedList.length > 0 && (
+                <div className="border border-emerald-200 bg-emerald-50 rounded-xl overflow-hidden">
+                  <div className="px-3 py-2 border-b border-emerald-100 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-emerald-800">{generatedList.length} ta o'qituvchi qo'shiladi:</p>
+                    <button onClick={() => setGeneratedList([])} className="text-xs text-gray-400 hover:text-gray-600">Tozalash</button>
+                  </div>
+                  <div className="divide-y divide-emerald-100 max-h-44 overflow-y-auto">
+                    {generatedList.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 px-3 py-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.subjectColor || "#3B82F6" }} />
+                        <span className="text-sm text-gray-800 flex-1">{item.firstName} {item.lastName}</span>
+                        <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{item.subjectName}</span>
+                        <button onClick={() => removeGenerated(i)} className="text-gray-300 hover:text-red-400 ml-1">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Quick templates */}
-          <div className="space-y-1.5">
-            <p className="text-xs text-gray-500 font-medium">Tezkor namunalar:</p>
-            <div className="flex flex-wrap gap-2">
-                {[
-                { label: "Bo'sh ism", make: (n: number) => Array.from({ length: n }, (_, i) => `O'qituvchi ${i + 1}`).join("\n") },
-                { label: "Aniq fanlar", make: (n: number) => Array.from({ length: n }, (_, i) => ["Matematika", "Fizika", "Kimyo", "Biologiya", "Informatika"][i % 5] + " o'qituvchisi").join("\n") },
-              ].map(t => (
-                <button key={t.label} onClick={() => setText(t.make(count))}
-                  className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors">
-                  {t.label}
-                </button>
-              ))}
+          {/* MANUAL MODE */}
+          {mode === "manual" && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">O'qituvchilar ro'yxati</Label>
+                <textarea
+                  value={manualText}
+                  onChange={e => setManualText(e.target.value)}
+                  placeholder={"Ona tili vakant\nMatematika vakant\nFizika vakant 1\nFizika vakant 2"}
+                  rows={7}
+                  className="w-full rounded-lg border border-gray-200 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                />
+                <p className="text-xs text-gray-400">Har bir qatorda bitta o'qituvchi: <span className="font-mono bg-gray-100 px-1 rounded">Fan nomi vakant</span></p>
+              </div>
+              {manualParsed.length > 0 && (
+                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                  <p className="text-xs font-medium text-emerald-700 mb-2">{manualParsed.length} ta o'qituvchi:</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {manualParsed.map((p, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-emerald-800">
+                        <div className="w-5 h-5 bg-emerald-200 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">
+                          {p.firstName[0]}
+                        </div>
+                        {p.firstName} {p.lastName}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
+
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
-          <Button onClick={handleCreate} disabled={loading || parsed.length === 0} className="bg-blue-600 hover:bg-blue-700">
-            {loading ? "Qo'shilmoqda..." : `${parsed.length} ta qo'shish`}
+          <Button variant="outline" onClick={() => { setGeneratedList([]); setManualText(""); onClose(); }}>Bekor qilish</Button>
+          <Button
+            onClick={handleCreate}
+            disabled={loading || activeList.length === 0}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {loading ? "Qo'shilmoqda..." : `${activeList.length} ta qo'shish`}
           </Button>
         </DialogFooter>
       </DialogContent>
