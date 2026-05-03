@@ -56,6 +56,8 @@ export interface IStorage {
 
   getTimeSlots(): Promise<TimeSlot[]>;
   createTimeSlot(data: InsertTimeSlot): Promise<TimeSlot>;
+  updateTimeSlot(id: number, data: Partial<InsertTimeSlot>): Promise<TimeSlot | undefined>;
+  deleteTimeSlot(id: number): Promise<boolean>;
   deleteAllTimeSlots(): Promise<void>;
 
   getScheduleEntries(): Promise<ScheduleEntry[]>;
@@ -227,6 +229,14 @@ export class DatabaseStorage implements IStorage {
   async createTimeSlot(data: InsertTimeSlot): Promise<TimeSlot> {
     const [r] = await db.insert(timeSlots).values(data).returning();
     return r;
+  }
+  async updateTimeSlot(id: number, data: Partial<InsertTimeSlot>): Promise<TimeSlot | undefined> {
+    const [r] = await db.update(timeSlots).set(data).where(eq(timeSlots.id, id)).returning();
+    return r;
+  }
+  async deleteTimeSlot(id: number): Promise<boolean> {
+    const r = await db.delete(timeSlots).where(eq(timeSlots.id, id));
+    return (r.rowCount || 0) > 0;
   }
   async deleteAllTimeSlots(): Promise<void> {
     await db.delete(timeSlots);

@@ -476,6 +476,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Save full bell schedule (lessons + breaks/lunch) for all days
+  app.post("/api/time-slots/save", auth, async (req, res) => {
+    try {
+      const rows: Array<{
+        type: "lesson" | "break" | "lunch";
+        periodNumber: number;
+        startTime: string;
+        endTime: string;
+      }> = req.body.rows;
+      if (!Array.isArray(rows) || rows.length === 0)
+        return res.status(400).json({ message: "Qatorlar bo'sh bo'lmasligi kerak" });
+      await storage.deleteAllTimeSlots();
+      const toCreate: any[] = [];
+      for (const day of DAYS) {
+        for (const row of rows) {
+          const isBreak = row.type === "break" || row.type === "lunch";
+          let name: string;
+          if (row.type === "lesson") name = `${DAY_NAMES[day]} ${row.periodNumber}-dars`;
+          else if (row.type === "lunch") name = `${DAY_NAMES[day]} Tushlik tanaffusi`;
+          else name = `${DAY_NAMES[day]} Tanaffus`;
+          toCreate.push({
+            name,
+            startTime: row.startTime,
+            endTime: row.endTime,
+            dayOfWeek: day,
+            periodNumber: row.type === "lesson" ? row.periodNumber : 0,
+            isBreak,
+            isActive: true,
+          });
+        }
+      }
+      const created = [];
+      for (const s of toCreate) created.push(await storage.createTimeSlot(s));
+      res.json(created);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || "Server xatosi" });
+    }
+  });
+
+  // Individual time-slot CRUD
+  app.patch("/api/time-slots/:id", auth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = insertTimeSlotSchema.partial().parse(req.body);
+      const r = await storage.updateTimeSlot(id, data);
+      if (!r) return res.status(404).json({ message: "Topilmadi" });
+      res.json(r);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/time-slots/:id", auth, async (req, res) => {
+    await storage.deleteTimeSlot(parseInt(req.params.id));
+    res.status(204).send();
+  });
+
   // ─── SCHEDULE ENTRIES ─────────────────────────────────────────────────────
   app.get("/api/schedule-entries", auth, async (req, res) => {
     try {
