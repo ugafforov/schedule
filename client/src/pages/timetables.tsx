@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, Room, TimeSlot, ScheduleEntry } from "@shared/schema";
-import higherPowerImage from "@assets/image_1777798973200.png";
 
 const DAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma"];
 const MONTHS = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
@@ -45,7 +44,6 @@ export default function Timetables() {
   const [editEntry, setEditEntry] = useState<ScheduleEntry | null>(null);
   const [editForm, setEditForm] = useState<{ subjectId: number; teacherId: number; roomId: number } | null>(null);
   const [generatorResult, setGeneratorResult] = useState<any>(null);
-  const [showHigherPowerPrompt, setShowHigherPowerPrompt] = useState(false);
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -186,19 +184,6 @@ export default function Timetables() {
 
   return (
     <div className="p-6 space-y-5 max-w-full">
-      {showHigherPowerPrompt && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-2xl">
-            <img src={higherPowerImage} alt="Higher power mode" className="w-full h-auto" />
-            <div className="flex items-center justify-end gap-3 p-4">
-              <Button variant="ghost" onClick={() => setShowHigherPowerPrompt(false)}>Dismiss</Button>
-              <Button onClick={() => setShowHigherPowerPrompt(false)} className="bg-blue-500 hover:bg-blue-600 text-white">
-                Continue with higher power mode
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -222,9 +207,6 @@ export default function Timetables() {
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             <Wand2 className="mr-2 h-4 w-4" />Jadval yaratish
-          </Button>
-          <Button variant="outline" onClick={() => setShowHigherPowerPrompt(true)}>
-            Higher rejim
           </Button>
         </div>
       </div>
