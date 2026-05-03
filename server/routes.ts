@@ -506,9 +506,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
+      await storage.deleteAllScheduleEntries();
       await storage.deleteAllTimeSlots();
-      const created = [];
-      for (const s of toCreate) created.push(await storage.createTimeSlot(s));
+      await db.insert(timeSlots).values(toCreate);
+      const created = await storage.getTimeSlots();
       res.json(created);
     } catch (e: any) {
       res.status(500).json({ message: e.message || "Server xatosi" });

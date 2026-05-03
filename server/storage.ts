@@ -68,6 +68,7 @@ export interface IStorage {
   createScheduleEntriesBulk(data: InsertScheduleEntry[]): Promise<ScheduleEntry[]>;
   updateScheduleEntry(id: number, data: Partial<InsertScheduleEntry>): Promise<ScheduleEntry | undefined>;
   deleteScheduleEntry(id: number): Promise<boolean>;
+  deleteAllScheduleEntries(): Promise<void>;
   clearScheduleForWeek(weekStart: Date): Promise<void>;
 
   getUnresolvedConflicts(): Promise<ScheduleConflict[]>;
@@ -277,6 +278,9 @@ export class DatabaseStorage implements IStorage {
   async deleteScheduleEntry(id: number): Promise<boolean> {
     const r = await db.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.id, id));
     return (r.rowCount || 0) > 0;
+  }
+  async deleteAllScheduleEntries(): Promise<void> {
+    await db.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.isActive, true));
   }
   async clearScheduleForWeek(weekStart: Date): Promise<void> {
     await db.update(scheduleEntries)
