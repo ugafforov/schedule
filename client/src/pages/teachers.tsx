@@ -32,10 +32,19 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
   const [loading, setLoading] = useState(false);
 
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-  const parsed = lines.map(line => {
+  const normalizeName = (firstName: string, lastName: string) =>
+    `${firstName} ${lastName}`.replace(/\s+/g, " ").trim().toLowerCase();
+  const parsed: { firstName: string; lastName: string }[] = [];
+  const seen = new Set<string>();
+  for (const line of lines) {
     const parts = line.split(/\s+/);
-    return { firstName: parts[0] || "", lastName: parts.slice(1).join(" ") || "" };
-  }).filter(p => p.firstName);
+    const firstName = parts[0] || "";
+    const lastName = parts.slice(1).join(" ") || "";
+    const key = normalizeName(firstName, lastName);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    parsed.push({ firstName, lastName });
+  }
 
   const handleCreate = async () => {
     if (parsed.length === 0) { toast({ title: "Xatolik", description: "Hech bo'lmasa bitta ism kiriting", variant: "destructive" }); return; }

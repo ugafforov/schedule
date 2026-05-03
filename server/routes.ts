@@ -223,14 +223,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const items: Array<{ firstName: string; lastName: string; maxHoursPerWeek?: number }> = req.body.teachers;
       if (!Array.isArray(items) || items.length === 0)
         return res.status(400).json({ message: "O'qituvchilar ro'yxati bo'sh" });
+      const normalizeName = (firstName: string, lastName: string) =>
+        `${firstName} ${lastName}`
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
       const existing = await storage.getTeachers();
-      const existingNames = new Set(existing.map(t => `${t.firstName.trim().toLowerCase()} ${t.lastName.trim().toLowerCase()}`.trim()));
+      const existingNames = new Set(existing.map(t => normalizeName(t.firstName, t.lastName)));
+      const incomingNames = new Set<string>();
       const created = [];
       for (const item of items) {
-        const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim().toLowerCase();
+        const fullName = normalizeName(item.firstName || "", item.lastName || "");
+        if (!fullName) {
+          return res.status(400).json({ message: "O'qituvchi ismi bo'sh bo'lmasligi kerak" });
+        }
+        if (incomingNames.has(fullName)) {
+          return res.status(400).json({ message: `Takrorlangan o'qituvchi: ${item.firstName} ${item.lastName}`.trim() });
+        }
         if (existingNames.has(fullName)) {
           return res.status(400).json({ message: `Bunday o'qituvchi mavjud: ${item.firstName} ${item.lastName}`.trim() });
         }
+        incomingNames.add(fullName);
         const slug = `${item.firstName}${item.lastName}`.replace(/\s+/g, "").toUpperCase().slice(0, 6);
         const employeeId = `T_${slug || "NEW"}_${Date.now().toString().slice(-4)}`;
         const data = insertTeacherSchema.parse({
