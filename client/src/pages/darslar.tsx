@@ -23,6 +23,7 @@ interface SlotRow {
   periodNumber: number; // lesson number (1,2,3…); 0 for lunch
   startTime: string;
   endTime: string;
+  meta?: "day-lunch" | "evening-lunch";
 }
 
 interface GenConfig {
@@ -72,11 +73,11 @@ function generate(cfg: GenConfig): SlotRow[] {
 
     if (cfg.useLunch && num === cfg.lunchAfterLesson) {
       const lend = addMin(cur, cfg.lunchMin);
-      rows.push({ key: mk(), type: "lunch", periodNumber: 0, startTime: cur, endTime: lend });
+      rows.push({ key: mk(), type: "lunch", periodNumber: 0, startTime: cur, endTime: lend, meta: "day-lunch" });
       cur = lend;
     } else if (cfg.useEveningLunch && num === cfg.eveningLunchAfterLesson) {
       const lend = addMin(cur, cfg.eveningLunchMin);
-      rows.push({ key: mk(), type: "lunch", periodNumber: 0, startTime: cur, endTime: lend });
+      rows.push({ key: mk(), type: "lunch", periodNumber: 0, startTime: cur, endTime: lend, meta: "evening-lunch" });
       cur = lend;
     } else {
       cur = addMin(cur, cfg.breakMin);
@@ -97,6 +98,9 @@ function fromSlots(slots: TimeSlot[]): SlotRow[] {
       periodNumber: s.periodNumber,
       startTime: toHHMM(s.startTime),
       endTime: toHHMM(s.endTime),
+      meta: s.isBreak && s.name.toLowerCase().includes("tushlik")
+        ? (s.startTime >= "18:00" ? "evening-lunch" : "day-lunch")
+        : undefined,
     }));
 }
 
@@ -231,9 +235,11 @@ export default function Darslar() {
       if (built.length > 0) setRows(built);
       if (built.length > 0) {
         const lessons = built.filter(r => r.type === "lesson");
-        const lunch = built.find(r => r.type === "lunch");
+        const lunch = built.find(r => r.type === "lunch" && r.meta !== "evening-lunch");
+        const eveningLunch = built.find(r => r.type === "lunch" && r.meta === "evening-lunch");
         if (lessons.length > 0) {
           const firstLunchIndex = lunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(lunch.startTime)) : -1;
+          const eveningLunchIndex = eveningLunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(eveningLunch.startTime)) : -1;
           setCfg(prev => ({
             ...prev,
             schoolStart: lessons[0].startTime,
@@ -243,9 +249,9 @@ export default function Darslar() {
             useLunch: Boolean(lunch),
             lunchAfterLesson: lunch && firstLunchIndex >= 0 ? firstLunchIndex + 1 : prev.lunchAfterLesson,
             lunchMin: lunch ? diff(lunch.startTime, lunch.endTime) : prev.lunchMin,
-            useEveningLunch: false,
-            eveningLunchAfterLesson: prev.eveningLunchAfterLesson,
-            eveningLunchMin: prev.eveningLunchMin,
+            useEveningLunch: Boolean(eveningLunch),
+            eveningLunchAfterLesson: eveningLunch && eveningLunchIndex >= 0 ? eveningLunchIndex + 1 : prev.eveningLunchAfterLesson,
+            eveningLunchMin: eveningLunch ? diff(eveningLunch.startTime, eveningLunch.endTime) : prev.eveningLunchMin,
           }));
         }
       }
@@ -288,6 +294,7 @@ export default function Darslar() {
         periodNumber: row.type === "lesson" ? row.periodNumber : 0,
         startTime: row.startTime.slice(0, 5),
         endTime: row.endTime.slice(0, 5),
+        meta: row.meta,
       })),
     }),
     onSuccess: () => {
