@@ -69,11 +69,20 @@ function loadBg(pct: number) {
 function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects }: {
   open: boolean; onClose: () => void;
   onConfirm: (a: Assignment[]) => void;
-  selectedClass: Class | undefined; subjects: Subject[];
+  selectedClass: Class | undefined;
+  subjects: Subject[];
+  teachers: Teacher[];
+  teacherLoadMap: Map<number, number>;
 }) {
   if (!selectedClass) return null;
   const grade = parseInt(selectedClass.grade);
   const result = getAutoAssignments(grade, subjects);
+  const assignmentsWithTeachers = result.assignments.map((a) => {
+    const subject = subjects.find((s) => s.id === a.subjectId);
+    if (!subject) return a;
+    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap);
+    return { ...a, teacherId: teacher?.id ?? null };
+  });
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
@@ -144,14 +153,36 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects }:
         </div>
         <DialogFooter className="flex-shrink-0 pt-3 border-t border-gray-100">
           <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
-          <Button onClick={() => onConfirm(result.assignments)} disabled={result.assignments.length === 0} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={() => onConfirm(assignmentsWithTeachers)} disabled={assignmentsWithTeachers.length === 0} className="bg-blue-600 hover:bg-blue-700">
             <Zap className="mr-1.5 h-3.5 w-3.5" />
-            {result.assignments.length} ta fanni biriktirish
+            {assignmentsWithTeachers.length} ta fanni biriktirish
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+}
+
+function pickTeacherForSubject(
+  subject: Subject,
+  teachers: Teacher[],
+  teacherLoadMap: Map<number, number>
+) {
+  const subjectName = subject.name.toLowerCase();
+  const matches = teachers.filter((teacher) => {
+    const specialization = (teacher.specialization || "").toLowerCase();
+    const fullName = `${teacher.firstName} ${teacher.lastName}`.toLowerCase();
+    return (
+      specialization.includes(subjectName) ||
+      fullName.includes(subjectName) ||
+      subjectName.includes(specialization)
+    );
+  });
+
+  const pool = matches.length > 0 ? matches : teachers;
+  return pool
+    .slice()
+    .sort((a, b) => (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0))[0] || null;
 }
 
 // ─── Bulk assign dialog (Tab 2) ────────────────────────────────────────────────
@@ -481,7 +512,15 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
         )}
       </div>
 
-      <AutoAssignDialog open={autoDialogOpen} onClose={() => setAutoDialogOpen(false)} onConfirm={handleAutoAssign} selectedClass={selectedClass} subjects={subjects} />
+      <AutoAssignDialog
+        open={autoDialogOpen}
+        onClose={() => setAutoDialogOpen(false)}
+        onConfirm={handleAutoAssign}
+        selectedClass={selectedClass}
+        subjects={subjects}
+        teachers={teachers}
+        teacherLoadMap={teacherHoursMap}
+      />
     </div>
   );
 }
