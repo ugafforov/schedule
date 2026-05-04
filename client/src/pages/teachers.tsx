@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, Users, Phone, BookOpen, X, Clock, CalendarX, Zap, LayoutGrid, List, Wand2, CheckCircle2, AlertCircle, ChevronRight } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
+import { useAuth } from "@/hooks/use-auth";
 import type { Teacher, Subject } from "@shared/schema";
 
 interface TeacherRecommendation {
@@ -78,8 +79,9 @@ function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; ti
 }
 
 /* ── Bulk add dialog ─────────────────────────────────────────────────────── */
-function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
+function BulkAddTeachers({ open, onClose, onSuccess, autoGenerateMutation }: { open: boolean; onClose: () => void; onSuccess: () => void; autoGenerateMutation: any }) {
   const { toast } = useToast();
+  const { token } = useAuth();
   const [mode, setMode] = useState<"recommend" | "manual">("recommend");
   const [maxHours, setMaxHours] = useState(24);
   const [loading, setLoading] = useState(false);
@@ -88,12 +90,27 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
 
   const { data: recs = [], isLoading: recsLoading } = useQuery<TeacherRecommendation[]>({
     queryKey: ["/api/teacher-recommendation"],
+    queryFn: async () => {
+      const response = await fetch("/api/teacher-recommendation", {
+        headers: {
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        }
+      });
+      if (!response.ok) throw new Error("Tavsiyalarni yuklashda xatolik");
+      return response.json();
+    },
     enabled: open,
     refetchInterval: false,
   });
 
   const vacancyRecs = recs.filter(r => r.vacancies > 0);
   const totalVacancies = vacancyRecs.reduce((s, r) => s + r.vacancies, 0);
+
+  useEffect(() => {
+    if (recs.length > 0 && generatedList.length === 0) {
+      generateFromRecs();
+    }
+  }, [recs]);
 
   const generateFromRecs = () => {
     const items: BulkTeacherItem[] = [];
@@ -138,14 +155,26 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
     }
     setLoading(true);
     try {
-      await apiRequest("POST", "/api/teachers/bulk", {
-        teachers: activeList.map(p => ({
-          firstName: p.firstName,
-          lastName: p.lastName,
-          maxHoursPerWeek: maxHours,
-          ...(p.subjectId ? { subjectId: p.subjectId } : {}),
-        })),
+      const response = await fetch("/api/teachers/bulk-save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({
+          teachers: activeList.map(p => ({
+            firstName: p.firstName,
+            lastName: p.lastName,
+            subjectId: p.subjectId,
+            maxHoursPerWeek: maxHours
+          }))
+        })
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Saqlashda xatolik");
+      }
       toast({ title: "Muvaffaqiyat", description: `${activeList.length} ta o'qituvchi qo'shildi va fanlariga biriktirildi` });
       setGeneratedList([]);
       setManualText("");
@@ -204,9 +233,29 @@ function BulkAddTeachers({ open, onClose, onSuccess }: { open: boolean; onClose:
                   <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
                   <p className="text-sm font-medium text-gray-700">Barcha fanlar uchun o'qituvchilar yetarli</p>
                   <p className="text-xs text-gray-400 mt-1">Sinflar va fanlar biriktirilgandan so'ng tavsiyalar paydo bo'ladi</p>
+                  <div className="mt-4 text-[10px] text-gray-300">
+                    Debug: API returned {recs.length} total specialties. Vacancy count: {vacancyRecs.length}.
+                  </div>
                 </div>
               ) : (
                 <>
+                  <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100 mb-2">
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-amber-900">To'liq avtomatik taqsimlash</h4>
+                      <p className="text-[10px] text-amber-700">Barcha vakant o'qituvchilarni yaratish va darslarga biriktirish.</p>
+                    </div>
+                    <Button 
+                      size="sm"
+                      onClick={() => {
+                        onClose();
+                        autoGenerateMutation.mutate();
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white h-8 text-xs px-3"
+                    >
+                      <Zap className="mr-1.5 h-3.5 w-3.5" />
+                      Bajarish
+                    </Button>
+                  </div>
                   <div className="border border-amber-100 bg-amber-50 rounded-xl overflow-hidden">
                     <div className="px-3 py-2 border-b border-amber-100 flex items-center justify-between">
                       <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
@@ -376,25 +425,50 @@ export default function Teachers() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [subjectDialogOpen, setSubjectDialogOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
+  const [autoAssignToAll, setAutoAssignToAll] = useState(false);
 
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { token } = useAuth();
 
-  const { data: teachers = [], isLoading } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
-  const { data: subjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
+  const { data: teachers = [], isLoading } = useQuery<Teacher[]>({
+    queryKey: ["/api/teachers"],
+    queryFn: async () => {
+      const response = await fetch("/api/teachers", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("O'qituvchilarni yuklashda xatolik");
+      return response.json();
+    }
+  });
+
+  const { data: subjects = [] } = useQuery<Subject[]>({
+    queryKey: ["/api/subjects"],
+    queryFn: async () => {
+      const response = await fetch("/api/subjects", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Fanlarni yuklashda xatolik");
+      return response.json();
+    }
+  });
 
   const upsertMutation = useMutation({
-    mutationFn: async (data: TeacherFormData) => {
-      let teacherId: number;
-      if (editing) {
-        const r = await apiRequest("PATCH", `/api/teachers/${editing.id}`, data);
-        const j = await r.json(); teacherId = j.id || editing.id;
-      } else {
-        const r = await apiRequest("POST", "/api/teachers", data);
-        const j = await r.json(); teacherId = j.id;
-      }
-      const slots = Array.from(unavailSlots).map(key => { const [day, period] = key.split("_").map(Number); return { dayOfWeek: day, periodNumber: period }; });
-      await apiRequest("PUT", `/api/teachers/${teacherId}/unavailability`, { slots });
+    mutationFn: async (data: any) => {
+      const response = await fetch("/api/teachers/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({
+          ...data,
+          id: editing?.id,
+          unavailSlots: Array.from(unavailSlots),
+          autoAssignToAll
+        })
+      });
+      if (!response.ok) throw new Error("Saqlashda xatolik");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/teachers"] });
@@ -405,12 +479,22 @@ export default function Teachers() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/teachers/${id}`),
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/teachers/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("O'chirishda xatolik");
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/teachers"] }); toast({ title: "Muvaffaqiyat", description: "O'qituvchi o'chirildi" }); },
   });
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      await Promise.all(teachers.map((t) => apiRequest("DELETE", `/api/teachers/${t.id}`)));
+      const response = await fetch("/api/teachers/clear-all", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Tozalashda xatolik");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/teachers"] });
@@ -419,21 +503,56 @@ export default function Teachers() {
     onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
   });
 
+  const autoGenerateMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/teachers/auto-generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Avtomatik yaratishda xatolik yuz berdi");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/teachers"] });
+      qc.invalidateQueries({ queryKey: ["/api/classes"] });
+      qc.invalidateQueries({ queryKey: ["/api/teacher-recommendation"] });
+      toast({ 
+        title: "Muvaffaqiyatli", 
+        description: data.message,
+      });
+    },
+    onError: (e: any) => {
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" });
+    }
+  });
+
   const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setUnavailSlots(new Set()); setActiveTab("info"); setOpen(true); };
   const openEdit = async (t: Teacher) => {
     setEditing(t); setActiveTab("info");
     let subjectIds: number[] = []; let unavail: Set<string> = new Set();
     setUnavailLoading(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const headers = { Authorization: `Bearer ${token}` };
       const [subRes, unavailRes] = await Promise.all([
-        fetch(`/api/teachers/${t.id}/subjects`, { headers }),
-        fetch(`/api/teachers/${t.id}/unavailability`, { headers }),
+        fetch(`/api/teachers/${t.id}/subjects`, { headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` } }),
+        fetch(`/api/teachers/${t.id}/unavailability`, { headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` } }),
       ]);
-      if (subRes.ok) subjectIds = (await subRes.json()).map((ts: any) => ts.subjectId);
-      if (unavailRes.ok) unavail = new Set((await unavailRes.json()).map((u: any) => `${u.dayOfWeek}_${u.periodNumber}`));
-    } catch {}
+      if (subRes.ok) {
+        const data = await subRes.json();
+        subjectIds = data.map((ts: any) => ts.subjectId);
+      }
+      if (unavailRes.ok) {
+        const data = await unavailRes.json();
+        unavail = new Set(data.map((u: any) => `${u.dayOfWeek}_${u.periodNumber}`));
+      }
+    } catch (e) {
+      console.error("Error fetching teacher details:", e);
+    }
     setUnavailLoading(false);
     setForm({ firstName: t.firstName || "", lastName: t.lastName || "", department: t.department || "", specialization: t.specialization || "", phone: t.phone || "", maxHoursPerWeek: t.maxHoursPerWeek || 30, subjectIds });
     setUnavailSlots(unavail); setOpen(true);
@@ -466,11 +585,20 @@ export default function Teachers() {
             <Trash2 className="mr-2 h-4 w-4" />
             Barchasini tozalash
           </Button>
-          <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300">
-            <Zap className="mr-2 h-4 w-4 text-amber-500" />
-            Ko'p qo'shish
+          <Button 
+            variant="outline" 
+            onClick={() => autoGenerateMutation.mutate()} 
+            disabled={autoGenerateMutation.isPending}
+            className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300 shadow-sm"
+          >
+            {autoGenerateMutation.isPending ? (
+              <Zap className="mr-2 h-4 w-4 animate-pulse text-amber-500" />
+            ) : (
+              <Zap className="mr-2 h-4 w-4 text-amber-500" />
+            )}
+            Avtomatik yaratish (DTS)
           </Button>
-          <Button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700 shadow-sm">
             <Plus className="mr-2 h-4 w-4" />
             O'qituvchi qo'shish
           </Button>
@@ -620,6 +748,21 @@ export default function Teachers() {
                   {form.subjectIds.length > 0 && <p className="text-xs text-blue-600">{form.subjectIds.length} ta fan tanlandi</p>}
                 </div>
               )}
+
+              {!editing && form.subjectIds.length > 0 && (
+                <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+                  <input 
+                    type="checkbox" 
+                    id="autoAssign" 
+                    checked={autoAssignToAll} 
+                    onChange={e => setAutoAssignToAll(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  />
+                  <label htmlFor="autoAssign" className="text-xs font-medium text-blue-800 cursor-pointer">
+                    Ushbu fanni o'tiladigan barcha sinflarga avtomatik biriktirish
+                  </label>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -674,26 +817,11 @@ export default function Teachers() {
       </Dialog>
 
 
-      <BulkAddTeachers open={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/teachers"] })} />
-
-      <ClearAllDialog
-        open={clearOpen}
-        title="Barcha o'qituvchilar o'chirilsinmi?"
-        onClose={() => setClearOpen(false)}
-        onConfirm={() => {
-          setClearOpen(false);
-          clearAllMutation.mutate();
-        }}
-      />
-
-      <ClearAllDialog
-        open={clearOpen}
-        title="Barcha o'qituvchilar o'chirilsinmi?"
-        onClose={() => setClearOpen(false)}
-        onConfirm={() => {
-          setClearOpen(false);
-          clearAllMutation.mutate();
-        }}
+      <BulkAddTeachers 
+        open={bulkOpen} 
+        onClose={() => setBulkOpen(false)} 
+        onSuccess={() => qc.invalidateQueries({ queryKey: ["/api/teachers"] })} 
+        autoGenerateMutation={autoGenerateMutation}
       />
 
       <ClearAllDialog

@@ -6,19 +6,39 @@ import jwt from "jsonwebtoken";
 import {
   insertSubjectSchema, insertTeacherSchema, insertClassSchema,
   insertRoomSchema, insertTimeSlotSchema, insertScheduleEntrySchema, loginSchema,
-  timeSlots, scheduleEntries, teacherSubjects,
+  subjects, teachers, classes, rooms, timeSlots, scheduleEntries, teacherSubjects, classSubjects,
+  type Teacher, type Subject, type Class
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
+import { UZBEK_CURRICULUM } from "@shared/curriculum";
 
 const JWT_SECRET = process.env.JWT_SECRET || "maktab-jadval-secret-2024";
 
 function auth(req: any, res: any, next: any) {
-  const token = req.headers["authorization"]?.split(" ")[1];
-  if (!token) return res.status(401).json({ message: "Avtorizatsiya talab etiladi" });
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) return res.status(403).json({ message: "Yaroqsiz token" });
-    req.user = user;
-    next();
+  const authHeader = req.headers["authorization"];
+  const token = authHeader?.split(" ")[1];
+  
+  if (!token || token === "null" || token === "undefined") {
+    return res.status(401).json({ message: "Avtorizatsiya talab etiladi" });
+  }
+
+  // 1. Check if it's a plain access code (common in this project)
+  storage.getAccessCodeByCode(token.toUpperCase()).then(validCode => {
+    if (validCode && validCode.isActive) {
+      req.user = { id: validCode.id, code: validCode.code, role: validCode.role };
+      return next();
+    }
+
+    // 2. Try JWT as fallback
+    jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+      if (!err) {
+        req.user = user;
+        return next();
+      }
+      return res.status(403).json({ message: "Yaroqsiz token yoki kod: " + token.slice(0, 5) + "..." });
+    });
+  }).catch(() => {
+    res.status(403).json({ message: "Server auth xatosi" });
   });
 }
 
@@ -64,8 +84,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { accessCode } = loginSchema.parse(req.body);
-      const validCode = await storage.getAccessCodeByCode(accessCode.trim().toUpperCase());
-      if (!validCode) return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
+      const trimmedCode = accessCode.trim().toUpperCase();
+      console.log(`[auth] Login attempt with code: "${trimmedCode}"`);
+      const validCode = await storage.getAccessCodeByCode(trimmedCode);
+      if (!validCode) {
+        console.log(`[auth] Login failed: code "${trimmedCode}" not found or inactive`);
+        return res.status(401).json({ message: "Kirish kodi noto'g'ri" });
+      }
+      console.log(`[auth] Login successful for: ${validCode.ownerName} (${validCode.role})`);
       await storage.updateAccessCodeLastUsed(validCode.code);
       const token = jwt.sign(
         { id: validCode.id, code: validCode.code, ownerName: validCode.ownerName, role: validCode.role },
@@ -165,6 +191,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/subjects/clear-all", auth, async (_req, res) => {
+    try {
+      await db.update(subjects).set({ isActive: false });
+      res.json({ message: "Barcha fanlar muvaffaqiyatli tozalandi" });
+    } catch (e) {
+      res.status(500).json({ message: "Server xatosi" });
+    }
+  });
+
   // ─── TEACHERS ─────────────────────────────────────────────────────────────
   app.get("/api/teachers", auth, async (_req, res) => {
     res.json(await storage.getTeachers());
@@ -188,6 +223,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const teacher = await storage.createTeacher(data);
       if (Array.isArray(body.subjectIds) && body.subjectIds.length > 0) {
         await storage.setTeacherSubjects(teacher.id, body.subjectIds);
+
+        // Auto-assign to all classes if requested
+        if (body.autoAssignToAllClasses) {
+          const firstSubjectId = body.subjectIds[0];
+          const allCS = await storage.getAllClassSubjects();
+          const assignmentsByClass = new Map<number, any[]>();
+          
+          // Group existing by classId
+          for (const cs of allCS) {
+            if (!assignmentsByClass.has(cs.classId)) assignmentsByClass.set(cs.classId, []);
+            assignmentsByClass.get(cs.classId)!.push(cs);
+          }
+
+          // Update assignments for this subject
+          for (const [classId, items] of Array.from(assignmentsByClass.entries())) {
+            const updated = items.map(x => ({
+              subjectId: x.subjectId,
+              teacherId: x.subjectId === firstSubjectId ? teacher.id : x.teacherId,
+              weeklyHours: x.weeklyHours
+            }));
+            await storage.setClassSubjects(classId, updated);
+          }
+        }
       }
       res.status(201).json(teacher);
     } catch (e: any) {
@@ -217,115 +275,417 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(204).send();
   });
 
-  // ── Teacher recommendation (DTS asosida kerakli o'qituvchilar soni) ──────────
+  app.post("/api/classes/clear-all", auth, async (_req, res) => {
+    try {
+      await db.update(classes).set({ isActive: false });
+      res.json({ message: "Barcha sinflar muvaffaqiyatli tozalandi" });
+    } catch (e) {
+      res.status(500).json({ message: "Server xatosi" });
+    }
+  });
+
+  // ─── TEACHER RECOMMENDATION & AUTO-GEN ─────────────────────────────────────
   app.get("/api/teacher-recommendation", auth, async (_req, res) => {
     try {
-      const [allSubjects, allClassSubjects, allTeacherSubjects] = await Promise.all([
+      const [allSubjects, allClasses, allTeachers, allClassSubjects] = await Promise.all([
         storage.getSubjects(),
+        storage.getClasses(),
+        storage.getTeachers(),
         storage.getAllClassSubjects(),
-        db.select().from(teacherSubjects),
       ]);
 
-      const subjectHoursMap = new Map<number, number>();
-      const subjectClassCountMap = new Map<number, number>();
-      for (const cs of allClassSubjects) {
-        subjectHoursMap.set(cs.subjectId, (subjectHoursMap.get(cs.subjectId) || 0) + Number(cs.weeklyHours || 0));
-        subjectClassCountMap.set(cs.subjectId, (subjectClassCountMap.get(cs.subjectId) || 0) + 1);
-      }
+      const recommendations: any[] = [];
+      const MAX_HOURS = 24;
 
-      const subjectTeacherMap = new Map<number, Set<number>>();
-      const teacherHoursMap = new Map<number, number>();
-      const teacherSubjectCountMap = new Map<number, number>();
-      for (const ts of allTeacherSubjects) {
-        if (!subjectTeacherMap.has(ts.subjectId)) subjectTeacherMap.set(ts.subjectId, new Set());
-        subjectTeacherMap.get(ts.subjectId)!.add(ts.teacherId);
-        teacherSubjectCountMap.set(ts.teacherId, (teacherSubjectCountMap.get(ts.teacherId) || 0) + 1);
-      }
-      for (const cs of allClassSubjects) {
-        for (const ts of allTeacherSubjects) {
-          if (ts.subjectId === cs.subjectId) {
-            teacherHoursMap.set(ts.teacherId, (teacherHoursMap.get(ts.teacherId) || 0) + Number(cs.weeklyHours || 0));
+      // Group requirements by Specialty
+      const specialtyStats = new Map<string, {
+        totalHours: number;
+        classCount: number;
+        uniqueClassIds: Set<number>;
+        subjectIds: Set<number>;
+        subjectName: string;
+        color: string;
+      }>();
+
+      console.log(`[teacher-recommendation] Curriculum grades: ${Object.keys(UZBEK_CURRICULUM).join(", ")}`);
+      for (const cls of allClasses) {
+        const gradeKey = String(cls.grade);
+        const gradeRequirements = UZBEK_CURRICULUM[gradeKey] || {};
+        console.log(`[teacher-recommendation] Class ${cls.name} (grade ${gradeKey}): ${Object.keys(gradeRequirements).length} requirements found`);
+        
+        // Analyze subjects defined in DTS for this grade
+        const dtsSubjects = Object.keys(gradeRequirements);
+        const subjectsToAnalyze = new Set([
+          ...dtsSubjects,
+          ...allClassSubjects.filter(cs => cs.classId === cls.id).map(cs => {
+            const s = allSubjects.find(x => x.id === cs.subjectId);
+            return s?.name || "";
+          }).filter(Boolean)
+        ]);
+
+        for (const subName of Array.from(subjectsToAnalyze)) {
+          let subject = allSubjects.find(s => s.name.toLowerCase() === subName.toLowerCase());
+          
+          const specialty = getSpecialty(subName, gradeKey);
+          const hours = gradeRequirements[subName] || 
+                        allClassSubjects.find(cs => cs.classId === cls.id && cs.subjectId === subject?.id)?.weeklyHours || 2;
+
+          if (!specialtyStats.has(specialty)) {
+            specialtyStats.set(specialty, {
+              totalHours: 0,
+              classCount: 0,
+              uniqueClassIds: new Set(),
+              subjectIds: new Set(),
+              subjectName: specialty,
+              color: subject?.color || "#3B82F6"
+            });
           }
+
+          const stats = specialtyStats.get(specialty)!;
+          stats.totalHours += hours;
+          stats.classCount++;
+          stats.uniqueClassIds.add(cls.id);
+          if (subject) stats.subjectIds.add(subject.id);
         }
       }
 
-      const DEFAULT_MAX_HOURS = 24;
-      const recommendations = allSubjects
-        .map((subject) => {
-          const totalHours = subjectHoursMap.get(subject.id) || 0;
-          const classCount = subjectClassCountMap.get(subject.id) || 0;
-          const existingTeacherIds = subjectTeacherMap.get(subject.id) || new Set();
-          const baseNeed = Math.ceil(totalHours / DEFAULT_MAX_HOURS);
-          const loadPenalty = Math.max(0, Math.ceil((totalHours - existingTeacherIds.size * DEFAULT_MAX_HOURS) / DEFAULT_MAX_HOURS));
-          const needed = Math.max(0, baseNeed + loadPenalty);
-          const vacancies = Math.max(0, needed - existingTeacherIds.size);
-          return {
-            subjectId: subject.id,
-            subjectName: subject.name,
-            subjectColor: subject.color,
-            totalWeeklyHours: totalHours,
-            classCount,
-            neededTeachers: needed,
-            existingTeachers: existingTeacherIds.size,
-            vacancies,
-            matchScore: Number((totalHours / Math.max(1, classCount || 1)).toFixed(2)),
-          };
-        })
-        .filter((item) => item.totalWeeklyHours > 0)
-        .sort((a, b) => b.vacancies - a.vacancies || b.totalWeeklyHours - a.totalWeeklyHours || b.matchScore - a.matchScore);
+      console.log(`[teacher-recommendation] specialtyStats count: ${specialtyStats.size}`);
+      for (const [specialty, stats] of Array.from(specialtyStats.entries())) {
+        // Count existing teachers who can teach this specialty
+        const existingTeachers = allTeachers.filter(t => 
+          t.isActive && (getSpecialty(t.specialization || "", "5") === specialty || (t.firstName + " " + t.lastName).includes(specialty))
+        );
 
-      res.json(recommendations);
+        let neededTeachers = Math.ceil(stats.totalHours / MAX_HOURS);
+        
+        // Primary school rule: at least one teacher per unique class
+        if (specialty === "Boshlang'ich sinf o'qituvchisi") {
+          neededTeachers = Math.max(neededTeachers, stats.uniqueClassIds.size);
+        }
+
+        const vacancies = Math.max(0, neededTeachers - existingTeachers.length);
+        
+        console.log(`[teacher-recommendation] ${specialty}: hours=${stats.totalHours}, needed=${neededTeachers}, existing=${existingTeachers.length}, vacancies=${vacancies}, classes=${stats.uniqueClassIds.size}`);
+
+        recommendations.push({
+          subjectId: Array.from(stats.subjectIds)[0] || 0,
+          subjectName: specialty,
+          subjectColor: stats.color,
+          totalWeeklyHours: Math.round(stats.totalHours * 10) / 10,
+          classCount: stats.uniqueClassIds.size, // Use unique classes for UI label
+          neededTeachers,
+          existingTeachers: existingTeachers.length,
+          vacancies
+        });
+      }
+
+      console.log(`[teacher-recommendation] Returning ${recommendations.length} recommendations`);
+      res.json(recommendations.sort((a, b) => b.vacancies - a.vacancies || b.totalWeeklyHours - a.totalWeeklyHours));
     } catch (e: any) {
       console.error("[teacher-recommendation]", e);
       res.status(500).json({ message: e.message || "Server xatosi" });
     }
   });
 
-  // ── Bulk create teachers ────────────────────────────────────────────────────
-  app.post("/api/teachers/bulk", auth, async (req, res) => {
-    try {
-      const items: Array<{ firstName: string; lastName: string; maxHoursPerWeek?: number; subjectId?: number }> = req.body.teachers;
-      if (!Array.isArray(items) || items.length === 0)
-        return res.status(400).json({ message: "O'qituvchilar ro'yxati bo'sh" });
-      const normalizeName = (firstName: string, lastName: string) =>
-        `${firstName} ${lastName}`
-          .replace(/\s+/g, " ")
-          .trim()
-          .toLowerCase();
-      const existing = await storage.getTeachers();
-      const existingNames = new Set(existing.map(t => normalizeName(t.firstName, t.lastName)));
-      const incomingNames = new Set<string>();
-      const created = [];
-      for (const item of items) {
-        const fullName = normalizeName(item.firstName || "", item.lastName || "");
-        if (!fullName) {
-          return res.status(400).json({ message: "O'qituvchi ismi bo'sh bo'lmasligi kerak" });
-        }
-        if (incomingNames.has(fullName)) {
-          return res.status(400).json({ message: `Takrorlangan o'qituvchi: ${item.firstName} ${item.lastName}`.trim() });
-        }
-        if (existingNames.has(fullName)) {
-          return res.status(400).json({ message: `Bunday o'qituvchi mavjud: ${item.firstName} ${item.lastName}`.trim() });
-        }
-        incomingNames.add(fullName);
-        const slug = `${item.firstName}${item.lastName}`.replace(/\s+/g, "").toUpperCase().slice(0, 6);
-        const employeeId = `T_${slug || "NEW"}_${Date.now().toString().slice(-4)}`;
-        const data = insertTeacherSchema.parse({
-          firstName: item.firstName, lastName: item.lastName, employeeId,
-          department: null, specialization: null, phone: null,
-          maxHoursPerWeek: item.maxHoursPerWeek || 30, isActive: true,
-        });
-        const teacher = await storage.createTeacher(data);
-        // Agar subjectId berilgan bo'lsa, o'qituvchini fanga avtomatik bog'la
-        if (item.subjectId && typeof item.subjectId === "number") {
-          await storage.setTeacherSubjects(teacher.id, [item.subjectId]);
-        }
-        created.push(teacher);
-        existingNames.add(fullName);
+  // ── Auto-generate teachers and assignments based on DTS ──────────────────
+  // ── Helper to group subjects by teacher specialty ───────────────────────
+  function getSpecialty(subjectName: string, grade: string): string {
+    const name = subjectName.toLowerCase().trim();
+    const g = parseInt(grade);
+
+    // Primary classes (1-4)
+    if (g >= 1 && g <= 4) {
+      if (["ona tili", "o'qish savodxonligi", "matematika", "tarbiya", "tabiiy fanlar (science)", "tasviriy san'at", "texnologiya"].includes(name)) {
+        return "Boshlang'ich sinf o'qituvchisi";
       }
-      res.status(201).json(created);
+    }
+
+    // Mathematical sciences
+    if (["matematika", "algebra", "geometriya"].includes(name)) {
+      return "Matematika";
+    }
+
+    // Economics and Entrepreneurship
+    if (["iqtisodiy bilim asoslari", "tadbirkorlik asoslari"].includes(name)) {
+      return "Iqtisod va tadbirkorlik";
+    }
+
+    // Biology and Science
+    if (["biologiya", "tabiiy fanlar (science)"].includes(name)) {
+      return "Biologiya va Tabiiy fanlar";
+    }
+
+    // Language and Literature
+    if (["ona tili", "adabiyot"].includes(name)) {
+      return "Ona tili va adabiyot";
+    }
+
+    // History sciences
+    if (["tarix", "o'zbekiston tarixi", "jahon tarixi", "tarixdan hikoyalar", "qadimgi dunyo tarixi"].includes(name)) {
+      return "Tarix";
+    }
+
+    // Law and Education
+    if (["davlat va huquq asoslari", "tarbiya"].includes(name)) {
+      return "Huquq va tarbiya";
+    }
+
+    // Foreign Languages
+    if (["ingliz tili", "nemis tili", "fransuz tili", "chet tili"].includes(name)) {
+      return "Chet tili";
+    }
+
+    // Natural sciences
+    if (["fizika", "astronomiya"].includes(name)) {
+      return "Fizika va astronomiya";
+    }
+
+    return subjectName.charAt(0).toUpperCase() + subjectName.slice(1);
+  }
+
+  // ── Auto-generate teachers and assignments based on DTS ──────────────────
+  app.post("/api/teachers/auto-generate", auth, async (_req, res) => {
+    try {
+      const [allSubjects, allClasses, allTeachers, existingClassSubjects] = await Promise.all([
+        storage.getSubjects(),
+        storage.getClasses(),
+        storage.getTeachers(),
+        storage.getAllClassSubjects(),
+      ]);
+
+      const updatedAssignmentsByClass = new Map<number, any[]>();
+      let createdTeachersCount = 0;
+
+      // 1. Process each class to determine required DTS lessons
+      const unassignedBySpecialty = new Map<string, any[]>();
+
+      for (const cls of allClasses) {
+        const gradeRequirements = UZBEK_CURRICULUM[cls.grade];
+        if (!gradeRequirements) {
+          updatedAssignmentsByClass.set(cls.id, existingClassSubjects.filter(cs => cs.classId === cls.id));
+          continue;
+        }
+
+        const newAssignments: any[] = [];
+        const processedSubjectIds = new Set<number>();
+
+        for (const [subjectName, hours] of Object.entries(gradeRequirements)) {
+          let subject = allSubjects.find(s => s.name.toLowerCase() === subjectName.toLowerCase());
+          
+          if (!subject) {
+            // Auto-create missing subject
+            subject = await storage.createSubject({
+              name: subjectName,
+              code: subjectName.replace(/\s+/g, "_").toUpperCase(),
+              color: "#" + Math.floor(Math.random()*16777215).toString(16),
+              isActive: true
+            });
+            allSubjects.push(subject);
+          }
+
+          processedSubjectIds.add(subject.id);
+          const specialty = getSpecialty(subjectName, cls.grade);
+          
+          // Try to keep existing teacher if they match the specialty AND THEY EXIST
+          const existing = existingClassSubjects.find(cs => cs.classId === cls.id && cs.subjectId === subject.id);
+          let teacherId = existing?.teacherId || null;
+
+          if (teacherId) {
+            const t = allTeachers.find(x => x.id === teacherId);
+            if (!t) {
+              teacherId = null; // Teacher was deleted
+            } else {
+              const tSpecialty = getSpecialty(t.specialization || "", cls.grade);
+              if (tSpecialty !== specialty && t.firstName.toLowerCase().includes("vakant")) {
+                // If it's a vacancy and specialty doesn't match, unassign it to allow regrouping
+                teacherId = null;
+              }
+            }
+          }
+
+          const entry = {
+            classId: cls.id,
+            subjectId: subject.id,
+            teacherId: teacherId,
+            weeklyHours: hours,
+            specialty,
+            grade: cls.grade
+          };
+
+          newAssignments.push(entry);
+          if (!teacherId) {
+            if (!unassignedBySpecialty.has(specialty)) unassignedBySpecialty.set(specialty, []);
+            unassignedBySpecialty.get(specialty)!.push(entry);
+          }
+        }
+
+        const nonDtsAssignments = existingClassSubjects.filter(cs => cs.classId === cls.id && !processedSubjectIds.has(cs.subjectId));
+        updatedAssignmentsByClass.set(cls.id, [...newAssignments, ...nonDtsAssignments]);
+      }
+
+      // 2. Fill unassigned lessons by specialty
+      const DEFAULT_MAX_HOURS = 24;
+
+      for (const [specialty, assignments] of Array.from(unassignedBySpecialty.entries())) {
+        if (assignments.length === 0) continue;
+
+        // Find teachers (real or vacancy) who can teach this specialty
+        const matchingTeachers = allTeachers.filter(t => 
+          t.isActive && (getSpecialty(t.specialization || "", "5") === specialty || t.firstName.includes(specialty))
+        );
+
+        // Sort by current load to fill existing ones first
+        for (const teacher of matchingTeachers) {
+          let currentLoad = 0;
+          // Calculate load from ALL currently planned assignments
+          for (const list of Array.from(updatedAssignmentsByClass.values())) {
+            for (const a of list) {
+              if (a.teacherId === teacher.id) currentLoad += a.weeklyHours;
+            }
+          }
+
+          // Assign as much as possible to this teacher
+          for (let i = 0; i < assignments.length; i++) {
+            const a = assignments[i];
+            if (currentLoad + a.weeklyHours <= (teacher.maxHoursPerWeek || DEFAULT_MAX_HOURS)) {
+              a.teacherId = teacher.id;
+              currentLoad += a.weeklyHours;
+              assignments.splice(i, 1);
+              i--;
+            }
+          }
+        }
+
+        // 3. Create NEW vacancies for remaining unassigned lessons in this specialty
+        while (assignments.length > 0) {
+          const suffix = createdTeachersCount > 0 ? ` ${createdTeachersCount + 1}` : "";
+          const newTeacher = await storage.createTeacher({
+            firstName: specialty,
+            lastName: `vakant${suffix}`,
+            employeeId: `VAK_${specialty.slice(0,3).toUpperCase()}_${Date.now().toString().slice(-4)}_${createdTeachersCount}`,
+            department: "Avtomatik",
+            specialization: specialty,
+            maxHoursPerWeek: DEFAULT_MAX_HOURS,
+            isActive: true
+          });
+          createdTeachersCount++;
+
+          let currentLoad = 0;
+          for (let i = 0; i < assignments.length; i++) {
+            const a = assignments[i];
+            if (currentLoad + a.weeklyHours <= DEFAULT_MAX_HOURS) {
+              a.teacherId = newTeacher.id;
+              currentLoad += a.weeklyHours;
+              assignments.splice(i, 1);
+              i--;
+            }
+          }
+        }
+      }
+
+      // 4. Final Save
+      for (const [classId, items] of Array.from(updatedAssignmentsByClass.entries())) {
+        // Remove helper fields before saving
+        const toSave = items.map(({ classId, subjectId, teacherId, weeklyHours }) => ({
+          classId, subjectId, teacherId, weeklyHours
+        }));
+        await storage.setClassSubjects(classId, toSave);
+      }
+
+      res.status(201).json({
+        message: `${createdTeachersCount} ta yangi vakant o'qituvchi yaratildi. Jami darslar DTS asosida yangilandi.`,
+        teachersCreated: createdTeachersCount
+      });
     } catch (e: any) {
-      res.status(400).json({ message: e.message || "Xatolik" });
+      console.error("[auto-generate]", e);
+      res.status(500).json({ message: e.message || "Xatolik" });
+    }
+  });
+
+  app.post("/api/teachers/bulk-save", auth, async (req, res) => {
+    try {
+      const { teachers: teachersData } = req.body;
+      if (!Array.isArray(teachersData)) {
+        return res.status(400).json({ message: "Noto'g'ri ma'lumot formati" });
+      }
+
+      const results = [];
+      for (const tData of teachersData) {
+        const teacher = await storage.createTeacher({
+          firstName: tData.firstName,
+          lastName: tData.lastName,
+          employeeId: tData.employeeId || `T_${Date.now()}_${Math.random().toString(36).slice(-4)}`,
+          maxHoursPerWeek: tData.maxHoursPerWeek || 24,
+          isActive: true,
+          specialization: tData.specialization || tData.subjectName || ""
+        });
+
+        if (tData.subjectId) {
+          await db.insert(teacherSubjects).values({
+            teacherId: teacher.id,
+            subjectId: tData.subjectId
+          });
+
+          // Also auto-assign to all class subjects that match this subject and have no teacher
+          await db.update(classSubjects)
+            .set({ teacherId: teacher.id })
+            .where(and(
+              eq(classSubjects.subjectId, tData.subjectId),
+              sql`${classSubjects.teacherId} IS NULL`
+            ));
+        }
+        results.push(teacher);
+      }
+
+      res.status(201).json({ message: `${results.length} ta o'qituvchi muvaffaqiyatli qo'shildi`, count: results.length });
+    } catch (e: any) {
+      console.error("[bulk-save]", e);
+      res.status(500).json({ message: e.message || "Server xatosi" });
+    }
+  });
+
+  app.post("/api/teachers/save", auth, async (req, res) => {
+    try {
+      const { id, firstName, lastName, department, specialization, phone, maxHoursPerWeek, subjectIds, unavailSlots, autoAssignToAll } = req.body;
+      
+      let teacher: any;
+      if (id) {
+        teacher = await storage.updateTeacher(id, { firstName, lastName, department, specialization, phone, maxHoursPerWeek });
+        if (!teacher) return res.status(404).json({ message: "O'qituvchi topilmadi" });
+      } else {
+        const slug = `${firstName}${lastName}`.replace(/\s+/g, "").toUpperCase().slice(0, 6);
+        const employeeId = `T_${slug || "NEW"}_${Date.now().toString().slice(-4)}`;
+        teacher = await storage.createTeacher({ firstName, lastName, department, specialization, phone, maxHoursPerWeek, employeeId, isActive: true });
+      }
+
+      const teacherId = teacher.id;
+
+      // Subjects
+      await storage.setTeacherSubjects(teacherId, subjectIds || []);
+
+      // Unavailability
+      const slots = (unavailSlots || []).map((key: string) => {
+        const [day, period] = key.split("_").map(Number);
+        return { dayOfWeek: day, periodNumber: period };
+      });
+      await storage.setTeacherUnavailability(teacherId, slots);
+
+      // Auto-assign
+      if (!id && autoAssignToAll && subjectIds?.length > 0) {
+        const firstSubjectId = subjectIds[0];
+        const allClassSubjects = await storage.getAllClassSubjects();
+        const targets = allClassSubjects.filter(cs => cs.subjectId === firstSubjectId);
+        if (targets.length > 0) {
+          // This is a bit inefficient but works for now
+          for (const t of targets) {
+            await db.update(classSubjects).set({ teacherId }).where(eq(classSubjects.id, t.id));
+          }
+        }
+      }
+
+      res.json(teacher);
+    } catch (e: any) {
+      res.status(400).json({ message: e.message });
     }
   });
 
@@ -511,6 +871,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ─── AUTO DISTRIBUTE ALL ────────────────────────────────────────────────
+  app.post("/api/class-subjects/auto-distribute-all", auth, async (_req, res) => {
+    try {
+      const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects] = await Promise.all([
+        storage.getSubjects(),
+        storage.getTeachers(),
+        db.select().from(teacherSubjects),
+        storage.getAllClassSubjects(),
+      ]);
+
+      const teacherSubjectMap = new Map<number, Set<number>>();
+      for (const ts of allTeacherSubjects) {
+        if (!teacherSubjectMap.has(ts.teacherId)) teacherSubjectMap.set(ts.teacherId, new Set());
+        teacherSubjectMap.get(ts.teacherId)!.add(ts.subjectId);
+      }
+
+      const teacherLoadMap = new Map<number, number>();
+      for (const cs of allClassSubjects) {
+        if (cs.teacherId) {
+          teacherLoadMap.set(cs.teacherId, (teacherLoadMap.get(cs.teacherId) || 0) + cs.weeklyHours);
+        }
+      }
+
+      let assignedCount = 0;
+      const unassignedCS = allClassSubjects.filter(cs => !cs.teacherId);
+      
+      for (const cs of unassignedCS) {
+        // Find best teacher for this subject
+        const candidates = allTeachers.filter(t => {
+          const subjects = teacherSubjectMap.get(t.id) || new Set();
+          const currentLoad = teacherLoadMap.get(t.id) || 0;
+          return subjects.has(cs.subjectId) && currentLoad + cs.weeklyHours <= (t.maxHoursPerWeek || 30);
+        });
+
+        if (candidates.length > 0) {
+          // Pick teacher with least load
+          candidates.sort((a, b) => (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0));
+          const best = candidates[0];
+          
+          cs.teacherId = best.id;
+          teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
+          assignedCount++;
+        }
+      }
+
+      // Save all updated assignments
+      const assignmentsByClass = new Map<number, any[]>();
+      for (const cs of allClassSubjects) {
+        if (!assignmentsByClass.has(cs.classId)) assignmentsByClass.set(cs.classId, []);
+        assignmentsByClass.get(cs.classId)!.push({
+          subjectId: cs.subjectId,
+          teacherId: cs.teacherId,
+          weeklyHours: cs.weeklyHours
+        });
+      }
+
+      for (const [classId, items] of Array.from(assignmentsByClass.entries())) {
+        await storage.setClassSubjects(classId, items);
+      }
+
+      res.json({ message: `${assignedCount} ta dars o'qituvchilarga avtomatik taqsimlandi.`, assignedCount });
+    } catch (e: any) {
+      console.error("[auto-distribute-all]", e);
+      res.status(500).json({ message: e.message || "Xatolik" });
+    }
+  });
+
   // ─── BULK ASSIGN teacher to ALL classes that have a given subject ─────────
   app.post("/api/class-subjects/bulk-assign", auth, async (req, res) => {
     try {
@@ -602,6 +1029,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(created);
     } catch (e: any) {
       res.status(400).json({ message: e.message || "Xatolik" });
+    }
+  });
+
+  app.post("/api/rooms/clear-all", auth, async (_req, res) => {
+    try {
+      await db.update(rooms).set({ isActive: false });
+      res.json({ message: "Barcha xonalar muvaffaqiyatli tozalandi" });
+    } catch (e) {
+      res.status(500).json({ message: "Server xatosi" });
     }
   });
 
@@ -781,6 +1217,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.update(scheduleEntries).set({ isActive: false });
       }
       res.status(204).send();
+    } catch (e) {
+      res.status(500).json({ message: "Server xatosi" });
+    }
+  });
+
+  app.get("/api/dashboard/stats", auth, async (_req, res) => {
+    try {
+      const [allTeachers, allClasses, allSubjects, allRooms, allScheduled] = await Promise.all([
+        storage.getTeachers(),
+        storage.getClasses(),
+        storage.getSubjects(),
+        storage.getRooms(),
+        storage.getScheduleEntries(),
+      ]);
+      res.json({
+        totalTeachers: allTeachers.length,
+        totalClasses: allClasses.length,
+        totalSubjects: allSubjects.length,
+        totalRooms: allRooms.length,
+        totalScheduled: allScheduled.length,
+      });
+    } catch (e) {
+      res.status(500).json({ message: "Server xatosi" });
+    }
+  });
+
+  app.get("/api/schedule-conflicts", auth, async (_req, res) => {
+    try {
+      const conflicts = await db.execute(sql`SELECT * FROM check_schedule_conflicts()`);
+      res.json(conflicts.rows);
     } catch (e) {
       res.status(500).json({ message: "Server xatosi" });
     }
@@ -1035,6 +1501,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const ok = await storage.resolveConflict(parseInt(req.params.id));
     if (!ok) return res.status(404).json({ message: "Ziddiyat topilmadi" });
     res.status(204).send();
+  });
+
+  // ─── CLASS SUBJECTS & TEACHER LOAD ─────────────────────────────────────────
+  app.get("/api/classes/:id/subjects", auth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const items = await storage.getClassSubjects(id);
+      res.json(items);
+    } catch (e) {
+      res.status(500).json({ message: "Server xatosi" });
+    }
+  });
+
+  app.post("/api/classes/:id/subjects", auth, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { assignments } = req.body;
+      await storage.setClassSubjects(id, assignments);
+      res.json({ message: "Muvaffaqiyatli saqlandi" });
+    } catch (e) {
+      res.status(500).json({ message: "Saqlashda xatolik" });
+    }
+  });
+
+  app.get("/api/teacher-load", auth, async (_req, res) => {
+    try {
+      const [subjects, teachers, classSubs] = await Promise.all([
+        storage.getSubjects(),
+        storage.getTeachers(),
+        storage.getAllClassSubjects()
+      ]);
+
+      const teacherMap = new Map<number, any>();
+      teachers.forEach(t => teacherMap.set(t.id, {
+        teacherId: t.id,
+        teacherName: `${t.firstName} ${t.lastName}`,
+        maxHours: t.maxHoursPerWeek,
+        totalAssignedHours: 0,
+        subjects: []
+      }));
+
+      const subjectStats = new Map<number, any>();
+      subjects.forEach(s => subjectStats.set(s.id, {
+        subjectId: s.id,
+        subjectName: s.name,
+        subjectColor: s.color,
+        totalClasses: 0,
+        totalHours: 0,
+        assignedCount: 0,
+        teachers: []
+      }));
+
+      classSubs.forEach(cs => {
+        const sStat = subjectStats.get(cs.subjectId);
+        if (sStat) {
+          sStat.totalClasses++;
+          sStat.totalHours += cs.weeklyHours;
+          if (cs.teacherId) {
+            sStat.assignedCount++;
+            const t = teachers.find(t => t.id === cs.teacherId);
+            if (t) {
+              const teacherName = `${t.firstName} ${t.lastName}`;
+              const existingT = sStat.teachers.find((x: any) => x.teacherId === t.id);
+              if (existingT) {
+                existingT.hours += cs.weeklyHours;
+                existingT.classCount++;
+              } else {
+                sStat.teachers.push({ teacherId: t.id, teacherName, hours: cs.weeklyHours, classCount: 1 });
+              }
+            }
+          }
+        }
+        if (cs.teacherId) {
+          const tStat = teacherMap.get(cs.teacherId);
+          if (tStat) {
+            tStat.totalAssignedHours += cs.weeklyHours;
+            const sub = subjects.find(s => s.id === cs.subjectId);
+            if (sub && !tStat.subjects.includes(sub.name)) {
+              tStat.subjects.push(sub.name);
+            }
+          }
+        }
+      });
+
+      res.json({
+        subjects: Array.from(subjectStats.values()),
+        teachers: Array.from(teacherMap.values())
+      });
+    } catch (e) {
+      res.status(500).json({ message: "Server xatosi" });
+    }
+  });
+
+  app.post("/api/class-subjects/auto-distribute-all", auth, async (_req, res) => {
+    try {
+      const [subjects, teachers, classSubs] = await Promise.all([
+        storage.getSubjects(),
+        storage.getTeachers(),
+        storage.getAllClassSubjects()
+      ]);
+
+      let count = 0;
+      for (const cs of classSubs) {
+        if (cs.teacherId) continue; // Skip already assigned
+
+        const sub = subjects.find(s => s.id === cs.subjectId);
+        if (!sub) continue;
+
+        // Simple scoring: matching specialty + available hours
+        const candidates = teachers
+          .map(t => {
+            const isMatch = (t.specialization || "").toLowerCase().includes(sub.name.toLowerCase());
+            const currentHours = classSubs.filter(x => x.teacherId === t.id).reduce((s, x) => s + x.weeklyHours, 0);
+            return { teacher: t, isMatch, currentHours };
+          })
+          .filter(c => c.isMatch && c.currentHours + cs.weeklyHours <= (c.teacher.maxHoursPerWeek || 30))
+          .sort((a, b) => a.currentHours - b.currentHours);
+
+        if (candidates.length > 0) {
+          // Update via direct DB or storage call if available
+          await db.update(classSubjects).set({ teacherId: candidates[0].teacher.id }).where(eq(classSubjects.id, cs.id));
+          count++;
+        }
+      }
+
+      res.json({ message: `${count} ta dars o'qituvchilarga muvaffaqiyatli taqsimlandi` });
+    } catch (e) {
+      res.status(500).json({ message: "Taqsimlashda xatolik" });
+    }
+  });
+
+  app.post("/api/subjects/:id/bulk-assign-teachers", auth, async (req, res) => {
+    try {
+      const subjectId = parseInt(req.params.id);
+      const { teacherId } = req.body;
+      await db.update(classSubjects).set({ teacherId }).where(eq(classSubjects.subjectId, subjectId));
+      res.json({ message: "Muvaffaqiyatli biriktirildi" });
+    } catch (e) {
+      res.status(500).json({ message: "Server xatosi" });
+    }
   });
 
   // ─── ACCESS CODES ─────────────────────────────────────────────────────────

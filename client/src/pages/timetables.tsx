@@ -11,7 +11,8 @@ import {
   AlertTriangle, CheckCircle2, Printer, Clock, RefreshCw,
   BookOpen, Users, DoorOpen, GraduationCap, UserCheck
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
+import { useAuth } from "@/hooks/use-auth";
 import type { Class, Subject, Teacher, Room, TimeSlot, ScheduleEntry } from "@shared/schema";
 
 const DAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma"];
@@ -47,6 +48,7 @@ export default function Timetables() {
 
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { token } = useAuth();
 
   const monday = useMemo(() => {
     const m = getMonday(new Date());
@@ -56,19 +58,81 @@ export default function Timetables() {
 
   const weekStart = monday.toISOString();
 
-  const { data: classes = [] } = useQuery<Class[]>({ queryKey: ["/api/classes"] });
-  const { data: subjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
-  const { data: teachers = [] } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
-  const { data: rooms = [] } = useQuery<Room[]>({ queryKey: ["/api/rooms"] });
-  const { data: timeSlots = [] } = useQuery<TimeSlot[]>({ queryKey: ["/api/time-slots"] });
-  const { data: conflicts = [] } = useQuery<any[]>({ queryKey: ["/api/schedule-conflicts"] });
+  const { data: classes = [] } = useQuery<Class[]>({
+    queryKey: ["/api/classes"],
+    queryFn: async () => {
+      const response = await fetch("/api/classes", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      const data = await response.json();
+      return (data as any[]).sort((a, b) => {
+        const ga = parseInt(a.grade) || 0;
+        const gb = parseInt(b.grade) || 0;
+        if (ga !== gb) return ga - gb;
+        return (a.section || "").localeCompare(b.section || "");
+      });
+    }
+  });
+  const { data: subjects = [] } = useQuery<Subject[]>({
+    queryKey: ["/api/subjects"],
+    queryFn: async () => {
+      const response = await fetch("/api/subjects", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
+  const { data: teachers = [] } = useQuery<Teacher[]>({
+    queryKey: ["/api/teachers"],
+    queryFn: async () => {
+      const response = await fetch("/api/teachers", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
+  const { data: rooms = [] } = useQuery<Room[]>({
+    queryKey: ["/api/rooms"],
+    queryFn: async () => {
+      const response = await fetch("/api/rooms", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
+  const { data: timeSlots = [] } = useQuery<TimeSlot[]>({
+    queryKey: ["/api/time-slots"],
+    queryFn: async () => {
+      const response = await fetch("/api/time-slots", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
+  const { data: conflicts = [] } = useQuery<any[]>({
+    queryKey: ["/api/schedule-conflicts"],
+    queryFn: async () => {
+      const response = await fetch("/api/schedule-conflicts", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
 
   const { data: allEntries = [], isLoading: loadingEntries } = useQuery<ScheduleEntry[]>({
     queryKey: ["/api/schedule-entries", weekStart],
     queryFn: async () => {
-      const r = await fetch(`/api/schedule-entries?weekStart=${encodeURIComponent(weekStart)}`);
-      if (!r.ok) throw new Error("Xato");
-      return r.json();
+      const response = await fetch(`/api/schedule-entries?weekStart=${weekStart}`, {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
     },
   });
 
@@ -119,12 +183,19 @@ export default function Timetables() {
 
   const generateMutation = useMutation({
     mutationFn: async ({ classIds }: { classIds?: number[] }) => {
-      const r = await apiRequest("POST", "/api/generate-schedule", {
-        weekStart,
-        classIds: classIds || [],
-        clearExisting,
+      const response = await fetch("/api/generate-schedule", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ weekStart, classIds: classIds || [], clearExisting })
       });
-      return r.json();
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || "Xatolik");
+      }
+      return response.json();
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
@@ -138,7 +209,13 @@ export default function Timetables() {
   });
 
   const clearMutation = useMutation({
-    mutationFn: () => apiRequest("DELETE", `/api/schedule-entries?weekStart=${encodeURIComponent(weekStart)}`),
+    mutationFn: async () => {
+      const response = await fetch(`/api/schedule-entries?weekStart=${weekStart}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Tozalashda xatolik");
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
       qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
@@ -148,7 +225,13 @@ export default function Timetables() {
   });
 
   const deleteEntryMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/schedule-entries/${id}`),
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/schedule-entries/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("O'chirishda xatolik");
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
       toast({ title: "Dars o'chirildi" });
@@ -156,7 +239,17 @@ export default function Timetables() {
   });
 
   const updateEntryMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest("PATCH", `/api/schedule-entries/${id}`, data),
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await fetch(`/api/schedule-entries/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error("Saqlashda xatolik");
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
       setEditEntry(null);

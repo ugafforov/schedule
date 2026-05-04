@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, BookOpen, X, Clock, DoorOpen, Zap, CheckSquare, Square, GraduationCap, LayoutGrid, List } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
+import { useAuth } from "@/hooks/use-auth";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
 import type { Subject } from "@shared/schema";
 
@@ -131,6 +132,7 @@ const GROUP_STYLES: Record<string, { tab: string; badge: string; check: string; 
 
 function DtsDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
   const { toast } = useToast();
+  const { token } = useAuth();
   const [activeGroup, setActiveGroup] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
@@ -155,7 +157,22 @@ function DtsDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () =>
     if (selectedList.length === 0) { toast({ title: "Xatolik", description: "Hech bo'lmasa bitta fan tanlang", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      await apiRequest("POST", "/api/subjects/bulk", { subjects: selectedList });
+      const response = await fetch("/api/subjects/bulk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ subjects: selectedList.map(s => ({
+          name: s.name,
+          code: s.code,
+          description: s.description,
+          color: s.color,
+          weeklyHours: s.weeklyHours,
+          requiredRoomType: s.requiredRoomType
+        })) })
+      });
+      if (!response.ok) throw new Error("Xatolik");
       toast({ title: "Muvaffaqiyat", description: `${selectedList.length} ta fan qo'shildi` });
       onSuccess();
       onClose();
@@ -326,11 +343,30 @@ export default function Subjects() {
   const [clearOpen, setClearOpen] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { data: subjects = [], isLoading } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
+  const { token } = useAuth();
+  const { data: subjects = [], isLoading } = useQuery<Subject[]>({
+    queryKey: ["/api/subjects"],
+    queryFn: async () => {
+      const response = await fetch("/api/subjects", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
   const upsertMutation = useMutation({
     mutationFn: async (data: SubjectFormData) => {
-      if (editing) await apiRequest("PATCH", `/api/subjects/${editing.id}`, data);
-      else await apiRequest("POST", "/api/subjects", data);
+      const method = editing ? "PATCH" : "POST";
+      const url = editing ? `/api/subjects/${editing.id}` : "/api/subjects";
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error("Saqlashda xatolik");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/subjects"] });
@@ -342,12 +378,22 @@ export default function Subjects() {
     onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
   });
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/subjects/${id}`),
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/subjects/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("O'chirishda xatolik");
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/subjects"] }); toast({ title: "Muvaffaqiyat", description: "Fan o'chirildi" }); },
   });
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      await Promise.all(subjects.map((s) => apiRequest("DELETE", `/api/subjects/${s.id}`)));
+      const response = await fetch("/api/subjects/clear-all", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Tozalashda xatolik");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/subjects"] });

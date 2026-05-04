@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, KeyRound, Shield, Users, Clock, Settings, RefreshCw, Eye, EyeOff } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
 import { useAuth } from "@/hooks/use-auth";
 import type { AccessCode } from "@shared/schema";
 
@@ -56,15 +56,32 @@ export default function SettingsPage() {
   const [form, setForm] = useState<CodeForm>(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { data: codes = [], isLoading } = useQuery<AccessCode[]>({ queryKey: ["/api/access-codes"] });
+  const { data: codes = [], isLoading } = useQuery<AccessCode[]>({
+    queryKey: ["/api/access-codes"],
+    queryFn: async () => {
+      const response = await fetch("/api/access-codes", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
 
   const createMutation = useMutation({
     mutationFn: async (data: CodeForm) => {
-      await apiRequest("POST", "/api/access-codes", data);
+      const response = await fetch("/api/access-codes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error("Yaratishda xatolik");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/access-codes"] });
@@ -76,7 +93,17 @@ export default function SettingsPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/access-codes/${id}`),
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/access-codes/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ isActive: false })
+      });
+      if (!response.ok) throw new Error("O'chirishda xatolik");
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/access-codes"] });
       toast({ title: "Muvaffaqiyat", description: "Kirish kodi o'chirildi" });

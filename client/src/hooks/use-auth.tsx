@@ -2,22 +2,6 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { useQueryClient } from "@tanstack/react-query";
 import type { User, LoginRequest } from "@shared/schema";
 
-const API_BASE = "";
-
-async function apiPost(path: string, body: any, token?: string | null) {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
-  return res;
-}
-
-async function apiGet(path: string, token?: string | null) {
-  const headers: Record<string, string> = {};
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { headers });
-  return res;
-}
-
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
@@ -29,61 +13,54 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("auth_token"));
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(!!localStorage.getItem("auth_token"));
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!token) {
-      setUser(null);
+    const savedToken = localStorage.getItem("auth_token");
+    if (savedToken) {
+      setToken(savedToken);
+      fetchUserProfile(savedToken);
+    } else {
       setIsLoading(false);
-      return;
     }
-    setIsLoading(true);
-    apiGet("/api/auth/me", token)
-      .then(async (res) => {
-        if (res.ok) {
-          const data = await res.json();
-          setUser(data);
-        } else {
-          setToken(null);
-          setUser(null);
-          localStorage.removeItem("auth_token");
-        }
-      })
-      .catch(() => {
+  }, []);
+
+  const fetchUserProfile = async (token: string) => {
+    try {
+      const response = await fetch("/api/auth/me", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data);
+      } else {
+        localStorage.removeItem("auth_token");
         setToken(null);
         setUser(null);
-        localStorage.removeItem("auth_token");
-      })
-      .finally(() => setIsLoading(false));
-  }, [token]);
-
-  useEffect(() => {
-    if (!token) return;
-    const originalFetch = window.fetch;
-    window.fetch = function (url, options: RequestInit = {}) {
-      const isApi = typeof url === "string" && url.startsWith("/api");
-      if (!isApi) return originalFetch(url, options);
-      const headers = new Headers(options.headers || {});
-      if (!headers.has("Authorization")) {
-        headers.set("Authorization", `Bearer ${token}`);
       }
-      return originalFetch(url, { ...options, headers });
-    };
-    return () => {
-      window.fetch = originalFetch;
-    };
-  }, [token]);
+    } catch (e) {
+      console.error("Profile fetch error:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (credentials: LoginRequest) => {
-    const res = await apiPost("/api/auth/login", credentials);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: "Kirish kodi noto'g'ri" }));
-      throw new Error(err.message || "Kirish amalga oshmadi");
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credentials)
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Kirishda xatolik");
     }
-    const data = await res.json();
+
+    const data = await response.json();
     localStorage.setItem("auth_token", data.token);
     setToken(data.token);
     setUser(data.user);
@@ -91,9 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    localStorage.removeItem("auth_token");
     setToken(null);
     setUser(null);
-    localStorage.removeItem("auth_token");
     queryClient.clear();
   };
 

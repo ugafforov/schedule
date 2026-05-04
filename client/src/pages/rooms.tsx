@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell, Monitor, Palette, Zap, LayoutGrid, List } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
+import { useAuth } from "@/hooks/use-auth";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
 import type { Room } from "@shared/schema";
 
@@ -63,6 +64,7 @@ const getTypeDisplay = (type: string) => ROOM_TYPE_DISPLAY[type] || ROOM_TYPE_DI
 /* ── Bulk add rooms dialog ───────────────────────────────────────────────── */
 function BulkAddRooms({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
   const { toast } = useToast();
+  const { token } = useAuth();
   const [startNum, setStartNum] = useState(101);
   const [endNum, setEndNum] = useState(115);
   const [prefix, setPrefix] = useState("");
@@ -84,9 +86,32 @@ function BulkAddRooms({ open, onClose, onSuccess }: { open: boolean; onClose: ()
     if (preview.length === 0) { toast({ title: "Xatolik", description: "Xona diapazoni noto'g'ri", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const rooms = preview.map(p => ({ name: p.name, roomNumber: p.roomNumber, capacity, roomType, building: building || null, floor: floor || null }));
-      await apiRequest("POST", "/api/rooms/bulk", { rooms });
-      toast({ title: "Muvaffaqiyat", description: `${rooms.length} ta xona yaratildi` });
+      const dbRooms = preview.map(p => ({ 
+        name: p.name, 
+        room_number: p.roomNumber, 
+        capacity, 
+        room_type: roomType, 
+        building: building || null, 
+        floor: floor || null,
+        is_active: true
+      }));
+      const response = await fetch("/api/rooms/bulk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ rooms: dbRooms.map(r => ({
+          name: r.name,
+          roomNumber: r.room_number,
+          capacity: r.capacity,
+          roomType: r.room_type,
+          building: r.building,
+          floor: r.floor
+        })) })
+      });
+      if (!response.ok) throw new Error("Xatolik");
+      toast({ title: "Muvaffaqiyat", description: `${dbRooms.length} ta xona yaratildi` });
       onSuccess(); onClose();
     } catch (e: any) {
       toast({ title: "Xatolik", description: e.message, variant: "destructive" });
@@ -190,13 +215,32 @@ export default function Rooms() {
 
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { token } = useAuth();
 
-  const { data: rooms = [], isLoading } = useQuery<Room[]>({ queryKey: ["/api/rooms"] });
+  const { data: rooms = [], isLoading } = useQuery<Room[]>({
+    queryKey: ["/api/rooms"],
+    queryFn: async () => {
+      const response = await fetch("/api/rooms", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
 
   const upsertMutation = useMutation({
-    mutationFn: async (data: RoomFormData) => {
-      if (editing) await apiRequest("PATCH", `/api/rooms/${editing.id}`, data);
-      else await apiRequest("POST", "/api/rooms", data);
+    mutationFn: async (data: any) => {
+      const method = editing ? "PATCH" : "POST";
+      const url = editing ? `/api/rooms/${editing.id}` : "/api/rooms";
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error("Saqlashda xatolik");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/rooms"] });
@@ -208,7 +252,13 @@ export default function Rooms() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => apiRequest("DELETE", `/api/rooms/${id}`),
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/rooms/${id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("O'chirishda xatolik");
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/rooms"] });
       qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
@@ -217,7 +267,11 @@ export default function Rooms() {
   });
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      await Promise.all(rooms.map((r) => apiRequest("DELETE", `/api/rooms/${r.id}`)));
+      const response = await fetch("/api/rooms/clear-all", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Tozalashda xatolik");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/rooms"] });

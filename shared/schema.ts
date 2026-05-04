@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, time } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, time, real } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -21,7 +21,7 @@ export const subjects = pgTable("subjects", {
   code: text("code").notNull().unique(),
   description: text("description"),
   color: text("color").notNull().default("#1976D2"),
-  weeklyHours: integer("weekly_hours").notNull().default(2),
+  weeklyHours: real("weekly_hours").notNull().default(2),
   // room type required: "classroom" | "lab" | "gym" | "computer" | "music" | "art" | "any"
   requiredRoomType: text("required_room_type").notNull().default("any"),
   isActive: boolean("is_active").notNull().default(true),
@@ -97,7 +97,7 @@ export const classSubjects = pgTable("class_subjects", {
   classId: integer("class_id").references(() => classes.id, { onDelete: "cascade" }).notNull(),
   subjectId: integer("subject_id").references(() => subjects.id, { onDelete: "cascade" }).notNull(),
   teacherId: integer("teacher_id").references(() => teachers.id),
-  weeklyHours: integer("weekly_hours").notNull().default(2),
+  weeklyHours: real("weekly_hours").notNull().default(2),
 });
 
 // Schedule entries table (main timetable)

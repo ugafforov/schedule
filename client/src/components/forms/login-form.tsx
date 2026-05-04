@@ -30,7 +30,7 @@ export function LoginForm() {
       await login(data);
       setLocation("/");
     } catch (err: any) {
-      setError("Kirish kodi noto'g'ri. Iltimos, qayta urinib ko'ring.");
+      setError(err.message || "Kirish kodi noto'g'ri. Iltimos, qayta urinib ko'ring.");
     }
   };
 

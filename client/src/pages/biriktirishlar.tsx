@@ -12,9 +12,12 @@ import {
   Clock, ChevronRight, AlertCircle, CheckCircle2, Zap, Info, X,
   BarChart3, UserCheck, UserX, ArrowRight, Loader2
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
+import { useAuth } from "@/hooks/use-auth";
 import type { Class, Subject, Teacher, ClassSubject } from "@shared/schema";
 import { getAutoAssignments } from "@/lib/dts-curriculum";
+
+type TeacherWithSubjects = Teacher & { subjectIds?: number[] };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Assignment {
@@ -100,7 +103,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
   onConfirm: (a: Assignment[]) => void;
   selectedClass: Class | undefined;
   subjects: Subject[];
-  teachers: Teacher[];
+  teachers: TeacherWithSubjects[];
   teacherLoadMap: Map<number, number>;
 }) {
   if (!selectedClass) return null;
@@ -198,7 +201,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
 
 function pickTeacherForSubject(
   subject: Subject,
-  teachers: Teacher[],
+  teachers: TeacherWithSubjects[],
   teacherLoadMap: Map<number, number>,
   teacherSubjectMap: Map<number, number[]>
 ) {
@@ -313,9 +316,10 @@ function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
 }
 
 // ─── Tab 1: Class-based assignments ───────────────────────────────────────────
-function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; subjects: Subject[]; teachers: Teacher[] }) {
+function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; subjects: Subject[]; teachers: TeacherWithSubjects[] }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { token } = useAuth();
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -329,10 +333,13 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     enabled: selectedClassId !== null,
     queryFn: async () => {
       isLoadingRef.current = true;
-      const data = await (await fetch(`/api/classes/${selectedClassId}/subjects`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token")}` },
-      })).json() as ClassSubject[];
-      setAssignments(data.map(a => ({ subjectId: a.subjectId, teacherId: a.teacherId ?? null, weeklyHours: a.weeklyHours })));
+      const response = await fetch(`/api/classes/${selectedClassId}/subjects`, {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      const data = await response.json();
+      const mapped = (data || []).map((a: any) => ({ subjectId: a.subjectId, teacherId: a.teacherId ?? null, weeklyHours: a.weeklyHours }));
+      setAssignments(mapped);
       setSaveStatus("idle");
       isLoadingRef.current = false;
       return data;
@@ -340,8 +347,17 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   });
 
   const saveMutation = useMutation({
-    mutationFn: (toSave: Assignment[]) =>
-      apiRequest("PUT", `/api/classes/${selectedClassId}/subjects`, { subjects: toSave }),
+    mutationFn: async (toSave: Assignment[]) => {
+      const response = await fetch(`/api/classes/${selectedClassId}/subjects`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ assignments: toSave })
+      });
+      if (!response.ok) throw new Error("Saqlashda xatolik");
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
       setSaveStatus("saved");
@@ -354,7 +370,13 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   });
 
   const clearMutation = useMutation({
-    mutationFn: () => apiRequest("PUT", `/api/classes/${selectedClassId}/subjects`, { subjects: [] }),
+    mutationFn: async () => {
+      const response = await fetch(`/api/classes/${selectedClassId}/subjects`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Tozalashda xatolik");
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
@@ -398,7 +420,16 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   const totalHours = assignments.reduce((s, a) => s + (a.weeklyHours || 0), 0);
 
   // Teacher load lookup for dropdown hints
-  const { data: loadData } = useQuery<TeacherLoadData>({ queryKey: ["/api/teacher-load"] });
+  const { data: loadData } = useQuery<TeacherLoadData>({
+    queryKey: ["/api/teacher-load"],
+    queryFn: async () => {
+      const response = await fetch("/api/teacher-load", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuk hisobini yuklashda xatolik");
+      return response.json();
+    }
+  });
   const teacherHoursMap = new Map<number, number>();
   if (loadData) {
     for (const t of loadData.teachers) teacherHoursMap.set(t.teacherId, t.totalAssignedHours);
@@ -625,13 +656,23 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
 function YukHisobi({ teachers }: { teachers: Teacher[] }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { token } = useAuth();
   const [bulkSubject, setBulkSubject] = useState<TeacherLoadData["subjects"][0] | null>(null);
 
   const { data: loadData, isLoading } = useQuery<TeacherLoadData>({ queryKey: ["/api/teacher-load"] });
 
   const bulkMutation = useMutation({
-    mutationFn: ({ subjectId, teacherId }: { subjectId: number; teacherId: number | null }) =>
-      apiRequest("POST", "/api/class-subjects/bulk-assign", { subjectId, teacherId }),
+    mutationFn: async ({ subjectId, teacherId }: { subjectId: number; teacherId: number | null }) => {
+      const response = await fetch(`/api/subjects/${subjectId}/bulk-assign-teachers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ teacherId })
+      });
+      if (!response.ok) throw new Error("Biriktirishda xatolik");
+    },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
       qc.invalidateQueries({ queryKey: ["/api/classes"] });
@@ -645,6 +686,34 @@ function YukHisobi({ teachers }: { teachers: Teacher[] }) {
       });
     },
     onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
+  });
+
+  const autoDistributeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/class-subjects/auto-distribute-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+        }
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Taqsimlashda xatolik yuz berdi");
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
+      qc.invalidateQueries({ queryKey: ["/api/classes"] });
+      toast({ 
+        title: "Muvaffaqiyatli", 
+        description: data.message,
+      });
+    },
+    onError: (e: any) => {
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" });
+    }
   });
 
   if (isLoading) {
@@ -692,6 +761,21 @@ function YukHisobi({ teachers }: { teachers: Teacher[] }) {
           </CardTitle>
           <p className="text-xs text-gray-400 mt-0.5">Har bir fan uchun "Barcha sinflarga biriktir" tugmasini bosib o'qituvchini bir martalik belgilang</p>
         </CardHeader>
+        <CardContent className="pb-4 pt-0">
+          <Button 
+            variant="outline" 
+            onClick={() => autoDistributeMutation.mutate()} 
+            disabled={autoDistributeMutation.isPending}
+            className="w-full border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300 shadow-sm flex items-center justify-center gap-2"
+          >
+            {autoDistributeMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Zap className="h-4 w-4 text-amber-500" />
+            )}
+            Bo'sh turgan barcha darslarni avtomatik taqsimlash (Smart)
+          </Button>
+        </CardContent>
         <CardContent className="p-0">
           {subjects.length === 0 ? (
             <div className="text-center py-12">
@@ -828,10 +912,57 @@ function YukHisobi({ teachers }: { teachers: Teacher[] }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Biriktirishlar() {
+  const { token } = useAuth();
   const [tab, setTab] = useState<"biriktirish" | "yuk">("biriktirish");
-  const { data: classes = [], isLoading: clsLoading } = useQuery<Class[]>({ queryKey: ["/api/classes"] });
-  const { data: subjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
-  const { data: teachers = [] } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
+  const { data: classes = [], isLoading: clsLoading } = useQuery<Class[]>({
+    queryKey: ["/api/classes"],
+    queryFn: async () => {
+      const response = await fetch("/api/classes", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      const data = await response.json();
+      return (data as any[]).sort((a, b) => {
+        const ga = parseInt(a.grade) || 0;
+        const gb = parseInt(b.grade) || 0;
+        if (ga !== gb) return ga - gb;
+        return (a.section || "").localeCompare(b.section || "");
+      });
+    }
+  });
+  const { data: subjects = [] } = useQuery<Subject[]>({
+    queryKey: ["/api/subjects"],
+    queryFn: async () => {
+      const response = await fetch("/api/subjects", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
+  const { data: teachers = [] } = useQuery<TeacherWithSubjects[]>({
+    queryKey: ["/api/teachers"],
+    queryFn: async () => {
+      const response = await fetch("/api/teachers", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      const teachers = await response.json();
+      
+      const teachersWithSubs = [];
+      for (const t of teachers) {
+        const subRes = await fetch(`/api/teachers/${t.id}/subjects`, {
+          headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+        });
+        const subs = subRes.ok ? await subRes.json() : [];
+        teachersWithSubs.push({
+          ...t,
+          subjectIds: subs.map((s: any) => s.subjectId)
+        });
+      }
+      return teachersWithSubs as any[];
+    }
+  });
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5">

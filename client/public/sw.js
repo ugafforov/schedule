@@ -30,11 +30,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Everything else: network-first (always get latest), fallback to cache
+  // Network-first (always get latest), fallback to cache
   event.respondWith(
     fetch(event.request)
       .then((res) => {
-        if (res && res.status === 200 && res.type !== "opaque") {
+        // Faqat GET so'rovlarini va muvaffaqiyatli javoblarni keshga saqlash
+        if (
+          event.request.method === "GET" && 
+          res && res.status === 200 && 
+          res.type === "basic" // Faqat o'z domenimizdagi fayllar uchun
+        ) {
           const clone = res.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }

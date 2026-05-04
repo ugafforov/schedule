@@ -11,7 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Clock, RotateCcw, Save, Plus, Trash2, Pencil, Zap, CheckCircle, AlertTriangle, UtensilsCrossed,
 } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+
+import { useAuth } from "@/hooks/use-auth";
 import type { TimeSlot } from "@shared/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -94,13 +95,13 @@ function fromSlots(slots: TimeSlot[]): SlotRow[] {
     .sort((a, b) => toMin(toHHMM(a.startTime)) - toMin(toHHMM(b.startTime)))
     .map(s => ({
       key: mk(),
-      type: (s.isBreak && s.name.toLowerCase().includes("tushlik") ? "lunch" : "lesson") as RowType,
+      type: (s.isBreak && (s.name || "").toLowerCase().includes("tushlik") ? "lunch" : "lesson") as RowType,
       periodNumber: s.periodNumber,
       startTime: toHHMM(s.startTime),
       endTime: toHHMM(s.endTime),
-      meta: s.isBreak && s.name.toLowerCase().includes("kechki")
+      meta: s.isBreak && (s.name || "").toLowerCase().includes("kechki")
         ? "evening-lunch"
-        : s.isBreak && s.name.toLowerCase().includes("tushlik")
+        : s.isBreak && (s.name || "").toLowerCase().includes("tushlik")
           ? "day-lunch"
           : undefined,
     }));
@@ -109,23 +110,37 @@ function fromSlots(slots: TimeSlot[]): SlotRow[] {
 function deriveCfgFromRows(rows: SlotRow[]): GenConfig {
   const lessons = rows.filter(r => r.type === "lesson");
   const lunches = rows.filter(r => r.type === "lunch");
-  const dayLunch = lunches.find(r => r.meta !== "evening-lunch");
+  const dayLunch = lunches.find(r => r.meta === "day-lunch");
   const eveningLunch = lunches.find(r => r.meta === "evening-lunch");
-  const firstLunchIndex = dayLunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(dayLunch.startTime)) : -1;
-  const eveningLunchIndex = eveningLunch ? lessons.findIndex(r => toMin(r.endTime) <= toMin(eveningLunch.startTime)) : -1;
 
   if (lessons.length === 0) return { ...DEFAULT_CFG };
+
+  // Calculate breakMin by finding the first gap between two consecutive lessons
+  let breakMin = DEFAULT_CFG.breakMin;
+  for (let i = 0; i < rows.length - 1; i++) {
+    if (rows[i].type === "lesson" && rows[i + 1].type === "lesson") {
+      breakMin = diff(rows[i].endTime, rows[i + 1].startTime);
+      break;
+    }
+  }
+
+  // Find which lesson number lunch comes after
+  const getAfterLesson = (lunchRow: SlotRow | undefined) => {
+    if (!lunchRow) return 1;
+    const beforeLessons = lessons.filter(l => toMin(l.endTime) <= toMin(lunchRow.startTime));
+    return beforeLessons.length > 0 ? beforeLessons.length : 1;
+  };
 
   return {
     schoolStart: lessons[0].startTime,
     schoolEnd: lessons[lessons.length - 1].endTime,
     lessonMin: diff(lessons[0].startTime, lessons[0].endTime),
-    breakMin: lessons.length > 1 ? diff(lessons[0].endTime, lessons[1].startTime) : DEFAULT_CFG.breakMin,
+    breakMin: breakMin,
     useLunch: Boolean(dayLunch),
-    lunchAfterLesson: dayLunch && firstLunchIndex >= 0 ? firstLunchIndex + 1 : DEFAULT_CFG.lunchAfterLesson,
+    lunchAfterLesson: getAfterLesson(dayLunch),
     lunchMin: dayLunch ? diff(dayLunch.startTime, dayLunch.endTime) : DEFAULT_CFG.lunchMin,
     useEveningLunch: Boolean(eveningLunch),
-    eveningLunchAfterLesson: eveningLunch && eveningLunchIndex >= 0 ? eveningLunchIndex + 1 : DEFAULT_CFG.eveningLunchAfterLesson,
+    eveningLunchAfterLesson: getAfterLesson(eveningLunch),
     eveningLunchMin: eveningLunch ? diff(eveningLunch.startTime, eveningLunch.endTime) : DEFAULT_CFG.eveningLunchMin,
   };
 }
@@ -244,8 +259,18 @@ const DEFAULT_CFG: GenConfig = {
 export default function Darslar() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { token } = useAuth();
 
-  const { data: savedSlots = [], isLoading } = useQuery<TimeSlot[]>({ queryKey: ["/api/time-slots"] });
+  const { data: savedSlots = [], isLoading } = useQuery<TimeSlot[]>({
+    queryKey: ["/api/time-slots"],
+    queryFn: async () => {
+      const response = await fetch("/api/time-slots", {
+        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
+      });
+      if (!response.ok) throw new Error("Yuklashda xatolik");
+      return response.json();
+    }
+  });
 
   const [cfg, setCfg] = useState<GenConfig>({ ...DEFAULT_CFG });
   const [rows, setRows] = useState<SlotRow[]>([]);
@@ -255,15 +280,18 @@ export default function Darslar() {
   const loadedRef = useRef(false);
 
   useEffect(() => {
+    if (isLoading) return;
     const built = fromSlots(savedSlots);
     if (savedSlots.length > 0) {
       loadedRef.current = true;
-      if (built.length > 0) setRows(built);
-      setCfg(deriveCfgFromRows(built));
+      if (built.length > 0) {
+        setRows(built);
+        setCfg(deriveCfgFromRows(built));
+      }
     } else if (!loadedRef.current) {
       setRows([]);
     }
-  }, [savedSlots]);
+  }, [savedSlots, isLoading]);
 
   function handleGenerate() {
     setRows(reindex(generate(cfg)));
@@ -293,29 +321,24 @@ export default function Darslar() {
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/time-slots/save", {
-      rows: rows.map((row) => ({
-        type: row.type === "lunch" ? "lunch" : "lesson",
-        periodNumber: row.type === "lesson" ? row.periodNumber : 0,
-        startTime: row.startTime.slice(0, 5),
-        endTime: row.endTime.slice(0, 5),
-        meta: row.meta,
-      })),
-    }),
+    mutationFn: async () => {
+      const response = await fetch("/api/time-slots/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
+        },
+        body: JSON.stringify({ rows: rows.map(r => ({
+          type: r.type,
+          periodNumber: r.periodNumber,
+          startTime: r.startTime,
+          endTime: r.endTime,
+          meta: r.meta
+        })) })
+      });
+      if (!response.ok) throw new Error("Saqlashda xatolik");
+    },
     onSuccess: () => {
-      const cached = rows.map((row) => ({
-        id: 0,
-        name: row.type === "lunch"
-          ? (row.meta === "evening-lunch" ? "Kechki tushlik" : "Tushlik tanaffusi")
-          : `${row.periodNumber}-dars`,
-        startTime: row.startTime,
-        endTime: row.endTime,
-        dayOfWeek: 1,
-        periodNumber: row.type === "lesson" ? row.periodNumber : 0,
-        isBreak: row.type === "lunch",
-        isActive: true,
-      }));
-      qc.setQueryData(["/api/time-slots"], cached);
       qc.invalidateQueries({ queryKey: ["/api/time-slots"] });
       toast({ title: "Saqlandi", description: "Qo'ng'iroq jadvali saqlandi" });
     },

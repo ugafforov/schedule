@@ -4,3 +4,10 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+.env
+scratch/
+.vscode/
+*.pdf
+agents.md
+curriculum_layout.txt
+curriculum_text.txt
