@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square, LayoutGrid, List } from "lucide-react";
 
-import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher } from "@shared/schema";
 
 interface SubjectAssignment { subjectId: number; teacherId: number | null; weeklyHours: number; }
@@ -60,7 +60,6 @@ function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; ti
 
 /* ── Bulk add dialog ─────────────────────────────────────────────────────── */
 function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
-  const { token } = useAuth();
   const { toast } = useToast();
   const [selectedGrades, setSelectedGrades] = useState<string[]>(["1","2","3","4","5","6","7","8","9","10","11"]);
   const [sections, setSections] = useState("A, B");
@@ -84,15 +83,7 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
         total_students: totalStudents,
         is_active: true 
       })));
-      const response = await fetch("/api/classes/bulk", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify({ classes: dbClasses.map(c => ({ grade: c.grade, section: c.section, totalStudents: c.total_students })) })
-      });
-      if (!response.ok) throw new Error("Xatolik");
+      await apiRequest("POST", "/api/classes/bulk", { classes: dbClasses.map(c => ({ grade: c.grade, section: c.section, totalStudents: c.total_students })) });
       toast({ title: "Muvaffaqiyat", description: `${dbClasses.length} ta sinf yaratildi` });
       onSuccess();
       onClose();
@@ -183,16 +174,12 @@ export default function Classes() {
 
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { token } = useAuth();
 
   const { data: classes = [], isLoading } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
     queryFn: async () => {
-      const response = await fetch("/api/classes", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      const data = await response.json();
+      const res = await apiRequest("GET", "/api/classes");
+      const data = await res.json();
       return (data as any[]).sort((a, b) => {
         const ga = parseInt(a.grade) || 0;
         const gb = parseInt(b.grade) || 0;
@@ -203,38 +190,16 @@ export default function Classes() {
   });
   const { data: subjects = [] } = useQuery<Subject[]>({
     queryKey: ["/api/subjects"],
-    queryFn: async () => {
-      const response = await fetch("/api/subjects", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      return response.json();
-    }
   });
   const { data: teachers = [] } = useQuery<Teacher[]>({
     queryKey: ["/api/teachers"],
-    queryFn: async () => {
-      const response = await fetch("/api/teachers", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      return response.json();
-    }
   });
 
   const upsertMutation = useMutation({
     mutationFn: async (data: any) => {
       const method = editing ? "PATCH" : "POST";
       const url = editing ? `/api/classes/${editing.id}` : "/api/classes";
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) throw new Error("Saqlashda xatolik");
+      await apiRequest(method, url, data);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/classes"] });
@@ -246,21 +211,13 @@ export default function Classes() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(`/api/classes/${id}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("O'chirishda xatolik");
+      await apiRequest("DELETE", `/api/classes/${id}`);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/classes"] }); toast({ title: "Muvaffaqiyat", description: "Sinf o'chirildi" }); },
   });
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/classes/clear-all", { // Need to add this endpoint or use loop
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Tozalashda xatolik");
+      await apiRequest("POST", "/api/classes/clear-all");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/classes"] });
@@ -274,11 +231,9 @@ export default function Classes() {
     setEditing(cls);
     let subs: SubjectAssignment[] = [];
     try {
-      const response = await fetch(`/api/classes/${cls.id}/subjects`, {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
+      const res = await apiRequest("GET", `/api/classes/${cls.id}/subjects`);
+      if (res.ok) {
+        const data = await res.json();
         subs = data.map((cs: any) => ({ subjectId: cs.subjectId, teacherId: cs.teacherId, weeklyHours: cs.weeklyHours }));
       }
     } catch (e) {

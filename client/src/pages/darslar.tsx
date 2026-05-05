@@ -12,7 +12,7 @@ import {
   Clock, RotateCcw, Save, Plus, Trash2, Pencil, Zap, CheckCircle, AlertTriangle, UtensilsCrossed,
 } from "lucide-react";
 
-import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
 import type { TimeSlot } from "@shared/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -259,17 +259,9 @@ const DEFAULT_CFG: GenConfig = {
 export default function Darslar() {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { token } = useAuth();
 
   const { data: savedSlots = [], isLoading } = useQuery<TimeSlot[]>({
     queryKey: ["/api/time-slots"],
-    queryFn: async () => {
-      const response = await fetch("/api/time-slots", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      return response.json();
-    }
   });
 
   const [cfg, setCfg] = useState<GenConfig>({ ...DEFAULT_CFG });
@@ -322,21 +314,13 @@ export default function Darslar() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/time-slots/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify({ rows: rows.map(r => ({
-          type: r.type,
-          periodNumber: r.periodNumber,
-          startTime: r.startTime,
-          endTime: r.endTime,
-          meta: r.meta
-        })) })
-      });
-      if (!response.ok) throw new Error("Saqlashda xatolik");
+      await apiRequest("POST", "/api/time-slots/save", { rows: rows.map(r => ({
+        type: r.type,
+        periodNumber: r.periodNumber,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        meta: r.meta
+      })) });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/time-slots"] });

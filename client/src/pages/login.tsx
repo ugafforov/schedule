@@ -66,10 +66,6 @@ export default function Login() {
               <p className="text-gray-500 text-sm mt-1">Tizimga kirish uchun kodingizni kiriting</p>
             </div>
             <LoginForm />
-            <div className="mt-6 p-3 bg-blue-50 rounded-lg">
-              <p className="text-xs text-blue-700 font-medium mb-1">Demo kirish kodlari:</p>
-              <p className="text-xs text-blue-600 font-mono">ADMIN2024 · TEACHER001 · SCHOOL123</p>
-            </div>
           </div>
         </div>
       </div>

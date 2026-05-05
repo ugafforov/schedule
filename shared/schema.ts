@@ -213,20 +213,20 @@ export type InsertScheduleEntry = z.infer<typeof insertScheduleEntrySchema>;
 export type ScheduleConflict = typeof scheduleConflicts.$inferSelect;
 export type InsertScheduleConflict = z.infer<typeof insertScheduleConflictSchema>;
 
-// Login schema
+// Login schema — Supabase Auth (email + password)
 export const loginSchema = z.object({
-  accessCode: z.string().min(1, "Kirish kodi kiritilishi kerak"),
+  email: z.string().email("To'g'ri email kiriting"),
+  password: z.string().min(6, "Parol kamida 6 ta belgi bo'lishi kerak"),
 });
 export type LoginRequest = z.infer<typeof loginSchema>;
 
-// Legacy types for backward compat
+// App user type — Supabase user_metadata dan olinadi
 export type User = {
-  id: number;
+  id: string;
+  email: string;
   firstName: string;
   lastName: string;
-  role: string;
-  username: string;
-  email: string;
+  role: "admin" | "teacher";
 };
 
 // Room type labels

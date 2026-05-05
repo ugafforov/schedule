@@ -2,35 +2,52 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useAuth } from "@/hooks/use-auth";
-import { loginSchema, type LoginRequest } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, KeyRound, Eye, EyeOff } from "lucide-react";
+import { Loader2, Mail, Eye, EyeOff, Lock } from "lucide-react";
+
+const loginSchema = z.object({
+  email: z.string().email("To'g'ri email kiriting"),
+  password: z.string().min(6, "Parol kamida 6 ta belgi bo'lishi kerak"),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginForm() {
   const [, setLocation] = useLocation();
   const { login } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [showCode, setShowCode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginRequest>({
+  } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
 
-  const onSubmit = async (data: LoginRequest) => {
+  const onSubmit = async (data: LoginFormData) => {
     try {
       setError(null);
-      await login(data);
+      await login(data.email, data.password);
       setLocation("/");
     } catch (err: any) {
-      setError(err.message || "Kirish kodi noto'g'ri. Iltimos, qayta urinib ko'ring.");
+      // Supabase xato xabarlarini o'zbekchaga tarjima qilish
+      const msg: string = err.message || "";
+      if (msg.includes("Invalid login credentials")) {
+        setError("Email yoki parol noto'g'ri.");
+      } else if (msg.includes("Email not confirmed")) {
+        setError("Email tasdiqlanmagan. Pochtangizni tekshiring.");
+      } else if (msg.includes("Too many requests")) {
+        setError("Juda ko'p urinish. Biroz kuting.");
+      } else {
+        setError(msg || "Kirishda xatolik yuz berdi.");
+      }
     }
   };
 
@@ -42,28 +59,53 @@ export function LoginForm() {
         </Alert>
       )}
 
+      {/* Email */}
       <div className="space-y-2">
-        <Label htmlFor="accessCode" className="text-gray-700 font-medium">Kirish kodi</Label>
+        <Label htmlFor="email" className="text-gray-700 font-medium">
+          Email
+        </Label>
         <div className="relative">
-          <KeyRound className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
-            id="accessCode"
-            type={showCode ? "text" : "password"}
-            placeholder="Kirish kodingizni kiriting"
+            id="email"
+            type="email"
+            placeholder="email@maktab.uz"
+            autoComplete="email"
+            {...register("email")}
+            className="pl-10 h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+          />
+        </div>
+        {errors.email && (
+          <p className="text-sm text-red-600">{errors.email.message}</p>
+        )}
+      </div>
+
+      {/* Parol */}
+      <div className="space-y-2">
+        <Label htmlFor="password" className="text-gray-700 font-medium">
+          Parol
+        </Label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            placeholder="Parolingizni kiriting"
             autoComplete="current-password"
-            {...register("accessCode")}
+            {...register("password")}
             className="pl-10 pr-10 h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
           />
           <button
             type="button"
-            onClick={() => setShowCode(!showCode)}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            tabIndex={-1}
           >
-            {showCode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
-        {errors.accessCode && (
-          <p className="text-sm text-red-600">{errors.accessCode.message}</p>
+        {errors.password && (
+          <p className="text-sm text-red-600">{errors.password.message}</p>
         )}
       </div>
 
@@ -81,24 +123,6 @@ export function LoginForm() {
           "Kirish"
         )}
       </Button>
-
-      <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-        <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Demo kirish kodlari</p>
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">Administrator:</span>
-            <code className="text-xs bg-white border border-gray-200 px-2 py-0.5 rounded font-mono text-blue-700">ADMIN2024</code>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">O'qituvchi:</span>
-            <code className="text-xs bg-white border border-gray-200 px-2 py-0.5 rounded font-mono text-green-700">TEACHER001</code>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">Maktab:</span>
-            <code className="text-xs bg-white border border-gray-200 px-2 py-0.5 rounded font-mono text-purple-700">SCHOOL123</code>
-          </div>
-        </div>
-      </div>
     </form>
   );
 }

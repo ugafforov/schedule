@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, Users, Phone, BookOpen, X, Clock, CalendarX, Zap, LayoutGrid, List, Wand2, CheckCircle2, AlertCircle, ChevronRight } from "lucide-react";
 
-import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
 import type { Teacher, Subject } from "@shared/schema";
 
 interface TeacherRecommendation {
@@ -81,7 +81,6 @@ function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; ti
 /* ── Bulk add dialog ─────────────────────────────────────────────────────── */
 function BulkAddTeachers({ open, onClose, onSuccess, autoGenerateMutation }: { open: boolean; onClose: () => void; onSuccess: () => void; autoGenerateMutation: any }) {
   const { toast } = useToast();
-  const { token } = useAuth();
   const [mode, setMode] = useState<"recommend" | "manual">("recommend");
   const [maxHours, setMaxHours] = useState(24);
   const [loading, setLoading] = useState(false);
@@ -90,15 +89,6 @@ function BulkAddTeachers({ open, onClose, onSuccess, autoGenerateMutation }: { o
 
   const { data: recs = [], isLoading: recsLoading } = useQuery<TeacherRecommendation[]>({
     queryKey: ["/api/teacher-recommendation"],
-    queryFn: async () => {
-      const response = await fetch("/api/teacher-recommendation", {
-        headers: {
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        }
-      });
-      if (!response.ok) throw new Error("Tavsiyalarni yuklashda xatolik");
-      return response.json();
-    },
     enabled: open,
     refetchInterval: false,
   });
@@ -155,26 +145,14 @@ function BulkAddTeachers({ open, onClose, onSuccess, autoGenerateMutation }: { o
     }
     setLoading(true);
     try {
-      const response = await fetch("/api/teachers/bulk-save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify({
-          teachers: activeList.map(p => ({
-            firstName: p.firstName,
-            lastName: p.lastName,
-            subjectId: p.subjectId,
-            maxHoursPerWeek: maxHours
-          }))
-        })
+      await apiRequest("POST", "/api/teachers/bulk-save", {
+        teachers: activeList.map(p => ({
+          firstName: p.firstName,
+          lastName: p.lastName,
+          subjectId: p.subjectId,
+          maxHoursPerWeek: maxHours
+        }))
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Saqlashda xatolik");
-      }
       toast({ title: "Muvaffaqiyat", description: `${activeList.length} ta o'qituvchi qo'shildi va fanlariga biriktirildi` });
       setGeneratedList([]);
       setManualText("");
@@ -429,46 +407,23 @@ export default function Teachers() {
 
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { token } = useAuth();
 
   const { data: teachers = [], isLoading } = useQuery<Teacher[]>({
     queryKey: ["/api/teachers"],
-    queryFn: async () => {
-      const response = await fetch("/api/teachers", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("O'qituvchilarni yuklashda xatolik");
-      return response.json();
-    }
   });
 
   const { data: subjects = [] } = useQuery<Subject[]>({
     queryKey: ["/api/subjects"],
-    queryFn: async () => {
-      const response = await fetch("/api/subjects", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Fanlarni yuklashda xatolik");
-      return response.json();
-    }
   });
 
   const upsertMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await fetch("/api/teachers/save", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify({
-          ...data,
-          id: editing?.id,
-          unavailSlots: Array.from(unavailSlots),
-          autoAssignToAll
-        })
+      await apiRequest("POST", "/api/teachers/save", {
+        ...data,
+        id: editing?.id,
+        unavailSlots: Array.from(unavailSlots),
+        autoAssignToAll
       });
-      if (!response.ok) throw new Error("Saqlashda xatolik");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/teachers"] });
@@ -480,21 +435,13 @@ export default function Teachers() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(`/api/teachers/${id}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("O'chirishda xatolik");
+      await apiRequest("DELETE", `/api/teachers/${id}`);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/teachers"] }); toast({ title: "Muvaffaqiyat", description: "O'qituvchi o'chirildi" }); },
   });
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/teachers/clear-all", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Tozalashda xatolik");
+      await apiRequest("POST", "/api/teachers/clear-all");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/teachers"] });
@@ -505,18 +452,8 @@ export default function Teachers() {
 
   const autoGenerateMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/teachers/auto-generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        }
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Avtomatik yaratishda xatolik yuz berdi");
-      }
-      return response.json();
+      const res = await apiRequest("POST", "/api/teachers/auto-generate");
+      return res.json();
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/teachers"] });
@@ -539,8 +476,8 @@ export default function Teachers() {
     setUnavailLoading(true);
     try {
       const [subRes, unavailRes] = await Promise.all([
-        fetch(`/api/teachers/${t.id}/subjects`, { headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` } }),
-        fetch(`/api/teachers/${t.id}/unavailability`, { headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` } }),
+        apiRequest("GET", `/api/teachers/${t.id}/subjects`),
+        apiRequest("GET", `/api/teachers/${t.id}/unavailability`),
       ]);
       if (subRes.ok) {
         const data = await subRes.json();

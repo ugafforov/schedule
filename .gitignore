@@ -1,13 +1,44 @@
-node_modules
-dist
-.DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-electron/
+electron-dist/
+
+# Environment variables
 .env
-scratch/
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
 .vscode/
-*.pdf
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temp / scratch
+scratch/
+*.tar.gz
+
+# Replit (agar qaytib kelinsa)
+.replit
+replit.md
+.cache/
+.config/
+
+# Kiro / AI tools
+.canvas/
+.agents/
+skills-lock.json
+
+# Misc
 agents.md
 curriculum_layout.txt
 curriculum_text.txt

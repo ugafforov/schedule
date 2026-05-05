@@ -8,32 +8,15 @@ import {
   BookOpen, DoorOpen, GraduationCap, CheckCircle2, Clock, TrendingUp
 } from "lucide-react";
 
-import { useAuth } from "@/hooks/use-auth";
-
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-  const { token } = useAuth();
 
   const { data: stats, isLoading: statsLoading } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
-    queryFn: async () => {
-      const response = await fetch("/api/dashboard/stats", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      return response.json();
-    }
   });
 
   const { data: conflicts = [], isLoading: conflictsLoading } = useQuery<any[]>({
     queryKey: ["/api/schedule-conflicts"],
-    queryFn: async () => {
-      const response = await fetch("/api/schedule-conflicts", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      return response.json();
-    }
   });
 
   const today = new Date();

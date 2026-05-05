@@ -12,6 +12,7 @@ import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical
 
 import { useAuth } from "@/hooks/use-auth";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 import type { Room } from "@shared/schema";
 
 interface RoomFormData { name: string; roomNumber: string; building: string; floor: string; capacity: number; roomType: string; }
@@ -64,7 +65,6 @@ const getTypeDisplay = (type: string) => ROOM_TYPE_DISPLAY[type] || ROOM_TYPE_DI
 /* ── Bulk add rooms dialog ───────────────────────────────────────────────── */
 function BulkAddRooms({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
   const { toast } = useToast();
-  const { token } = useAuth();
   const [startNum, setStartNum] = useState(101);
   const [endNum, setEndNum] = useState(115);
   const [prefix, setPrefix] = useState("");
@@ -86,32 +86,16 @@ function BulkAddRooms({ open, onClose, onSuccess }: { open: boolean; onClose: ()
     if (preview.length === 0) { toast({ title: "Xatolik", description: "Xona diapazoni noto'g'ri", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const dbRooms = preview.map(p => ({ 
-        name: p.name, 
-        room_number: p.roomNumber, 
-        capacity, 
-        room_type: roomType, 
-        building: building || null, 
+      const rooms = preview.map(p => ({
+        name: p.name,
+        roomNumber: p.roomNumber,
+        capacity,
+        roomType,
+        building: building || null,
         floor: floor || null,
-        is_active: true
       }));
-      const response = await fetch("/api/rooms/bulk", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify({ rooms: dbRooms.map(r => ({
-          name: r.name,
-          roomNumber: r.room_number,
-          capacity: r.capacity,
-          roomType: r.room_type,
-          building: r.building,
-          floor: r.floor
-        })) })
-      });
-      if (!response.ok) throw new Error("Xatolik");
-      toast({ title: "Muvaffaqiyat", description: `${dbRooms.length} ta xona yaratildi` });
+      await apiRequest("POST", "/api/rooms/bulk", { rooms });
+      toast({ title: "Muvaffaqiyat", description: `${rooms.length} ta xona yaratildi` });
       onSuccess(); onClose();
     } catch (e: any) {
       toast({ title: "Xatolik", description: e.message, variant: "destructive" });
@@ -215,32 +199,16 @@ export default function Rooms() {
 
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { token } = useAuth();
 
   const { data: rooms = [], isLoading } = useQuery<Room[]>({
     queryKey: ["/api/rooms"],
-    queryFn: async () => {
-      const response = await fetch("/api/rooms", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      return response.json();
-    }
   });
 
   const upsertMutation = useMutation({
     mutationFn: async (data: any) => {
       const method = editing ? "PATCH" : "POST";
       const url = editing ? `/api/rooms/${editing.id}` : "/api/rooms";
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) throw new Error("Saqlashda xatolik");
+      await apiRequest(method, url, data);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/rooms"] });
@@ -253,11 +221,7 @@ export default function Rooms() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(`/api/rooms/${id}`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("O'chirishda xatolik");
+      await apiRequest("DELETE", `/api/rooms/${id}`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/rooms"] });
@@ -267,11 +231,7 @@ export default function Rooms() {
   });
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/rooms/clear-all", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Tozalashda xatolik");
+      await apiRequest("POST", "/api/rooms/clear-all");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/rooms"] });

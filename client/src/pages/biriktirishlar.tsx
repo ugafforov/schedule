@@ -13,7 +13,7 @@ import {
   BarChart3, UserCheck, UserX, ArrowRight, Loader2
 } from "lucide-react";
 
-import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, ClassSubject } from "@shared/schema";
 import { getAutoAssignments } from "@/lib/dts-curriculum";
 
@@ -319,7 +319,6 @@ function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
 function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; subjects: Subject[]; teachers: TeacherWithSubjects[] }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { token } = useAuth();
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -333,11 +332,8 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     enabled: selectedClassId !== null,
     queryFn: async () => {
       isLoadingRef.current = true;
-      const response = await fetch(`/api/classes/${selectedClassId}/subjects`, {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      const data = await response.json();
+      const res = await apiRequest("GET", `/api/classes/${selectedClassId}/subjects`);
+      const data = await res.json();
       const mapped = (data || []).map((a: any) => ({ subjectId: a.subjectId, teacherId: a.teacherId ?? null, weeklyHours: a.weeklyHours }));
       setAssignments(mapped);
       setSaveStatus("idle");
@@ -348,15 +344,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
 
   const saveMutation = useMutation({
     mutationFn: async (toSave: Assignment[]) => {
-      const response = await fetch(`/api/classes/${selectedClassId}/subjects`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify({ assignments: toSave })
-      });
-      if (!response.ok) throw new Error("Saqlashda xatolik");
+      await apiRequest("POST", `/api/classes/${selectedClassId}/subjects`, { assignments: toSave });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
@@ -371,11 +359,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
 
   const clearMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/classes/${selectedClassId}/subjects`, {
-        method: "DELETE",
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Tozalashda xatolik");
+      await apiRequest("DELETE", `/api/classes/${selectedClassId}/subjects`);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
@@ -422,13 +406,6 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   // Teacher load lookup for dropdown hints
   const { data: loadData } = useQuery<TeacherLoadData>({
     queryKey: ["/api/teacher-load"],
-    queryFn: async () => {
-      const response = await fetch("/api/teacher-load", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuk hisobini yuklashda xatolik");
-      return response.json();
-    }
   });
   const teacherHoursMap = new Map<number, number>();
   if (loadData) {
@@ -656,22 +633,13 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
 function YukHisobi({ teachers }: { teachers: Teacher[] }) {
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { token } = useAuth();
   const [bulkSubject, setBulkSubject] = useState<TeacherLoadData["subjects"][0] | null>(null);
 
   const { data: loadData, isLoading } = useQuery<TeacherLoadData>({ queryKey: ["/api/teacher-load"] });
 
   const bulkMutation = useMutation({
     mutationFn: async ({ subjectId, teacherId }: { subjectId: number; teacherId: number | null }) => {
-      const response = await fetch(`/api/subjects/${subjectId}/bulk-assign-teachers`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}`
-        },
-        body: JSON.stringify({ teacherId })
-      });
-      if (!response.ok) throw new Error("Biriktirishda xatolik");
+      await apiRequest("POST", "/api/class-subjects/bulk-assign", { subjectId, teacherId });
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
@@ -690,18 +658,8 @@ function YukHisobi({ teachers }: { teachers: Teacher[] }) {
 
   const autoDistributeMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/class-subjects/auto-distribute-all", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
-        }
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Taqsimlashda xatolik yuz berdi");
-      }
-      return response.json();
+      const res = await apiRequest("POST", "/api/class-subjects/auto-distribute-all");
+      return res.json();
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
@@ -912,16 +870,12 @@ function YukHisobi({ teachers }: { teachers: Teacher[] }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Biriktirishlar() {
-  const { token } = useAuth();
   const [tab, setTab] = useState<"biriktirish" | "yuk">("biriktirish");
   const { data: classes = [], isLoading: clsLoading } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
     queryFn: async () => {
-      const response = await fetch("/api/classes", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      const data = await response.json();
+      const res = await apiRequest("GET", "/api/classes");
+      const data = await res.json();
       return (data as any[]).sort((a, b) => {
         const ga = parseInt(a.grade) || 0;
         const gb = parseInt(b.grade) || 0;
@@ -932,28 +886,16 @@ export default function Biriktirishlar() {
   });
   const { data: subjects = [] } = useQuery<Subject[]>({
     queryKey: ["/api/subjects"],
-    queryFn: async () => {
-      const response = await fetch("/api/subjects", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      return response.json();
-    }
   });
   const { data: teachers = [] } = useQuery<TeacherWithSubjects[]>({
     queryKey: ["/api/teachers"],
     queryFn: async () => {
-      const response = await fetch("/api/teachers", {
-        headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-      });
-      if (!response.ok) throw new Error("Yuklashda xatolik");
-      const teachers = await response.json();
+      const res = await apiRequest("GET", "/api/teachers");
+      const teachers = await res.json();
       
       const teachersWithSubs = [];
       for (const t of teachers) {
-        const subRes = await fetch(`/api/teachers/${t.id}/subjects`, {
-          headers: { "Authorization": `Bearer ${token || localStorage.getItem("auth_token")}` }
-        });
+        const subRes = await apiRequest("GET", `/api/teachers/${t.id}/subjects`);
         const subs = subRes.ok ? await subRes.json() : [];
         teachersWithSubs.push({
           ...t,

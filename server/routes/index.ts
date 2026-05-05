@@ -1,0 +1,45 @@
+import { Hono } from "hono";
+import { authRoutes } from "./auth";
+import { subjectRoutes } from "./subjects";
+import { teacherRoutes, teacherLoadRoute, teacherRecommendationRoute } from "./teachers";
+import { classRoutes } from "./classes";
+import { roomRoutes } from "./rooms";
+import { timeslotRoutes } from "./timeslots";
+import {
+  scheduleRoutes,
+  generateScheduleRoute,
+  scheduleConflictsRoute,
+  classSubjectsRoute,
+} from "./schedule";
+import { dashboardRoutes } from "./dashboard";
+
+export function registerRoutes(app: Hono) {
+  // ─── Auth (public) ─────────────────────────────────────────────────────────
+  app.route("/api/auth", authRoutes);
+
+  // ─── Resources ─────────────────────────────────────────────────────────────
+  app.route("/api/subjects", subjectRoutes);
+  app.route("/api/teachers", teacherRoutes);
+  app.route("/api/classes", classRoutes);
+  app.route("/api/rooms", roomRoutes);
+  app.route("/api/time-slots", timeslotRoutes);
+  app.route("/api/dashboard", dashboardRoutes);
+
+  // ─── Schedule ──────────────────────────────────────────────────────────────
+  // Har bir frontend URL → to'g'ri backend route
+  // /api/schedule-entries → GET/POST/PATCH/DELETE /
+  app.route("/api/schedule-entries", scheduleRoutes);
+  // /api/generate-schedule → POST /
+  app.route("/api/generate-schedule", generateScheduleRoute);
+  // /api/schedule-conflicts → GET /
+  app.route("/api/schedule-conflicts", scheduleConflictsRoute);
+  // /api/class-subjects → POST /auto-distribute-all, /bulk-assign
+  app.route("/api/class-subjects", classSubjectsRoute);
+
+  // ─── Teacher analytics ─────────────────────────────────────────────────────
+  // Alohida routerlar — to'g'ri URL mapping
+  // /api/teacher-load → GET /
+  app.route("/api/teacher-load", teacherLoadRoute);
+  // /api/teacher-recommendation → GET /
+  app.route("/api/teacher-recommendation", teacherRecommendationRoute);
+}

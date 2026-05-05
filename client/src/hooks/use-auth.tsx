@@ -1,81 +1,92 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { User, LoginRequest } from "@shared/schema";
+import { supabase } from "@/lib/supabase";
+import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
+
+export interface AppUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: "admin" | "teacher";
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
+  session: Session | null;
   isLoading: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
-  logout: () => void;
-  token: string | null;
+  token: string | null;                          // ← qo'shildi
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function toAppUser(supabaseUser: SupabaseUser): AppUser {
+  const meta = supabaseUser.user_metadata || {};
+  return {
+    id: supabaseUser.id,
+    email: supabaseUser.email || "",
+    firstName: meta.first_name || meta.firstName || "",
+    lastName: meta.last_name || meta.lastName || "",
+    role: meta.role || "teacher",
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("auth_token");
-    if (savedToken) {
-      setToken(savedToken);
-      fetchUserProfile(savedToken);
-    } else {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const fetchUserProfile = async (token: string) => {
-    try {
-      const response = await fetch("/api/auth/me", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data);
+    // Mavjud sessionni olish
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ? toAppUser(session.user) : null);
+      // Eski kod bilan moslik uchun token ni localStorage ga ham saqlaymiz
+      if (session?.access_token) {
+        localStorage.setItem("auth_token", session.access_token);
       } else {
         localStorage.removeItem("auth_token");
-        setToken(null);
-        setUser(null);
       }
-    } catch (e) {
-      console.error("Profile fetch error:", e);
-    } finally {
       setIsLoading(false);
-    }
-  };
-
-  const login = async (credentials: LoginRequest) => {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(credentials)
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Kirishda xatolik");
-    }
+    // Auth holati o'zgarganda avtomatik yangilanish
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ? toAppUser(session.user) : null);
+      // Token ni localStorage ga sinxronlashtirish
+      if (session?.access_token) {
+        localStorage.setItem("auth_token", session.access_token);
+      } else {
+        localStorage.removeItem("auth_token");
+      }
+      if (!session) queryClient.clear();
+    });
 
-    const data = await response.json();
-    localStorage.setItem("auth_token", data.token);
-    setToken(data.token);
-    setUser(data.user);
-    queryClient.clear();
+    return () => subscription.unsubscribe();
+  }, [queryClient]);
+
+  const login = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+    if (data.user) {
+      setUser(toAppUser(data.user));
+      setSession(data.session);
+    }
   };
 
-  const logout = () => {
-    localStorage.removeItem("auth_token");
-    setToken(null);
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
+    setSession(null);
     queryClient.clear();
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, token }}>
+    <AuthContext.Provider value={{ user, session, isLoading, token: session?.access_token ?? null, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
