@@ -24,12 +24,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function toAppUser(supabaseUser: SupabaseUser): AppUser {
   const meta = supabaseUser.user_metadata || {};
+  const appMeta = supabaseUser.app_metadata || {};
   return {
     id: supabaseUser.id,
     email: supabaseUser.email || "",
     firstName: meta.first_name || meta.firstName || "",
     lastName: meta.last_name || meta.lastName || "",
-    role: meta.role || "teacher",
+    role: appMeta.role || meta.role || "teacher",
   };
 }
 
@@ -41,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Mavjud sessionni olish
+    // XAVFSIZLIK ESKLATMASI: localStorage XSS xavfini o'z ichiga oladi.
+    // Production da httpOnly cookie ishlatish tavsiya etiladi.
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ? toAppUser(session.user) : null);

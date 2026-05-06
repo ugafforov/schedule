@@ -22,6 +22,7 @@ export function LoginForm() {
   const { login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [lastAttempt, setLastAttempt] = useState<number>(0);
 
   const {
     register,
@@ -33,6 +34,13 @@ export function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
+      // Rate limiting: 3 soniya kutish
+      const now = Date.now();
+      if (now - lastAttempt < 3000) {
+        setError("Juda tez urinyapsiz. Iltimos, 3 soniya kuting.");
+        return;
+      }
+      setLastAttempt(now);
       setError(null);
       await login(data.email, data.password);
       setLocation("/");

@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import type { Room } from "@shared/schema";
+import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
 
 interface RoomFormData { name: string; roomNumber: string; building: string; floor: string; capacity: number; roomType: string; }
 
@@ -241,6 +242,25 @@ export default function Rooms() {
     onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
   });
 
+  // Inline update mutation
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Room> }) => {
+      await apiRequest("PATCH", `/api/rooms/${id}`, data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/rooms"] });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+    },
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Saqlanmadi", variant: "destructive" }),
+  });
+
+  // Room type options for inline select
+  const roomTypeOptions = Object.entries(ROOM_TYPE_DISPLAY).map(([value, info]) => ({
+    value,
+    label: ROOM_TYPE_LABELS[value] || value,
+    icon: info.icon,
+  }));
+
   const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setOpen(true); };
   const openEdit = (r: Room) => {
     setEditing(r);
@@ -369,20 +389,55 @@ export default function Rooms() {
                 </div>
                 {filtered.map(room => {
                   const d = getTypeDisplay(room.roomType); const Icon = d.icon;
+                  const isUpdating = inlineUpdateMutation.isPending;
                   return (
                     <div key={room.id} className="grid grid-cols-[minmax(0,1.5fr)_110px_120px_120px_100px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-10 h-10 ${d.bg} rounded-xl flex items-center justify-center flex-shrink-0`}><Icon className={`${d.color} h-5 w-5`} /></div>
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-gray-900 text-sm truncate">{room.name}</h3>
-                          <p className="text-xs text-gray-400 truncate">{room.building || "—"}{room.floor ? `, ${room.floor}-qavat` : ""}</p>
+                        <div className="min-w-0 flex-1">
+                          <InlineEdit
+                            value={room.name}
+                            onSave={(name) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { name } })}
+                            placeholder="Xona nomi"
+                            className="font-semibold text-gray-900 text-sm"
+                            disabled={isUpdating}
+                          />
+                          <p className="text-xs text-gray-400 truncate flex items-center gap-1">
+                            {room.building || "—"}{room.floor ? `, ${room.floor}-qavat` : ""}
+                          </p>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-600 font-mono truncate">#{room.roomNumber}</div>
-                      <div className="text-sm text-gray-600 truncate">{ROOM_TYPE_LABELS[room.roomType] || room.roomType}</div>
-                      <div className="text-sm text-gray-600 whitespace-nowrap">{room.capacity} o'rin</div>
+                      <div className="font-mono text-sm">
+                        <InlineEdit
+                          value={room.roomNumber}
+                          onSave={(roomNumber) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { roomNumber } })}
+                          placeholder="#"
+                          className="text-gray-600"
+                          disabled={isUpdating}
+                        />
+                      </div>
+                      <InlineSelect
+                        value={room.roomType}
+                        options={roomTypeOptions}
+                        onSave={(roomType) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { roomType } })}
+                        className="text-sm"
+                        disabled={isUpdating}
+                      />
+                      <div className="text-sm text-gray-600 whitespace-nowrap">
+                        <InlineEdit
+                          value={room.capacity}
+                          onSave={(val) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { capacity: parseInt(val) || 30 } })}
+                          type="number"
+                          min={5}
+                          max={500}
+                          placeholder="30"
+                          className="inline-block w-16"
+                          disabled={isUpdating}
+                        />
+                        <span className="ml-1 text-gray-400">o'rini</span>
+                      </div>
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(room)}><Edit className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(room)} title="Batafsil tahrirlash"><Edit className="h-3.5 w-3.5" /></Button>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setDeleteId(room.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
                     </div>

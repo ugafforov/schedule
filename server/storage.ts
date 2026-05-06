@@ -157,7 +157,16 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(teacherUnavailability).where(eq(teacherUnavailability.teacherId, teacherId));
   }
   async getAllTeacherUnavailability(): Promise<TeacherUnavailability[]> {
-    return db.select().from(teacherUnavailability);
+    const results = await db.select({
+      id: teacherUnavailability.id,
+      teacherId: teacherUnavailability.teacherId,
+      dayOfWeek: teacherUnavailability.dayOfWeek,
+      periodNumber: teacherUnavailability.periodNumber,
+    })
+    .from(teacherUnavailability)
+    .innerJoin(teachers, eq(teacherUnavailability.teacherId, teachers.id))
+    .where(eq(teachers.isActive, true));
+    return results;
   }
   async setTeacherUnavailability(
     teacherId: number,
@@ -192,7 +201,17 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(classSubjects).where(eq(classSubjects.classId, classId));
   }
   async getAllClassSubjects(): Promise<ClassSubject[]> {
-    return db.select().from(classSubjects);
+    const results = await db.select({
+      id: classSubjects.id,
+      classId: classSubjects.classId,
+      subjectId: classSubjects.subjectId,
+      teacherId: classSubjects.teacherId,
+      weeklyHours: classSubjects.weeklyHours,
+    })
+    .from(classSubjects)
+    .innerJoin(classes, eq(classSubjects.classId, classes.id))
+    .where(eq(classes.isActive, true));
+    return results;
   }
   async setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>): Promise<void> {
     await db.delete(classSubjects).where(eq(classSubjects.classId, classId));

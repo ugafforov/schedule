@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { insertTeacherSchema, teacherSubjects, classSubjects, teachers } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware } from "../middleware/auth";
@@ -7,6 +8,19 @@ import { eq, and, sql } from "drizzle-orm";
 import { autoGenerateTeachers, autoDistributeAll } from "../services/teacher.service";
 import { getSpecialty } from "../services/curriculum.service";
 import { UZBEK_CURRICULUM } from "@shared/curriculum";
+
+// Bulk teacher validation schema
+const bulkTeacherSchema = z.object({
+  teachers: z.array(z.object({
+    firstName: z.string().min(1, "Ism kiritilishi kerak"),
+    lastName: z.string().min(1, "Familiya kiritilishi kerak"),
+    employeeId: z.string().optional(),
+    maxHoursPerWeek: z.number().min(1).max(40).optional(),
+    specialization: z.string().optional(),
+    subjectName: z.string().optional(),
+    subjectId: z.number().optional(),
+  })).max(100, "Bir vaqtning o'zida 100 ta o'qituvchidan ko'p qo'shib bo'lmaydi"),
+});
 
 export const teacherRoutes = new Hono()
   .use(authMiddleware)
@@ -81,19 +95,19 @@ export const teacherRoutes = new Hono()
 
   // Save (create or update)
   .post("/save", async (c) => {
-    const { id, firstName, lastName, department, specialization, phone, maxHoursPerWeek, subjectIds, unavailSlots, autoAssignToAll } =
+    const { id, firstName, lastName, department, specialization, phone, maxHoursPerWeek, subjectIds, unavailSlots, autoAssignToAll, gradeLevel } =
       await c.req.json();
 
     let teacher: any;
     if (id) {
-      teacher = await storage.updateTeacher(id, { firstName, lastName, department, specialization, phone, maxHoursPerWeek });
+      teacher = await storage.updateTeacher(id, { firstName, lastName, department, specialization, phone, maxHoursPerWeek, gradeLevel: gradeLevel || "high" });
       if (!teacher) return c.json({ message: "O'qituvchi topilmadi" }, 404);
     } else {
       const slug = `${firstName}${lastName}`.replace(/\s+/g, "").toUpperCase().slice(0, 6);
       const employeeId = `T_${slug || "NEW"}_${Date.now().toString().slice(-4)}`;
       teacher = await storage.createTeacher({
         firstName, lastName, department, specialization, phone,
-        maxHoursPerWeek, employeeId, isActive: true,
+        maxHoursPerWeek, employeeId, isActive: true, gradeLevel: gradeLevel || "high",
       });
     }
 
@@ -119,10 +133,15 @@ export const teacherRoutes = new Hono()
 
   // Bulk save
   .post("/bulk-save", async (c) => {
-    const { teachers: teachersData } = await c.req.json();
-    if (!Array.isArray(teachersData)) {
-      return c.json({ message: "Noto'g'ri ma'lumot formati" }, 400);
+    const body = await c.req.json();
+    const validation = bulkTeacherSchema.safeParse(body);
+    if (!validation.success) {
+      return c.json({ 
+        message: "Validatsiya xatosi", 
+        errors: validation.error.errors.map(e => e.message) 
+      }, 400);
     }
+    const { teachers: teachersData } = validation.data;
     const results = [];
     for (const tData of teachersData) {
       const teacher = await storage.createTeacher({

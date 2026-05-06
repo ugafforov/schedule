@@ -1,11 +1,22 @@
 import { storage } from "../storage/index";
 import { db } from "../db";
-import { classSubjects, teacherSubjects } from "@shared/schema";
+import { classSubjects, teacherSubjects, type Subject, type Class, type Teacher, type ClassSubject } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { UZBEK_CURRICULUM } from "@shared/curriculum";
 import { getSpecialty } from "./curriculum.service";
 
 const DEFAULT_MAX_HOURS = 24;
+
+import { PRIMARY_TEACHER_ALLOWED_SUBJECTS, isPrimaryTeacherAllowedSubject } from "@shared/constants";
+
+interface AssignmentEntry {
+  classId: number;
+  subjectId: number;
+  teacherId: number | null;
+  weeklyHours: number;
+  specialty: string;
+  grade: number | string;
+}
 
 export async function autoGenerateTeachers() {
   const [allSubjects, allClasses, allTeachers, existingClassSubjects] = await Promise.all([
@@ -15,9 +26,9 @@ export async function autoGenerateTeachers() {
     storage.getAllClassSubjects(),
   ]);
 
-  const updatedAssignmentsByClass = new Map<number, any[]>();
+  const updatedAssignmentsByClass = new Map<number, (AssignmentEntry | ClassSubject)[]>();
   let createdTeachersCount = 0;
-  const unassignedBySpecialty = new Map<string, any[]>();
+  const unassignedBySpecialty = new Map<string, AssignmentEntry[]>();
 
   for (const cls of allClasses) {
     const gradeRequirements = UZBEK_CURRICULUM[cls.grade];
@@ -29,7 +40,7 @@ export async function autoGenerateTeachers() {
       continue;
     }
 
-    const newAssignments: any[] = [];
+    const newAssignments: AssignmentEntry[] = [];
     const processedSubjectIds = new Set<number>();
 
     for (const [subjectName, hours] of Object.entries(gradeRequirements)) {
@@ -185,9 +196,33 @@ export async function autoDistributeAll() {
   const unassignedCS = allClassSubjects.filter((cs) => !cs.teacherId);
 
   for (const cs of unassignedCS) {
+    // Sinf darajasini aniqlash
+    const classRecord = await db.select().from(classSubjects).where(eq(classSubjects.id, cs.id)).limit(1);
+    const classData = classRecord.length > 0 ? classRecord[0] : null;
+    
+    // Sinf ma'lumotini olish
+    const allClasses = await storage.getClasses();
+    const classInfo = allClasses.find(c => c.id === cs.classId);
+    const gradeNum = classInfo ? parseInt(classInfo.grade) : 5;
+    const isPrimaryClass = gradeNum >= 1 && gradeNum <= 4;
+    
+    // Fan ma'lumotini olish
+    const subject = allSubjects.find(s => s.id === cs.subjectId);
+    const subjectName = subject?.name || "";
+    
     const candidates = allTeachers.filter((t) => {
       const subjects = teacherSubjectMap.get(t.id) || new Set();
       const currentLoad = teacherLoadMap.get(t.id) || 0;
+      
+      // Boshlang'ich sinf qoidasi: boshlang'ich sinf o'qituvchilari faqat
+      // o'z sinfiga ruxsat etilgan fanlarga biriktirilishi mumkin
+      const teacherGradeLevels = ((t as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
+      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
+      
+      if (isPrimaryTeacher && isPrimaryClass && !isPrimaryTeacherAllowedSubject(subjectName)) {
+        return false; // Boshlang'ich sinf o'qituvchisi ruxsat etilmagan fanga biriktirilmaydi
+      }
+      
       return subjects.has(cs.subjectId) && currentLoad + cs.weeklyHours <= (t.maxHoursPerWeek || 30);
     });
 
@@ -216,6 +251,158 @@ export async function autoDistributeAll() {
 
   return {
     message: `${assignedCount} ta dars o'qituvchilarga avtomatik taqsimlandi.`,
+    assignedCount,
+  };
+}
+
+// ─── Faqat bo'sh fanlarni biriktirish (yangi funksiya) ───────────────────────
+export async function autoDistributeUnassignedOnly() {
+  const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects] = await Promise.all([
+    storage.getSubjects(),
+    storage.getTeachers(),
+    db.select().from(teacherSubjects),
+    storage.getAllClassSubjects(),
+  ]);
+
+  const teacherSubjectMap = new Map<number, Set<number>>();
+  for (const ts of allTeacherSubjects) {
+    if (!teacherSubjectMap.has(ts.teacherId)) teacherSubjectMap.set(ts.teacherId, new Set());
+    teacherSubjectMap.get(ts.teacherId)!.add(ts.subjectId);
+  }
+
+  const teacherLoadMap = new Map<number, number>();
+  for (const cs of allClassSubjects) {
+    if (cs.teacherId) {
+      teacherLoadMap.set(cs.teacherId, (teacherLoadMap.get(cs.teacherId) || 0) + cs.weeklyHours);
+    }
+  }
+
+  let assignedCount = 0;
+  const unassignedCS = allClassSubjects.filter((cs) => !cs.teacherId);
+
+  for (const cs of unassignedCS) {
+    const allClasses = await storage.getClasses();
+    const classInfo = allClasses.find(c => c.id === cs.classId);
+    const gradeNum = classInfo ? parseInt(classInfo.grade) : 5;
+    const isPrimaryClass = gradeNum >= 1 && gradeNum <= 4;
+    
+    const subject = allSubjects.find(s => s.id === cs.subjectId);
+    const subjectName = subject?.name || "";
+    
+    const candidates = allTeachers.filter((t) => {
+      const subjects = teacherSubjectMap.get(t.id) || new Set();
+      const currentLoad = teacherLoadMap.get(t.id) || 0;
+      
+      const teacherGradeLevels = ((t as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
+      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
+      
+      if (isPrimaryTeacher && isPrimaryClass && !isPrimaryTeacherAllowedSubject(subjectName)) {
+        return false;
+      }
+      
+      return subjects.has(cs.subjectId) && currentLoad + cs.weeklyHours <= (t.maxHoursPerWeek || 30);
+    });
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0));
+      const best = candidates[0];
+      cs.teacherId = best.id;
+      teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
+      assignedCount++;
+    }
+  }
+
+  const assignmentsByClass = new Map<number, any[]>();
+  for (const cs of allClassSubjects) {
+    if (!assignmentsByClass.has(cs.classId)) assignmentsByClass.set(cs.classId, []);
+    assignmentsByClass.get(cs.classId)!.push({
+      subjectId: cs.subjectId,
+      teacherId: cs.teacherId,
+      weeklyHours: cs.weeklyHours,
+    });
+  }
+
+  for (const [classId, items] of Array.from(assignmentsByClass.entries())) {
+    await storage.setClassSubjects(classId, items);
+  }
+
+  return {
+    message: `${assignedCount} ta bo'sh dars o'qituvchilarga avtomatik taqsimlandi.`,
+    assignedCount,
+  };
+}
+
+// ─── Barcha fanlarni qayta biriktirish (yangi funksiya) ───────────────────────
+export async function autoDistributeAllForceReassign() {
+  const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects] = await Promise.all([
+    storage.getSubjects(),
+    storage.getTeachers(),
+    db.select().from(teacherSubjects),
+    storage.getAllClassSubjects(),
+  ]);
+
+  const teacherSubjectMap = new Map<number, Set<number>>();
+  for (const ts of allTeacherSubjects) {
+    if (!teacherSubjectMap.has(ts.teacherId)) teacherSubjectMap.set(ts.teacherId, new Set());
+    teacherSubjectMap.get(ts.teacherId)!.add(ts.subjectId);
+  }
+
+  // Barcha biriktirishlarni tozalash
+  for (const cs of allClassSubjects) {
+    cs.teacherId = null;
+  }
+
+  const teacherLoadMap = new Map<number, number>();
+  let assignedCount = 0;
+
+  for (const cs of allClassSubjects) {
+    const allClasses = await storage.getClasses();
+    const classInfo = allClasses.find(c => c.id === cs.classId);
+    const gradeNum = classInfo ? parseInt(classInfo.grade) : 5;
+    const isPrimaryClass = gradeNum >= 1 && gradeNum <= 4;
+    
+    const subject = allSubjects.find(s => s.id === cs.subjectId);
+    const subjectName = subject?.name || "";
+    
+    const candidates = allTeachers.filter((t) => {
+      const subjects = teacherSubjectMap.get(t.id) || new Set();
+      const currentLoad = teacherLoadMap.get(t.id) || 0;
+      
+      const teacherGradeLevels = ((t as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
+      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
+      
+      if (isPrimaryTeacher && isPrimaryClass && !isPrimaryTeacherAllowedSubject(subjectName)) {
+        return false;
+      }
+      
+      return subjects.has(cs.subjectId) && currentLoad + cs.weeklyHours <= (t.maxHoursPerWeek || 30);
+    });
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0));
+      const best = candidates[0];
+      cs.teacherId = best.id;
+      teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
+      assignedCount++;
+    }
+  }
+
+  const assignmentsByClass = new Map<number, any[]>();
+  for (const cs of allClassSubjects) {
+    if (!assignmentsByClass.has(cs.classId)) assignmentsByClass.set(cs.classId, []);
+    assignmentsByClass.get(cs.classId)!.push({
+      subjectId: cs.subjectId,
+      teacherId: cs.teacherId,
+      weeklyHours: cs.weeklyHours,
+    });
+  }
+
+  for (const [classId, items] of Array.from(assignmentsByClass.entries())) {
+    await storage.setClassSubjects(classId, items);
+  }
+
+  return {
+    message: `Barcha darslar qayta taqsimlandi. ${assignedCount} ta dars o'qituvchilarga biriktirildi.`,
     assignedCount,
   };
 }

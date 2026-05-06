@@ -12,6 +12,7 @@ import { Plus, Search, Edit, Trash2, BookOpen, X, Clock, DoorOpen, Zap, CheckSqu
 import { apiRequest } from "@/lib/queryClient";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
 import type { Subject } from "@shared/schema";
+import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
 
 interface SubjectFormData {
   name: string; code: string; description: string;
@@ -294,30 +295,27 @@ function SubjectCard({ subject, openEdit, onDelete }: { subject: Subject; openEd
   );
 }
 
-function SubjectRow({ subject, openEdit, onDelete }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void }) {
+function SubjectRow({ subject, openEdit, onDelete, isUpdating }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void; isUpdating?: boolean }) {
   const roomType = (subject as any).requiredRoomType || "any";
   return (
-    <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_130px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: subject.color ? `${subject.color}20` : "#3B82F620" }}>
-          <BookOpen className="h-5 w-5" style={{ color: subject.color || "#3B82F6" }} />
+    <div className="group grid grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_130px] gap-4 px-4 py-3 items-center border border-gray-100 rounded-xl hover:border-violet-200 hover:bg-gray-50 transition-all bg-white">
+      <div className="flex items-center space-x-2 min-w-0">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: subject.color ? `${subject.color}20` : "#3B82F620" }}>
+          <BookOpen className="h-4 w-4" style={{ color: subject.color || "#3B82F6" }} />
         </div>
         <div className="min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: subject.color || "#3B82F6" }} />
-            <h3 className="font-semibold text-gray-900 text-sm truncate">{subject.name}</h3>
-          </div>
-          {subject.code && <p className="text-xs text-gray-400 font-mono mt-0.5">#{subject.code}</p>}
+          <p className="font-semibold text-gray-900 text-sm truncate">{subject.name}</p>
+          {subject.code && <p className="text-xs text-gray-400 font-mono">{subject.code}</p>}
         </div>
       </div>
-      <div className="min-w-0">
-        <div className="text-xs text-gray-500 truncate">{subject.description || "—"}</div>
-      </div>
-      <span className={`text-xs px-2 py-1 rounded-full border font-medium justify-self-start truncate max-w-full ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}>{ROOM_TYPE_LABELS[roomType] || roomType}</span>
-      <div className="flex items-center justify-end gap-2">
-        <div className="flex items-center gap-1 text-gray-500 text-xs"><Clock className="h-3 w-3" /><span className="whitespace-nowrap">{subject.weeklyHours || 4} soat</span></div>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => openEdit(subject)}><Edit className="h-3.5 w-3.5" /></Button>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => onDelete(subject.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+      <p className="text-sm text-gray-600 truncate">{subject.description || "—"}</p>
+      <span className={`text-xs px-2 py-1 rounded-full border font-medium w-fit ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}>{ROOM_TYPE_LABELS[roomType] || roomType}</span>
+      <div className="flex items-center justify-end space-x-2">
+        <div className="flex items-center space-x-1 text-gray-400"><Clock className="h-3.5 w-3.5" /><span className="text-xs">{subject.weeklyHours || 4}</span></div>
+        <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => openEdit(subject)} disabled={isUpdating}><Edit className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => onDelete(subject.id)} disabled={isUpdating}><Trash2 className="h-3.5 w-3.5" /></Button>
+        </div>
       </div>
     </div>
   );
@@ -368,6 +366,24 @@ export default function Subjects() {
     },
     onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
   });
+
+  // Inline update mutation
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Subject> }) => {
+      await apiRequest("PATCH", `/api/subjects/${id}`, data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/subjects"] });
+    },
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Saqlanmadi", variant: "destructive" }),
+  });
+
+  // Room type options for inline select
+  const roomTypeOptions = Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  }));
+
   const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setOpen(true); };
   const openEdit = (s: Subject) => {
     setEditing(s);
@@ -449,7 +465,7 @@ export default function Subjects() {
                 <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_130px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
                   <div>Fan</div><div>Tavsif</div><div>Xona turi</div><div className="text-right">Soat / Amal</div>
                 </div>
-                {filtered.map(subject => <SubjectRow key={subject.id} subject={subject} openEdit={openEdit} onDelete={id => setDeleteId(id)} />)}
+                {filtered.map(subject => <SubjectRow key={subject.id} subject={subject} openEdit={openEdit} onDelete={id => setDeleteId(id)} isUpdating={inlineUpdateMutation.isPending} />)}
               </div>
             )
           ) : (

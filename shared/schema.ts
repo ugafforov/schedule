@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, time, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, time, real, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -37,6 +37,9 @@ export const teachers = pgTable("teachers", {
   specialization: text("specialization"),
   phone: text("phone"),
   maxHoursPerWeek: integer("max_hours_per_week").default(30),
+  // Qaysi sinf darajalarida dars bera oladi: "primary" (1-4), "high" (5-11)
+  // Ko'p qiymat: "primary,high" (barcha sinflar)
+  gradeLevel: text("grade_level").default("high"),
   isActive: boolean("is_active").notNull().default(true),
 });
 
@@ -46,7 +49,10 @@ export const teacherUnavailability = pgTable("teacher_unavailability", {
   teacherId: integer("teacher_id").references(() => teachers.id, { onDelete: "cascade" }).notNull(),
   dayOfWeek: integer("day_of_week").notNull(), // 1=Mon … 5=Fri
   periodNumber: integer("period_number").notNull(), // 1-6
-});
+}, (table) => ({
+  teacherIdIdx: index("teacher_unavail_teacher_id_idx").on(table.teacherId),
+  compositeIdx: index("teacher_unavail_lookup_idx").on(table.teacherId, table.dayOfWeek, table.periodNumber),
+}));
 
 // Classes table
 export const classes = pgTable("classes", {
@@ -98,7 +104,10 @@ export const classSubjects = pgTable("class_subjects", {
   subjectId: integer("subject_id").references(() => subjects.id, { onDelete: "cascade" }).notNull(),
   teacherId: integer("teacher_id").references(() => teachers.id),
   weeklyHours: real("weekly_hours").notNull().default(2),
-});
+}, (table) => ({
+  classIdIdx: index("class_subjects_class_id_idx").on(table.classId),
+  teacherIdIdx: index("class_subjects_teacher_id_idx").on(table.teacherId),
+}));
 
 // Schedule entries table (main timetable)
 export const scheduleEntries = pgTable("schedule_entries", {
@@ -111,7 +120,13 @@ export const scheduleEntries = pgTable("schedule_entries", {
   weekStartDate: timestamp("week_start_date").notNull(),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  classIdIdx: index("schedule_entries_class_id_idx").on(table.classId),
+  teacherIdIdx: index("schedule_entries_teacher_id_idx").on(table.teacherId),
+  timeSlotIdIdx: index("schedule_entries_time_slot_id_idx").on(table.timeSlotId),
+  weekStartIdx: index("schedule_entries_week_start_idx").on(table.weekStartDate),
+  activeIdx: index("schedule_entries_active_idx").on(table.isActive),
+}));
 
 // Schedule conflicts table
 export const scheduleConflicts = pgTable("schedule_conflicts", {
@@ -125,12 +140,28 @@ export const scheduleConflicts = pgTable("schedule_conflicts", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Audit logs table
+export const auditLogs = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id"), // Supabase UUID as string
+  action: text("action").notNull(),
+  method: text("method").notNull(),
+  path: text("path").notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Relations
 export const teachersRelations = relations(teachers, ({ many }) => ({
   teacherSubjects: many(teacherSubjects),
   classSubjects: many(classSubjects),
   scheduleEntries: many(scheduleEntries),
   unavailability: many(teacherUnavailability),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  // Note: user relationship would depend on having a users table exposed, 
+  // but Supabase auth users are in auth schema.
 }));
 
 export const teacherUnavailabilityRelations = relations(teacherUnavailability, ({ one }) => ({
@@ -188,6 +219,7 @@ export const insertTeacherSubjectSchema = createInsertSchema(teacherSubjects).om
 export const insertClassSubjectSchema = createInsertSchema(classSubjects).omit({ id: true });
 export const insertScheduleEntrySchema = createInsertSchema(scheduleEntries).omit({ id: true, createdAt: true });
 export const insertScheduleConflictSchema = createInsertSchema(scheduleConflicts).omit({ id: true, createdAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 
 // Types
 export type AccessCode = typeof accessCodes.$inferSelect;
@@ -212,11 +244,20 @@ export type ScheduleEntry = typeof scheduleEntries.$inferSelect;
 export type InsertScheduleEntry = z.infer<typeof insertScheduleEntrySchema>;
 export type ScheduleConflict = typeof scheduleConflicts.$inferSelect;
 export type InsertScheduleConflict = z.infer<typeof insertScheduleConflictSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
 
 // Login schema — Supabase Auth (email + password)
+// Kuchli parol talablari: 8+ belgi, 1 katta harf, 1 kichik harf, 1 raqam
 export const loginSchema = z.object({
   email: z.string().email("To'g'ri email kiriting"),
-  password: z.string().min(6, "Parol kamida 6 ta belgi bo'lishi kerak"),
+  password: z
+    .string()
+    .min(8, "Parol kamida 8 ta belgi bo'lishi kerak")
+    .regex(/[A-Z]/, "Kamida 1 ta katta harf bo'lishi kerak")
+    .regex(/[a-z]/, "Kamida 1 ta kichik harf bo'lishi kerak")
+    .regex(/\d/, "Kamida 1 ta raqam bo'lishi kerak"),
 });
 export type LoginRequest = z.infer<typeof loginSchema>;
 
@@ -229,15 +270,4 @@ export type User = {
   role: "admin" | "teacher";
 };
 
-// Room type labels
-export const ROOM_TYPE_LABELS: Record<string, string> = {
-  classroom: "Sinf xonasi",
-  lab: "Laboratoriya",
-  gym: "Sport zali",
-  computer: "Kompyuter xonasi",
-  music: "Musiqa xonasi",
-  art: "Rasm xonasi",
-  any: "Istalgan xona",
-};
-
-export const ROOM_TYPES = Object.keys(ROOM_TYPE_LABELS);
+export { ROOM_TYPE_LABELS, ROOM_TYPES } from "./constants";

@@ -12,8 +12,13 @@ import {
   classSubjectsRoute,
 } from "./schedule";
 import { dashboardRoutes } from "./dashboard";
+import { rateLimitMiddleware } from "../middleware/rateLimit";
+import { auditLogMiddleware } from "../middleware/auditLog";
 
 export function registerRoutes(app: Hono) {
+  // Rate limiting va audit logging - barcha API larga
+  app.use("/api/*", rateLimitMiddleware);
+  app.use("/api/*", auditLogMiddleware);
   // ─── Auth (public) ─────────────────────────────────────────────────────────
   app.route("/api/auth", authRoutes);
 

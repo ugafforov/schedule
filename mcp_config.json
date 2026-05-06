@@ -7,6 +7,14 @@
         "mcp-remote",
         "https://mcp.supabase.com/mcp?project_ref=yfafnvypynldweuxsvdh"
       ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headed"
+      ]
     }
   }
 }

@@ -5,7 +5,7 @@ import { authMiddleware } from "../middleware/auth";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { generateSchedule } from "../services/schedule.service";
-import { autoDistributeAll } from "../services/teacher.service";
+import { autoDistributeAll, autoDistributeUnassignedOnly, autoDistributeAllForceReassign } from "../services/teacher.service";
 
 export const scheduleRoutes = new Hono().use(authMiddleware)
 
@@ -77,6 +77,14 @@ export const scheduleConflictsRoute = new Hono().use(authMiddleware)
 export const classSubjectsRoute = new Hono().use(authMiddleware)
   .post("/auto-distribute-all", async (c) => {
     const result = await autoDistributeAll();
+    return c.json(result);
+  })
+  .post("/auto-distribute-unassigned", async (c) => {
+    const result = await autoDistributeUnassignedOnly();
+    return c.json(result);
+  })
+  .post("/auto-distribute-force-reassign", async (c) => {
+    const result = await autoDistributeAllForceReassign();
     return c.json(result);
   })
   .post("/bulk-assign", async (c) => {

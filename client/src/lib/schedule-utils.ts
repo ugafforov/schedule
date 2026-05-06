@@ -87,7 +87,7 @@ export function validateScheduleEntry(
     conflicts.push({
       type: 'room',
       severity: 'high',
-      description: `Room is already booked for ${DAYS_OF_WEEK[timeSlot.dayOfWeek]} at ${timeSlot.startTime}`,
+      description: `Room is already booked for ${DAYS_OF_WEEK[timeSlot.dayOfWeek as keyof typeof DAYS_OF_WEEK]} at ${timeSlot.startTime}`,
       affectedEntries: roomConflicts.map(c => c.id)
     });
   }
@@ -161,7 +161,7 @@ export function generateWeeklyGrid(
     const subject = subjects.find(s => s.id === entry.subjectId);
 
     if (timeSlot && teacher && room && classData && subject) {
-      const dayName = DAYS_OF_WEEK[timeSlot.dayOfWeek].toLowerCase();
+      const dayName = DAYS_OF_WEEK[timeSlot.dayOfWeek as keyof typeof DAYS_OF_WEEK].toLowerCase();
       const timeKey = timeSlot.startTime.replace(':', '').toLowerCase();
       const slotKey = `${dayName}-${timeKey}`;
 
@@ -309,7 +309,7 @@ export function exportScheduleToCSV(
     const subject = subjects.find(s => s.id === entry.subjectId);
 
     return [
-      timeSlot ? DAYS_OF_WEEK[timeSlot.dayOfWeek] : '',
+      timeSlot ? DAYS_OF_WEEK[timeSlot.dayOfWeek as keyof typeof DAYS_OF_WEEK] : '',
       timeSlot ? `${timeSlot.startTime} - ${timeSlot.endTime}` : '',
       subject?.name || '',
       teacher?.employeeId || '',
@@ -376,7 +376,7 @@ export function parseScheduleCSV(csvContent: string): {
  * Generates time slot key for grid positioning
  */
 export function generateTimeSlotKey(dayOfWeek: number, startTime: string): string {
-  const dayName = DAYS_OF_WEEK[dayOfWeek].toLowerCase();
+  const dayName = DAYS_OF_WEEK[dayOfWeek as keyof typeof DAYS_OF_WEEK].toLowerCase();
   const timeKey = startTime.replace(/[:\s]/g, '').toLowerCase();
   return `${dayName}-${timeKey}`;
 }

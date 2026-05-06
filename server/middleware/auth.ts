@@ -32,11 +32,12 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
     const user = data.user;
     const meta = user.user_metadata || {};
+    const appMeta = user.app_metadata || {};
 
     c.set("user", {
       id: user.id,
       email: user.email,
-      role: meta.role || "teacher",
+      role: appMeta.role || meta.role || "teacher",
       firstName: meta.first_name || meta.firstName || "",
       lastName: meta.last_name || meta.lastName || "",
     });

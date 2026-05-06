@@ -81,7 +81,7 @@ class OfflineDB {
   }
 
   async updateSubject(id: number, data: Partial<{ name: string; code: string; description: string; color: string }>) {
-    const setParts = [];
+    const setParts: string[] = [];
     const values = [];
     
     Object.entries(data).forEach(([key, value]) => {
@@ -134,7 +134,7 @@ class OfflineDB {
   }
 
   async updateTeacher(id: number, data: any) {
-    const setParts = [];
+    const setParts: string[] = [];
     const values = [];
     
     Object.entries(data).forEach(([key, value]) => {
@@ -191,7 +191,7 @@ class OfflineDB {
   }
 
   async updateRoom(id: number, data: any) {
-    const setParts = [];
+    const setParts: string[] = [];
     const values = [];
     
     Object.entries(data).forEach(([key, value]) => {
@@ -246,7 +246,7 @@ class OfflineDB {
   }
 
   async updateClass(id: number, data: any) {
-    const setParts = [];
+    const setParts: string[] = [];
     const values = [];
     
     Object.entries(data).forEach(([key, value]) => {

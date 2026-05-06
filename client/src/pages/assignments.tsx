@@ -116,7 +116,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
   const assignmentsWithTeachers = result.assignments.map((a) => {
     const subject = subjects.find((s) => s.id === a.subjectId);
     if (!subject) return a;
-    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap);
+    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap, selectedClass.grade);
     return { ...a, teacherId: teacher?.id ?? null };
   });
   return (
@@ -199,12 +199,34 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
   );
 }
 
+import { PRIMARY_TEACHER_ALLOWED_SUBJECTS, isPrimaryTeacherAllowedSubject } from "@shared/constants";
+
 function pickTeacherForSubject(
   subject: Subject,
   teachers: TeacherWithSubjects[],
   teacherLoadMap: Map<number, number>,
-  teacherSubjectMap: Map<number, number[]>
+  teacherSubjectMap: Map<number, number[]>,
+  classGrade: string // Sinf darajasi: "1", "2", ..., "11"
 ) {
+  // Sinf darajasini aniqlash
+  const gradeNum = parseInt(classGrade);
+  let requiredLevel: string;
+  if (gradeNum >= 1 && gradeNum <= 4) {
+    requiredLevel = "primary";
+  } else {
+    requiredLevel = "high"; // 5-11 sinf = high
+  }
+
+  // Istisno fanlar - bu fanlar uchun o'qituvchi barcha sinflarda dars bera oladi
+  const universalSubjects = [
+    "rus tili", "chet tili", "ingliz tili", "nemis tili", "fransuz tili",
+    "musiqa madaniyati", "musiqa", "tasviriy san'at", "jismoniy tarbiya",
+    "tarbiya", "chaqiruvga qadar boshlang'ich tayyorgarlik"
+  ];
+  const isUniversalSubject = universalSubjects.some(s => 
+    subject.name.toLowerCase().includes(s.toLowerCase())
+  );
+
   const scored = teachers
     .map((teacher) => {
       const specialization = (teacher.specialization || "").toLowerCase();
@@ -215,15 +237,37 @@ function pickTeacherForSubject(
       const hasSlot = currentSubjects < 2 && currentHours < maxHours;
       const subjectMatch = subjectIds.includes(subject.id);
       const specializationMatch = specialization.length > 0 && specialization.includes(subject.name.toLowerCase());
+      
+      // O'qituvchining sinf darajasini tekshirish
+      const teacherGradeLevels = ((teacher as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
+      
+      // Agar fan universal bo'lsa, o'qituvchi har qanday darajada dars bera oladi
+      const gradeLevelMatch = isUniversalSubject || teacherGradeLevels.includes(requiredLevel);
+      
+      // BOSHLANG'ICH SINF QOIDASI: Boshlang'ich sinf o'qituvchilari faqat
+      // o'z sinfiga ruxsat etilgan fanlarga biriktirilishi mumkin
+      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
+      const isPrimaryClass = requiredLevel === "primary";
+      const isPrimarySubjectAllowed = isPrimaryTeacherAllowedSubject(subject.name);
+      
+      if (isPrimaryTeacher && isPrimaryClass && !isPrimarySubjectAllowed) {
+        // Boshlang'ich sinf o'qituvchisi boshlang'ich sinfga ruxsat etilmagan fanga biriktirilmaydi
+        return { teacher, score: -1, hasSlot: false, subjectMatch: false, specializationMatch: false, gradeLevelMatch: false };
+      }
+      
       let score = 0;
+      
+      // Agar o'qituvchi bu sinf darajasida dars bera olmasa, uni rad etish
+      if (!gradeLevelMatch) return { teacher, score: -1, hasSlot: false, subjectMatch: false, specializationMatch: false, gradeLevelMatch: false };
+      
       if (subjectMatch) score += 100;
       if (specializationMatch) score += 50;
       if (!hasSlot) score = -1;
       score -= currentHours;
       score -= currentSubjects * 5;
-      return { teacher, score, hasSlot, subjectMatch, specializationMatch };
+      return { teacher, score, hasSlot, subjectMatch, specializationMatch, gradeLevelMatch };
     })
-    .filter((item) => item.score >= 0 && item.subjectMatch);
+    .filter((item) => item.score >= 0 && item.subjectMatch && item.gradeLevelMatch);
 
   if (scored.length === 0) return null;
 
@@ -237,11 +281,17 @@ function pickTeacherForSubject(
 function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
   open: boolean; onClose: () => void;
   subject: TeacherLoadData["subjects"][0] | null;
-  teachers: Teacher[];
+  teachers: TeacherWithSubjects[]; // TeacherWithSubjects tipiga o'zgartirdik
   onConfirm: (teacherId: number | null) => void;
 }) {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("none");
   if (!subject) return null;
+  
+  // Faqat shu fanni o'qitadigan o'qituvchilarni filtrlash
+  const eligibleTeachers = teachers.filter(t => 
+    t.subjectIds && t.subjectIds.includes(subject.subjectId)
+  );
+  
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setSelectedTeacherId("none"); } }}>
       <DialogContent className="sm:max-w-md">
@@ -270,17 +320,32 @@ function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
               </div>
             </div>
           )}
+          
+          {eligibleTeachers.length === 0 && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-amber-800">Bu fanni o'qitadigan o'qituvchi topilmadi</p>
+                  <p className="text-xs text-amber-600 mt-1">
+                    Avval "O'qituvchilar" sahifasida o'qituvchi qo'shing va unga <strong>{subject.subjectName}</strong> fanini biriktiring.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-gray-700">O'qituvchi tanlang</label>
-            <Select value={selectedTeacherId} onValueChange={setSelectedTeacherId}>
+            <Select value={selectedTeacherId} onValueChange={setSelectedTeacherId} disabled={eligibleTeachers.length === 0}>
               <SelectTrigger className="h-10">
-                <SelectValue placeholder="O'qituvchi tanlang..." />
+                <SelectValue placeholder={eligibleTeachers.length === 0 ? "O'qituvchi yo'q" : "O'qituvchi tanlang..."} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
                   <span className="text-gray-400 flex items-center gap-2"><UserX className="h-3.5 w-3.5" /> Tayinlanmagan (tozalash)</span>
                 </SelectItem>
-                {teachers.map(t => (
+                {eligibleTeachers.map(t => (
                   <SelectItem key={t.id} value={String(t.id)}>
                     {t.firstName} {t.lastName}
                     {t.specialization ? <span className="text-gray-400 ml-1">· {t.specialization}</span> : null}
@@ -288,10 +353,15 @@ function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
                 ))}
               </SelectContent>
             </Select>
+            {eligibleTeachers.length > 0 && (
+              <p className="text-xs text-gray-500">
+                {eligibleTeachers.length} ta o'qituvchi bu fanni o'qitadi
+              </p>
+            )}
           </div>
-          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl">
-            <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-700">
+          <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+            <AlertCircle className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-blue-700">
               Bu amal <strong>{subject.subjectName}</strong> fanini o'tadigan barcha{" "}
               <strong>{subject.totalClasses} ta sinfdagi</strong> biriktirishni almashtiradi.
             </p>
@@ -304,6 +374,7 @@ function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
               onConfirm(selectedTeacherId === "none" ? null : parseInt(selectedTeacherId));
               setSelectedTeacherId("none");
             }}
+            disabled={eligibleTeachers.length === 0 && selectedTeacherId === "none"}
             className="bg-blue-600 hover:bg-blue-700"
           >
             <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
@@ -324,8 +395,25 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [autoDialogOpen, setAutoDialogOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
+  const [autoDistributeUnassignedOpen, setAutoDistributeUnassignedOpen] = useState(false);
+  const [autoDistributeForceOpen, setAutoDistributeForceOpen] = useState(false);
   const isLoadingRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Barcha sinflarning biriktirishlarini yuklash (badge uchun)
+  const { data: allClassAssignments = {}, isLoading: allAssignmentsLoading } = useQuery<Record<number, ClassSubject[]>>({
+    queryKey: ["/api/classes/all/subjects"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/classes/all/subjects");
+      if (!res.ok) {
+        console.error('Failed to load all class assignments');
+        return {};
+      }
+      const result = await res.json();
+      console.log('All class assignments loaded:', result);
+      return result;
+    },
+  });
 
   const { isLoading: assignLoading } = useQuery<ClassSubject[]>({
     queryKey: ["/api/classes", selectedClassId, "subjects"],
@@ -348,6 +436,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
+      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 600);
     },
@@ -364,6 +453,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
+      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
       setAssignments([]);
       setSaveStatus("idle");
       setClearOpen(false);
@@ -371,6 +461,40 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     },
     onError: () => {
       toast({ title: "Xatolik", description: "Tozalash amalga oshmadi", variant: "destructive" });
+    },
+  });
+
+  const autoDistributeUnassignedMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/class-subjects/auto-distribute-unassigned");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
+      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
+      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
+      setAutoDistributeUnassignedOpen(false);
+      toast({ title: "Muvaffaqiyat", description: data.message });
+    },
+    onError: (e: any) => {
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" });
+    },
+  });
+
+  const autoDistributeForceMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/class-subjects/auto-distribute-force-reassign");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
+      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
+      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
+      setAutoDistributeForceOpen(false);
+      toast({ title: "Muvaffaqiyat", description: data.message });
+    },
+    onError: (e: any) => {
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" });
     },
   });
 
@@ -392,8 +516,34 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   };
 
   const addRow = () => setAssignments(p => [...p, { subjectId: 0, teacherId: null, weeklyHours: 2 }]);
-  const updateRow = (i: number, field: keyof Assignment, val: any) =>
+  const updateRow = (i: number, field: keyof Assignment, val: any) => {
+    // Boshlang'ich sinf qoidasi: boshlang'ich sinf o'qituvchilari faqat
+    // o'z sinfiga ruxsat etilgan fanlarga biriktirilishi mumkin
+    if (field === "teacherId" && val !== null && selectedClass) {
+      const gradeNum = parseInt(selectedClass.grade);
+      const isPrimaryClass = gradeNum >= 1 && gradeNum <= 4;
+      
+      if (isPrimaryClass) {
+        const teacher = teachers.find(t => t.id === val);
+        const teacherGradeLevels = ((teacher as any)?.gradeLevel || "high").split(",").map((s: string) => s.trim());
+        const isPrimaryTeacher = teacherGradeLevels.includes("primary");
+        
+        if (isPrimaryTeacher) {
+          const subject = subjects.find(s => s.id === assignments[i].subjectId);
+          if (subject && !isPrimaryTeacherAllowedSubject(subject.name)) {
+            toast({
+              title: "Ruxsat etilmagan biriktirish",
+              description: `Boshlang'ich sinf o'qituvchilari "${subject.name}" faniga biriktirilmaydi. Faqat: Ona tili, Matematika, O'qish savodxonligi, Tarbiya, Sinf soati.`,
+              variant: "destructive"
+            });
+            return; // Biriktirish amalga oshmaydi
+          }
+        }
+      }
+    }
+    
     setAssignments(p => p.map((a, idx) => idx === i ? { ...a, [field]: val } : a));
+  };
   const removeRow = (i: number) => setAssignments(p => p.filter((_, idx) => idx !== i));
 
   const handleAutoAssign = (newA: Assignment[]) => {
@@ -433,11 +583,21 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
               <div className="space-y-1">
                 {classes.map(cls => {
                   const isActive = cls.id === selectedClassId;
+                  
+                  // Har bir sinf uchun o'qituvchisiz fanlar sonini hisoblash
+                  const classAssigns = allClassAssignments[cls.id] || [];
+                  const unassignedCount = classAssigns.filter(a => a.subjectId && !a.teacherId).length;
+                  
                   return (
                     <button key={cls.id} onClick={() => selectClass(cls)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${isActive ? "bg-blue-600 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100"}`}>
+                      className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-left transition-all ${isActive ? "bg-blue-600 text-white shadow-sm" : "text-gray-700 hover:bg-gray-100"}`}>
                       <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${isActive ? "bg-white/20 text-white" : gradeColor(cls.grade)}`}>{cls.grade}</span>
                       <span className="flex-1 text-sm font-medium truncate">{cls.name}</span>
+                      {unassignedCount > 0 && (
+                        <span className="flex-shrink-0 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                          {unassignedCount}
+                        </span>
+                      )}
                       <ChevronRight className={`h-3.5 w-3.5 flex-shrink-0 ${isActive ? "text-white/70" : "text-gray-400"}`} />
                     </button>
                   );
@@ -495,6 +655,14 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                   <Button variant="outline" size="sm" onClick={() => setAutoDialogOpen(true)}
                     className="h-8 border-blue-200 text-blue-700 hover:bg-blue-50" disabled={assignLoading}>
                     <Zap className="mr-1.5 h-3.5 w-3.5 text-blue-500" /> DTS biriktirish
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setAutoDistributeUnassignedOpen(true)}
+                    className="h-8 border-green-200 text-green-700 hover:bg-green-50" disabled={assignLoading}>
+                    <Zap className="mr-1.5 h-3.5 w-3.5 text-green-500" /> Faqat bo'sh fanlarni biriktirish
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setAutoDistributeForceOpen(true)}
+                    className="h-8 border-amber-200 text-amber-700 hover:bg-amber-50" disabled={assignLoading}>
+                    <Zap className="mr-1.5 h-3.5 w-3.5 text-amber-500" /> Barcha fanlarni qayta biriktirish
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => setClearOpen(true)}
                     className="h-8 border-red-200 text-red-700 hover:bg-red-50" disabled={assignLoading || assignments.length === 0}>
@@ -625,6 +793,55 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
         onClose={() => setClearOpen(false)}
         onConfirm={() => clearMutation.mutate()}
       />
+
+      <Dialog open={autoDistributeUnassignedOpen} onOpenChange={(v) => !v && setAutoDistributeUnassignedOpen(false)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-green-600" />
+              Faqat bo'sh fanlarni biriktirish
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            Faqat o'qituvchisiz fanlar avtomatik biriktiriladi. Biriktirilgan o'qituvchilar o'zgartirilmaydi.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAutoDistributeUnassignedOpen(false)}>Bekor qilish</Button>
+            <Button onClick={() => autoDistributeUnassignedMutation.mutate()} disabled={autoDistributeUnassignedMutation.isPending} className="bg-green-600 hover:bg-green-700">
+              {autoDistributeUnassignedMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}
+              Biriktirish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={autoDistributeForceOpen} onOpenChange={(v) => !v && setAutoDistributeForceOpen(false)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              Barcha fanlarni qayta biriktirish
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              <strong>Ehtiyot!</strong> Barcha fanlar qayta taqsimlaniadi. Biriktirilgan o'qituvchilar o'zgarib ketishi mumkin.
+            </p>
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
+              <p className="text-xs text-amber-700">
+                Bu amal faqat to'liq qayta tashkil qilish kerak bo'lganda ishlating.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAutoDistributeForceOpen(false)}>Bekor qilish</Button>
+            <Button onClick={() => autoDistributeForceMutation.mutate()} disabled={autoDistributeForceMutation.isPending} className="bg-amber-600 hover:bg-amber-700">
+              {autoDistributeForceMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <AlertCircle className="mr-1.5 h-3.5 w-3.5" />}
+              Qayta biriktirish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

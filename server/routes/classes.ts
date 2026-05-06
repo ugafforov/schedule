@@ -68,6 +68,16 @@ export const classRoutes = new Hono()
     return c.json({ message: "Barcha sinflar muvaffaqiyatli tozalandi" });
   })
 
+  // Get all class subjects (for badge display)
+  .get("/all/subjects", async (c) => {
+    const allClasses = await storage.getClasses();
+    const result: Record<number, any[]> = {};
+    for (const cls of allClasses) {
+      result[cls.id] = await storage.getClassSubjects(cls.id);
+    }
+    return c.json(result);
+  })
+
   // Subjects for a class
   .get("/:id/subjects", async (c) => {
     return c.json(await storage.getClassSubjects(parseInt(c.req.param("id"))));

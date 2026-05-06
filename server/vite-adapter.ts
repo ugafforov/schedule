@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
 import viteConfig from "../vite.config";
+import { networkInterfaces } from "os";
 
 const viteLogger = createLogger();
 
@@ -72,9 +73,25 @@ export async function startDevServer(app: Hono, port: number): Promise<void> {
     });
   });
 
+  // Avtomatik IP aniqlash
+  const nets = networkInterfaces();
+  let networkIp: string | undefined;
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === "IPv4" && !net.internal) {
+        networkIp = net.address;
+        break;
+      }
+    }
+    if (networkIp) break;
+  }
+
   await new Promise<void>((resolve) => {
     httpServer.listen(port, "0.0.0.0", () => {
-      log(`serving on port ${port}`);
+      console.log(`\n  ➜  Local:   http://localhost:${port}/`);
+      if (networkIp) {
+        console.log(`  ➜  Network: http://${networkIp}:${port}/`);
+      }
       resolve();
     });
   });
@@ -112,7 +129,7 @@ async function handleHono(
       method: req.method || "GET",
       headers,
       body: body.length > 0 && req.method !== "GET" && req.method !== "HEAD"
-        ? body
+        ? new Uint8Array(body)
         : undefined,
     });
 
@@ -168,7 +185,7 @@ export function serveStaticFiles(app: Hono) {
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const content = fs.readFileSync(filePath);
       const ext = path.extname(filePath);
-      return new Response(content, {
+      return new Response(new Uint8Array(content), {
         headers: { "Content-Type": mimeTypes[ext] || "application/octet-stream" },
       });
     }

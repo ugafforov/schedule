@@ -11,6 +11,19 @@ electron-dist/
 .env.local
 .env.*.local
 
+# Playwright and tests
+auth_state.json
+*.png
+*-test.js
+check-app.js
+watch-me.js
+headed-playwright.js
+persistent-browser.js
+persistent-full-check.js
+exhaustive-test.js
+full-app-test.js
+full-check-no-close.js
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -39,6 +52,5 @@ replit.md
 skills-lock.json
 
 # Misc
-agents.md
 curriculum_layout.txt
 curriculum_text.txt

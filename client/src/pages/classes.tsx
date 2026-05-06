@@ -12,6 +12,7 @@ import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronR
 
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher } from "@shared/schema";
+import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
 
 interface SubjectAssignment { subjectId: number; teacherId: number | null; weeklyHours: number; }
 interface ClassFormData { name: string; grade: string; section: string; totalStudents: number; subjects: SubjectAssignment[]; }
@@ -226,6 +227,23 @@ export default function Classes() {
     onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Amalga oshmadi", variant: "destructive" }),
   });
 
+  // Inline update mutation
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Class> }) => {
+      await apiRequest("PATCH", `/api/classes/${id}`, data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/classes"] });
+    },
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Saqlanmadi", variant: "destructive" }),
+  });
+
+  // Grade options for inline select
+  const gradeOptions = ALL_GRADES.map(grade => ({
+    value: grade,
+    label: `${grade}-sinf`,
+  }));
+
   const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setActiveTab("info"); setOpen(true); };
   const openEdit = async (cls: Class) => {
     setEditing(cls);
@@ -351,21 +369,52 @@ export default function Classes() {
                 </div>
                 {filtered.map((cls, idx) => {
                   const [bg, text] = GRADE_COLORS[idx % GRADE_COLORS.length].split(" ");
+                  const isUpdating = inlineUpdateMutation.isPending;
                   return (
                     <div key={cls.id} className="grid grid-cols-[minmax(0,1.6fr)_120px_120px_110px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
                           <span className={`font-bold text-lg ${text}`}>{cls.grade || cls.name?.[0] || "?"}</span>
                         </div>
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-gray-900 text-sm truncate">{cls.name}</h3>
-                          <p className="text-xs text-gray-400 truncate">Guruh: {cls.section || "—"}</p>
+                        <div className="min-w-0 flex-1">
+                          <InlineEdit
+                            value={cls.name}
+                            onSave={(name) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { name } })}
+                            placeholder="Sinf nomi"
+                            className="font-semibold text-gray-900 text-sm"
+                            disabled={isUpdating}
+                          />
+                          <InlineEdit
+                            value={cls.section || ""}
+                            onSave={(section) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { section } })}
+                            placeholder="Guruh"
+                            className="text-xs text-gray-400"
+                            disabled={isUpdating}
+                          />
                         </div>
                       </div>
-                      <div className="text-sm text-gray-600 truncate">{cls.grade || "—"}</div>
-                      <div className="text-sm text-gray-600 whitespace-nowrap">{cls.totalStudents} o'quvchi</div>
+                      <InlineSelect
+                        value={cls.grade || ""}
+                        options={gradeOptions}
+                        onSave={(grade) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { grade } })}
+                        className="text-sm text-gray-600"
+                        disabled={isUpdating}
+                      />
+                      <div className="text-sm text-gray-600 whitespace-nowrap">
+                        <InlineEdit
+                          value={cls.totalStudents || 25}
+                          onSave={(val: string) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { totalStudents: parseInt(val) || 25 } })}
+                          type="number"
+                          min={5}
+                          max={50}
+                          placeholder="25"
+                          className="inline-block w-16"
+                          disabled={isUpdating}
+                        />
+                        <span className="ml-1 text-gray-400">o'quvchi</span>
+                      </div>
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(cls)}><Edit className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(cls)} title="Batafsil tahrirlash"><Edit className="h-3.5 w-3.5" /></Button>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setDeleteId(cls.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
                     </div>

@@ -138,7 +138,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       const maxSameSubjectPerDay = cs.weeklyHours >= 5 ? 2 : 1;
       const maxPerDay = Math.ceil(needed / 5) + 1;
       const teacher = allTeachers.find((t) => t.id === cs.teacherId);
-      const teacherMax = teacher?.maxHoursPerWeek || 30;
+      if (!teacher) continue;
+      const teacherMax = teacher.maxHoursPerWeek || 30;
 
       for (let attempt = 0; attempt < 5 && scheduled < needed; attempt++) {
         const dayOrder = dayRotations[attempt % 5];

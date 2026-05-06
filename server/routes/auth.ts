@@ -5,11 +5,21 @@ import { authMiddleware } from "../middleware/auth";
 // Login/logout/register → to'g'ridan-to'g'ri frontend da supabase.auth.* orqali
 // Server faqat /api/auth/me ni qo'llab-quvvatlaydi (token tekshirish uchun)
 
-export const authRoutes = new Hono()
+type Variables = {
+  user: {
+    id: string;
+    email: string;
+    role: string;
+    firstName: string;
+    lastName: string;
+  };
+};
+
+export const authRoutes = new Hono<{ Variables: Variables }>()
 
   // Foydalanuvchi profilini qaytarish — token valid bo'lsa
   .get("/me", authMiddleware, (c) => {
-    const user = c.get("user") as any;
+    const user = c.get("user");
     return c.json({
       id: user.id,
       email: user.email,
