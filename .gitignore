@@ -24,6 +24,9 @@ exhaustive-test.js
 full-app-test.js
 full-check-no-close.js
 
+# Backups
+*.bak
+
 # OS files
 .DS_Store
 Thumbs.db

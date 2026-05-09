@@ -603,16 +603,6 @@ export default function Classes() {
         }}
       />
 
-      <ClearAllDialog
-        open={clearOpen}
-        title="Barcha sinflar o'chirilsinmi?"
-        onClose={() => setClearOpen(false)}
-        onConfirm={() => {
-          setClearOpen(false);
-          clearAllMutation.mutate();
-        }}
-      />
-
       <DeleteConfirmDialog
         open={deleteId !== null}
         title="Sinf o'chiriladi. Davom etasizmi?"

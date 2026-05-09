@@ -25,13 +25,15 @@ export const auditLogMiddleware = createMiddleware(async (c, next) => {
   try {
     const details = `Status: ${c.res.status}, Time: ${Date.now() - startTime}ms`;
     
-    // Bazaga saqlash
-    await db.insert(auditLogs).values({
+    // Bazaga saqlash — NON-BLOCKING (asinxron)
+    db.insert(auditLogs).values({
       userId: user?.id,
       action,
       method,
       path,
       details,
+    }).catch(err => {
+      console.error("[AUDIT ERROR] Bazaga yozishda xatolik:", err);
     });
     
     console.log(`[AUDIT] ${new Date().toISOString()} | ${method} ${path} | User: ${user?.id || "anon"} | ${action}`);

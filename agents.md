@@ -29,7 +29,8 @@ npm run db:migrate    # Prod: Yaratilgan migrationlarni bazaga qo'llash
 | Frontend routing | **Wouter** | React Router |
 | ORM | **Drizzle** | Prisma |
 | Auth | **Supabase Auth** (email+parol) | JWT/access codes |
-| DB | **Neon serverless** pooler | to'g'ridan-to'g'ri PG |
+| DB | **PostgreSQL** (standard pg) | Neon serverless |
+| Platform | **Web / PWA** | Electron / Desktop |
 
 ---
 

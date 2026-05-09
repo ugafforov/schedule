@@ -516,16 +516,6 @@ export default function Rooms() {
         }}
       />
 
-      <ClearAllDialog
-        open={clearOpen}
-        title="Barcha xonalar o'chirilsinmi?"
-        onClose={() => setClearOpen(false)}
-        onConfirm={() => {
-          setClearOpen(false);
-          clearAllMutation.mutate();
-        }}
-      />
-
       <DeleteConfirmDialog
         open={deleteId !== null}
         title="Xona o'chiriladi. Davom etasizmi?"

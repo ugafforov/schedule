@@ -9,13 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Mail, Eye, EyeOff, Lock } from "lucide-react";
-
-const loginSchema = z.object({
-  email: z.string().email("To'g'ri email kiriting"),
-  password: z.string().min(6, "Parol kamida 6 ta belgi bo'lishi kerak"),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
+import { loginSchema, type LoginRequest as LoginFormData } from "@shared/schema";
 
 export function LoginForm() {
   const [, setLocation] = useLocation();

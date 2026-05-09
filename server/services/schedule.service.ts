@@ -122,25 +122,53 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   }
 
   // Sort lessons by difficulty (Heuristic: MRV - Most Constrained Variable first)
-  // Higher grades and higher complexity subjects are harder to place
   lessonsToSchedule.sort((a, b) => b.grade - a.grade || b.complexity - a.complexity);
 
-  const currentSchedule: any[] = [];
   const teacherBusy = new Set<string>();
   const roomBusy = new Set<string>();
   const classBusy = new Set<string>();
   const classDailyCount = new Map<string, number>();
   const subjectDailyCount = new Map<string, number>();
+  
+  // Backtracking State for Iterative Approach
+  interface State {
+    lessonIdx: number;
+    slotIdx: number;
+    entries: any[];
+  }
 
-  // Backtracking Solver
-  function solve(lessonIdx: number): boolean {
-    if (lessonIdx >= lessonsToSchedule.length) return true;
+  const stack: State[] = [{ lessonIdx: 0, slotIdx: 0, entries: [] }];
+  const finalSchedule: any[] = [];
+  
+  const startTime = Date.now();
+  const TIMEOUT_MS = 30000; // 30 seconds limit
+  const MAX_STEPS = 500000; // 500k steps safety limit
+  let steps = 0;
 
-    const lesson = lessonsToSchedule[lessonIdx];
+  console.log(`[CSP] Starting iterative solver for ${lessonsToSchedule.length} lessons...`);
+
+  while (stack.length > 0) {
+    steps++;
+    if (steps > MAX_STEPS || (Date.now() - startTime) > TIMEOUT_MS) {
+      console.warn(`[CSP] Solver limit reached. Steps: ${steps}, Time: ${Date.now() - startTime}ms`);
+      break;
+    }
+
+    const current = stack[stack.length - 1];
+    
+    // Base Case: All lessons scheduled
+    if (current.lessonIdx >= lessonsToSchedule.length) {
+      finalSchedule.push(...current.entries);
+      break;
+    }
+
+    const lesson = lessonsToSchedule[current.lessonIdx];
     const maxDaily = getMaxHoursPerDay(String(lesson.grade));
+    let found = false;
 
-    // Try each available slot
-    for (const slot of activeSlots) {
+    // Try slots starting from current slotIdx
+    for (let i = current.slotIdx; i < activeSlots.length; i++) {
+      const slot = activeSlots[i];
       const day = slot.dayOfWeek;
       const cdKey = `${lesson.classId}_${day}`;
       const sdKey = `${lesson.classId}_${lesson.subjectId}_${day}`;
@@ -154,22 +182,19 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       if (tKey2 && teacherBusy.has(tKey2)) continue;
       if (unavailSet.has(`${lesson.teacherId}_${day}_${slot.periodNumber}`)) continue;
       if (lesson.teacherId2 && unavailSet.has(`${lesson.teacherId2}_${day}_${slot.periodNumber}`)) continue;
-      
       if ((classDailyCount.get(cdKey) || 0) >= maxDaily) continue;
       
-      // Limit same subject per day
       const maxSameSubject = (lesson.grade >= 5 && lesson.complexity >= 6) ? 2 : 1;
       if ((subjectDailyCount.get(sdKey) || 0) >= maxSameSubject) continue;
 
-      // Find suitable room
+      // Room Selection
       const classStudents = targetClasses.find(c => c.id === lesson.classId)?.totalStudents || 25;
       const reqType = subjectMap.get(lesson.subjectId)?.requiredRoomType || "any";
-      
       const availableRooms = allRooms.filter(r => !roomBusy.has(`${r.id}_${slot.id}`));
+      
       const room1 = availableRooms.find(r => 
         (reqType === "any" || r.roomType === reqType) && r.capacity >= (lesson.teacherId2 ? classStudents/2 : classStudents)
       );
-
       if (!room1) continue;
 
       let room2 = null;
@@ -180,7 +205,9 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         if (!room2) continue;
       }
 
-      // PLACE LESSON
+      // Valid slot found - APPLY
+      current.slotIdx = i + 1; // Mark this slot as tried for current lesson
+      
       classBusy.add(cKey);
       teacherBusy.add(tKey1);
       if (tKey2) teacherBusy.add(tKey2);
@@ -193,43 +220,56 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         classId: lesson.classId, subjectId: lesson.subjectId, teacherId: lesson.teacherId,
         roomId: room1.id, timeSlotId: slot.id, weekStartDate, isActive: true,
       };
-      currentSchedule.push(entry);
+      const entries = [entry];
       if (lesson.teacherId2 && room2) {
-        currentSchedule.push({ ...entry, teacherId: lesson.teacherId2, roomId: room2.id });
+        entries.push({ ...entry, teacherId: lesson.teacherId2, roomId: room2.id });
       }
 
-      // RECURSE
-      if (solve(lessonIdx + 1)) return true;
-
-      // BACKTRACK
-      currentSchedule.pop();
-      if (lesson.teacherId2) currentSchedule.pop();
-      classDailyCount.set(cdKey, (classDailyCount.get(cdKey) || 0) - 1);
-      subjectDailyCount.set(sdKey, (subjectDailyCount.get(sdKey) || 0) - 1);
-      roomBusy.delete(`${room1.id}_${slot.id}`);
-      if (room2) roomBusy.delete(`${room2.id}_${slot.id}`);
-      teacherBusy.delete(tKey1);
-      if (tKey2) teacherBusy.delete(tKey2);
-      classBusy.delete(cKey);
+      // Push next lesson to stack
+      stack.push({ lessonIdx: current.lessonIdx + 1, slotIdx: 0, entries });
+      found = true;
+      break;
     }
 
-    return false; // No solution for this branch
+    if (!found) {
+      // BACKTRACK
+      const popped = stack.pop();
+      if (stack.length > 0) {
+        const prev = stack[stack.length - 1];
+        const prevLesson = lessonsToSchedule[prev.lessonIdx];
+        const prevEntries = popped?.entries || [];
+        
+        // REVERSE last applied changes
+        for (const e of prevEntries) {
+          const slot = activeSlots.find(s => s.id === e.timeSlotId)!;
+          classBusy.delete(`${e.classId}_${e.timeSlotId}`);
+          teacherBusy.delete(`${e.teacherId}_${e.timeSlotId}`);
+          roomBusy.delete(`${e.roomId}_${e.timeSlotId}`);
+          const cdKey = `${e.classId}_${slot.dayOfWeek}`;
+          const sdKey = `${e.classId}_${e.subjectId}_${slot.dayOfWeek}`;
+          classDailyCount.set(cdKey, (classDailyCount.get(cdKey) || 1) - 1);
+          subjectDailyCount.set(sdKey, (subjectDailyCount.get(sdKey) || 1) - 1);
+        }
+      }
+    }
   }
 
-  // Start the search
-  const success = solve(0);
+  const success = finalSchedule.length >= lessonsToSchedule.length;
+  console.log(`[CSP] Finished. Success: ${success}, Steps: ${steps}, Time: ${Date.now() - startTime}ms`);
 
-  if (currentSchedule.length > 0) {
-    await storage.createScheduleEntriesBulk(currentSchedule);
+  if (finalSchedule.length > 0) {
+    const toCreate = stack.flatMap(s => s.entries);
+    await storage.createScheduleEntriesBulk(toCreate);
   }
 
   return {
     message: success 
       ? "Barcha darslar CSP algoritmi orqali 100% muvaffaqiyatli joylashtirildi!" 
-      : "Ba'zi darslarni joylashtirib bo'lmadi (ziddiyatlar mavjud).",
-    count: currentSchedule.length,
-    coverage: Math.round((currentSchedule.length / lessonsToSchedule.length) * 100),
-    success
+      : `Ba'zi darslarni joylashtirib bo'lmadi. ${finalSchedule.length}/${lessonsToSchedule.length} ta dars tayyor.`,
+    count: finalSchedule.length,
+    coverage: Math.round((finalSchedule.length / lessonsToSchedule.length) * 100),
+    success,
+    stats: { steps, timeMs: Date.now() - startTime }
   };
 }
 
