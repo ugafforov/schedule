@@ -1,0 +1,138 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - button [ref=e7] [cursor=pointer]:
+            - img
+          - generic [ref=e8]:
+            - img [ref=e10]
+            - generic [ref=e15]:
+              - paragraph [ref=e16]: Maktab Dars Jadvali
+              - paragraph [ref=e17]: Xush kelibsiz, Admin User
+        - generic [ref=e18]:
+          - generic [ref=e21]: Online
+          - button "Yuklab olish" [ref=e22] [cursor=pointer]:
+            - img
+            - generic [ref=e23]: Yuklab olish
+          - generic [ref=e24]:
+            - generic [ref=e26]: AU
+            - generic [ref=e27]:
+              - paragraph [ref=e28]: Admin User
+              - paragraph [ref=e29]: Administrator
+    - main [ref=e31]:
+      - generic [ref=e32]:
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - heading "Bosh sahifa" [level=1] [ref=e35]
+            - paragraph [ref=e36]: Chorshanba, 6 May, 2026
+          - button "Jadval yaratish" [ref=e37] [cursor=pointer]:
+            - img
+            - text: Jadval yaratish
+        - generic [ref=e38]:
+          - button "Sinflar" [ref=e39] [cursor=pointer]:
+            - generic [ref=e40]:
+              - img [ref=e42]
+              - img [ref=e45]
+            - paragraph [ref=e49]: Sinflar
+          - button "O'qituvchilar" [ref=e50] [cursor=pointer]:
+            - generic [ref=e51]:
+              - img [ref=e53]
+              - img [ref=e58]
+            - paragraph [ref=e62]: O'qituvchilar
+          - button "Fanlar" [ref=e63] [cursor=pointer]:
+            - generic [ref=e64]:
+              - img [ref=e66]
+              - img [ref=e68]
+            - paragraph [ref=e72]: Fanlar
+          - button "Xonalar" [ref=e73] [cursor=pointer]:
+            - generic [ref=e74]:
+              - img [ref=e76]
+              - img [ref=e79]
+            - paragraph [ref=e83]: Xonalar
+        - generic [ref=e84]:
+          - generic [ref=e86]:
+            - generic [ref=e88]: Tezkor amallar
+            - generic [ref=e90]:
+              - button "Jadval yaratish Avtomatik dars jadvalini yarating" [ref=e91] [cursor=pointer]:
+                - img [ref=e93]
+                - generic [ref=e96]:
+                  - paragraph [ref=e97]: Jadval yaratish
+                  - paragraph [ref=e98]: Avtomatik dars jadvalini yarating
+              - button "O'qituvchi qo'shish Yangi o'qituvchini ro'yxatga olish" [ref=e99] [cursor=pointer]:
+                - img [ref=e101]
+                - generic [ref=e106]:
+                  - paragraph [ref=e107]: O'qituvchi qo'shish
+                  - paragraph [ref=e108]: Yangi o'qituvchini ro'yxatga olish
+              - button "Sinf qo'shish Yangi sinf yaratish" [ref=e109] [cursor=pointer]:
+                - img [ref=e111]
+                - generic [ref=e114]:
+                  - paragraph [ref=e115]: Sinf qo'shish
+                  - paragraph [ref=e116]: Yangi sinf yaratish
+              - button "Fan qo'shish Yangi fan qo'shish" [ref=e117] [cursor=pointer]:
+                - img [ref=e119]
+                - generic [ref=e121]:
+                  - paragraph [ref=e122]: Fan qo'shish
+                  - paragraph [ref=e123]: Yangi fan qo'shish
+          - generic [ref=e124]:
+            - generic [ref=e127]:
+              - img [ref=e128]
+              - text: Jadval ziddiyatlari
+            - generic [ref=e132]:
+              - generic [ref=e134]:
+                - img [ref=e135]
+                - text: Tizim holati
+              - generic [ref=e138]:
+                - button "O'qituvchilar ..." [ref=e139] [cursor=pointer]:
+                  - generic [ref=e140]:
+                    - img [ref=e142]
+                    - generic [ref=e147]: O'qituvchilar
+                  - generic [ref=e148]:
+                    - generic [ref=e149]: ...
+                    - img [ref=e150]
+                - button "Sinflar ..." [ref=e152] [cursor=pointer]:
+                  - generic [ref=e153]:
+                    - img [ref=e155]
+                    - generic [ref=e158]: Sinflar
+                  - generic [ref=e159]:
+                    - generic [ref=e160]: ...
+                    - img [ref=e161]
+                - button "Fanlar ..." [ref=e163] [cursor=pointer]:
+                  - generic [ref=e164]:
+                    - img [ref=e166]
+                    - generic [ref=e168]: Fanlar
+                  - generic [ref=e169]:
+                    - generic [ref=e170]: ...
+                    - img [ref=e171]
+                - button "Xonalar ..." [ref=e173] [cursor=pointer]:
+                  - generic [ref=e174]:
+                    - img [ref=e176]
+                    - generic [ref=e179]: Xonalar
+                  - generic [ref=e180]:
+                    - generic [ref=e181]: ...
+                    - img [ref=e182]
+            - generic [ref=e184]:
+              - generic [ref=e186]:
+                - img [ref=e187]
+                - text: Dars vaqtlari
+              - generic [ref=e191]:
+                - generic [ref=e192]:
+                  - generic [ref=e193]: 1-dars
+                  - generic [ref=e194]: 08:00 – 08:45
+                - generic [ref=e195]:
+                  - generic [ref=e196]: 2-dars
+                  - generic [ref=e197]: 09:00 – 09:45
+                - generic [ref=e198]:
+                  - generic [ref=e199]: 3-dars
+                  - generic [ref=e200]: 10:00 – 10:45
+                - generic [ref=e201]:
+                  - generic [ref=e202]: 4-dars
+                  - generic [ref=e203]: 11:00 – 11:45
+                - generic [ref=e204]:
+                  - generic [ref=e205]: 5-dars
+                  - generic [ref=e206]: 12:00 – 12:45
+                - generic [ref=e207]:
+                  - generic [ref=e208]: 6-dars
+                  - generic [ref=e209]: 13:00 – 13:45

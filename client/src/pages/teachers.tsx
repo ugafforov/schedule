@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,26 +7,27 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, Users, Phone, BookOpen, X, Clock, CalendarX, Zap, LayoutGrid, List, Wand2, CheckCircle2, AlertCircle, ChevronRight } from "lucide-react";
+import { 
+  Plus, Search, Edit, Trash2, Users, Phone, BookOpen, X, Clock, 
+  CalendarX, Zap, LayoutGrid, List, ChevronRight, FileSpreadsheet 
+} from "lucide-react";
 
 import { apiRequest } from "@/lib/queryClient";
-import type { Teacher, Subject } from "@shared/schema";
+import type { Teacher, Subject, TimeSlot } from "@shared/schema";
 import { InlineEdit } from "@/components/ui/inline-edit";
 
 // Sub-components
 import { DeleteConfirmDialog } from "@/components/teachers/delete-confirm-dialog";
-import { TeacherSubjectDialog } from "@/components/teachers/subject-dialog";
 import { BulkAddTeachers } from "@/components/teachers/bulk-add-dialog";
+import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
 
-const CURRICULUM_MAX_HOURS = 24;
 const DAYS = ["Du", "Se", "Ch", "Pa", "Ju"];
 const PERIODS = [1, 2, 3, 4, 5, 6];
-const PERIOD_TIMES = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00"];
 
 interface TeacherFormData {
   firstName: string; lastName: string; department: string;
   specialization: string; phone: string; maxHoursPerWeek: number; subjectIds: number[];
-  gradeLevel: string; // "primary" (1-4), "high" (5-11) yoki "primary,high" (barcha sinflar)
+  gradeLevel: string;
 }
 
 const EMPTY_FORM: TeacherFormData = {
@@ -50,22 +51,440 @@ function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; ti
   );
 }
 
+function UnavailabilityDialog({ 
+  open, 
+  onClose, 
+  teacher, 
+  onSave,
+  timeSlots
+}: { 
+  open: boolean; 
+  onClose: () => void; 
+  teacher: Teacher | null; 
+  onSave: (tid: number, slots: any[]) => void;
+  timeSlots: TimeSlot[];
+}) {
+  const [localSlots, setLocalSlots] = useState<any[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragAction, setDragAction] = useState<"block" | "unblock" | null>(null);
+
+  // Sync local state when teacher changes or dialog opens
+  useEffect(() => {
+    if (open && teacher) {
+      setLocalSlots((teacher as any).unavailability || []);
+    }
+  }, [open, teacher]);
+
+  if (!teacher) return null;
+
+  const isSlotBlocked = (d: number, p: number) => 
+    localSlots.some(s => Number(s.dayOfWeek) === d && Number(s.periodNumber) === p);
+
+  const toggleSlotLocally = (d: number, p: number, forceAction?: "block" | "unblock") => {
+    setLocalSlots(prev => {
+      const exists = prev.some(s => Number(s.dayOfWeek) === d && Number(s.periodNumber) === p);
+      const shouldBlock = forceAction ? forceAction === "block" : !exists;
+      
+      if (shouldBlock && !exists) return [...prev, { dayOfWeek: d, periodNumber: p }];
+      if (!shouldBlock && exists) return prev.filter(s => !(Number(s.dayOfWeek) === d && Number(s.periodNumber) === p));
+      return prev;
+    });
+  };
+
+  const handleMouseDown = (d: number, p: number) => {
+    const blocked = isSlotBlocked(d, p);
+    const action = blocked ? "unblock" : "block";
+    setIsDragging(true);
+    setDragAction(action);
+    toggleSlotLocally(d, p, action);
+  };
+
+  const handleMouseEnter = (d: number, p: number) => {
+    if (isDragging && dragAction) {
+      toggleSlotLocally(d, p, dragAction);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (isDragging) {
+      setIsDragging(false);
+      setDragAction(null);
+      // Sync to parent on drag end
+      onSave(teacher.id, localSlots);
+    }
+  };
+
+  const handleBulkToggle = (type: "day" | "period", index: number) => {
+    let slotsToToggle = type === "day" 
+      ? PERIODS.map(p => ({ dayOfWeek: index, periodNumber: p }))
+      : [1, 2, 3, 4, 5].map(d => ({ dayOfWeek: d, periodNumber: index }));
+
+    const allBlocked = slotsToToggle.every(s => isSlotBlocked(s.dayOfWeek, s.periodNumber));
+    const action = allBlocked ? "unblock" : "block";
+
+    setLocalSlots(prev => {
+      let next = [...prev];
+      if (action === "unblock") {
+        next = next.filter(u => !slotsToToggle.some(s => Number(u.dayOfWeek) === s.dayOfWeek && Number(u.periodNumber) === s.periodNumber));
+      } else {
+        slotsToToggle.forEach(s => {
+          if (!next.some(u => Number(u.dayOfWeek) === s.dayOfWeek && Number(u.periodNumber) === s.periodNumber)) {
+            next.push(s);
+          }
+        });
+      }
+      // Sync immediately for bulk actions
+      onSave(teacher.id, next);
+      return next;
+    });
+  };
+
+  const getPeriodTime = (p: number) => {
+    const slot = timeSlots.find(s => s.periodNumber === p && !s.isBreak);
+    return slot ? `${slot.startTime?.slice(0, 5)}–${slot.endTime?.slice(0, 5)}` : "";
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md select-none" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <CalendarX className="h-6 w-6 text-red-500" />
+            Bandlik cheklovlari
+          </DialogTitle>
+          <p className="text-sm text-gray-500 font-medium">{teacher.lastName} {teacher.firstName}</p>
+        </DialogHeader>
+        
+        <div className="py-6">
+          <div className="grid grid-cols-[95px_repeat(5,1fr)] gap-2">
+            <div />
+            {DAYS.map((day, dIdx) => (
+              <button 
+                key={day} 
+                type="button"
+                onClick={() => handleBulkToggle("day", dIdx + 1)}
+                className="h-9 flex items-center justify-center font-bold text-[11px] text-gray-400 hover:text-blue-600 hover:bg-blue-50 uppercase tracking-widest bg-gray-50/50 rounded-t-xl transition-all cursor-pointer border border-transparent hover:border-blue-100"
+              >
+                {day}
+              </button>
+            ))}
+
+            {PERIODS.map(period => (
+              <Fragment key={period}>
+                <button 
+                  type="button"
+                  onClick={() => handleBulkToggle("period", period)}
+                  className="h-14 flex flex-col justify-center pr-4 border-r-2 border-gray-100 text-right hover:bg-blue-50 transition-all cursor-pointer group rounded-l-xl"
+                >
+                  <span className="font-bold text-[11px] text-gray-500 group-hover:text-blue-600 uppercase tracking-tighter leading-none">
+                    {period}-soat
+                  </span>
+                  <span className="text-[10px] text-gray-300 group-hover:text-blue-400 font-medium mt-1 leading-none">
+                    {getPeriodTime(period)}
+                  </span>
+                </button>
+                {DAYS.map((_, dIdx) => {
+                  const dayNum = dIdx + 1;
+                  const blocked = isSlotBlocked(dayNum, period);
+                  return (
+                    <div key={dIdx} className="h-14 flex items-center justify-center p-1">
+                      <div
+                        onMouseDown={() => handleMouseDown(dayNum, period)}
+                        onMouseEnter={() => handleMouseEnter(dayNum, period)}
+                        className={`w-full h-full rounded-xl border-2 transition-all duration-150 cursor-pointer ${
+                          blocked 
+                            ? "bg-red-500 border-red-600 shadow-lg shadow-red-200 ring-2 ring-red-100 scale-[0.98]" 
+                            : "bg-gray-50 border-gray-100 hover:border-blue-300 hover:bg-white hover:scale-105"
+                        }`}
+                      />
+                    </div>
+                  );
+                })}
+              </Fragment>
+            ))}
+          </div>
+          
+          <div className="mt-8 flex gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 items-center justify-center">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-lg bg-red-500 border-2 border-red-600" />
+              <span className="text-[11px] font-bold text-gray-600 uppercase">Taqiqlangan</span>
+            </div>
+            <div className="w-px h-4 bg-gray-200" />
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded-lg bg-white border-2 border-gray-200" />
+              <span className="text-[11px] font-bold text-gray-600 uppercase">Ruxsat etilgan</span>
+            </div>
+          </div>
+          
+          <div className="mt-4 space-y-1">
+            <p className="text-[10px] text-gray-400 text-center italic">
+              * Sichqonchani bosib turib surish — ko'p kataklarni tezkor belgilash
+            </p>
+            <p className="text-[10px] text-gray-400 text-center italic">
+              * Kun nomi yoki soat raqami ustiga bosish — to'liq qator/ustunni o'zgartirish
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button onClick={onClose} className="w-full bg-blue-600 hover:bg-blue-700 h-11 text-base font-bold shadow-xl shadow-blue-100 rounded-xl">Tayyor</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TeacherCard({ 
+  teacher, 
+  subjects, 
+  onEdit, 
+  onDelete, 
+  onOpenUnavail,
+  onUpdateField 
+}: { 
+  teacher: Teacher; 
+  subjects: Subject[]; 
+  onEdit: (t: Teacher) => void; 
+  onDelete: (id: number) => void; 
+  onOpenUnavail: (t: Teacher) => void;
+  onUpdateField: (id: number, field: string, value: any) => void;
+}) {
+  const teacherUnavail = (teacher as any).unavailability || [];
+  const teacherSubs = (teacher as any).teacherSubjects || [];
+
+  return (
+    <Card className="group hover:shadow-md transition-all duration-300 border-gray-100 rounded-2xl overflow-hidden bg-white">
+      <div className="p-4 space-y-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold shadow-sm flex-shrink-0">
+              {teacher.firstName[0]}{teacher.lastName[0]}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <InlineEdit
+                  value={`${teacher.lastName} ${teacher.firstName}`}
+                  onSave={(val) => {
+                    const parts = val.split(" ");
+                    onUpdateField(teacher.id, "lastName", parts[0] || "");
+                    onUpdateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
+                  }}
+                  className="font-bold text-gray-900 text-sm truncate"
+                />
+              </div>
+              <InlineEdit
+                value={teacher.specialization || "Mutaxassislik..."}
+                onSave={(val) => onUpdateField(teacher.id, "specialization", val)}
+                className="text-xs text-gray-500 truncate block"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-blue-600" onClick={() => onEdit(teacher)}>
+              <Edit className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-gray-400 hover:text-red-600" onClick={() => onDelete(teacher.id)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="secondary" className="bg-gray-50 text-gray-500 border-gray-100 px-1.5 py-0 text-[10px] font-mono">
+            {teacher.employeeId}
+          </Badge>
+          {teacher.department && (
+            <Badge variant="outline" className="text-[10px] border-blue-50 text-blue-500 bg-blue-50/30">
+              {teacher.department}
+            </Badge>
+          )}
+          {(teacher as any).gradeLevel && (
+            <Badge variant="outline" className="text-[10px] border-purple-50 text-purple-500 bg-purple-50/30">
+              {(teacher as any).gradeLevel === "primary" ? "1-4 sinf" : (teacher as any).gradeLevel === "high" ? "5-11 sinf" : "Barcha sinf"}
+            </Badge>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 py-2 border-y border-gray-50">
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            <Phone className="h-3 w-3 text-gray-400" />
+            <InlineEdit
+              value={teacher.phone || "Tel..."}
+              onSave={(val) => onUpdateField(teacher.id, "phone", val)}
+              className="truncate"
+            />
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-600 justify-end">
+            <Clock className="h-3 w-3 text-blue-400" />
+            <InlineEdit
+              value={teacher.maxHoursPerWeek || 30}
+              onSave={(val) => onUpdateField(teacher.id, "maxHoursPerWeek", parseInt(val) || 30)}
+              type="number"
+              className="font-bold text-gray-900 w-8"
+            />
+            <span>soat</span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Fanlar</span>
+            <span className="text-[10px] text-gray-400">{teacherSubs.length} ta</span>
+          </div>
+          <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto pr-1">
+            {teacherSubs.length > 0 ? (
+              teacherSubs.map((ts: any) => {
+                const sub = subjects.find(s => s.id === ts.subjectId);
+                return (
+                  <Badge key={ts.id} variant="outline" className="text-[9px] py-0 px-1.5 border-gray-100 text-gray-600" style={{ borderLeftColor: sub?.color, borderLeftWidth: '2px' }}>
+                    {sub?.name}
+                  </Badge>
+                );
+              })
+            ) : (
+              <span className="text-[10px] text-gray-300 italic">Fan yo'q</span>
+            )}
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <button 
+            onClick={() => onOpenUnavail(teacher)}
+            className="w-full flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider hover:text-gray-600 transition-colors bg-gray-50/50 hover:bg-gray-100 p-2 rounded-lg border border-gray-100"
+          >
+            <div className="flex items-center gap-2">
+              <CalendarX className="h-3.5 w-3.5 text-red-400" />
+              <span>Bandlik cheklovlari</span>
+            </div>
+            <div className="flex items-center gap-1">
+              {teacherUnavail.length > 0 && (
+                <span className="bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full text-[9px]">{teacherUnavail.length} ta</span>
+              )}
+              <ChevronRight className="h-3 w-3" />
+            </div>
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function TeacherRow({ 
+  teacher, 
+  subjects, 
+  onEdit, 
+  onDelete, 
+  onOpenUnavail,
+  onUpdateField 
+}: { 
+  teacher: Teacher; 
+  subjects: Subject[]; 
+  onEdit: (t: Teacher) => void; 
+  onDelete: (id: number) => void; 
+  onOpenUnavail: (t: Teacher) => void;
+  onUpdateField: (id: number, field: string, value: any) => void;
+}) {
+  const teacherSubs = (teacher as any).teacherSubjects || [];
+  const teacherUnavail = (teacher as any).unavailability || [];
+
+  return (
+    <div className="group grid grid-cols-[1.5fr_1fr_1fr_150px_100px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
+          {teacher.firstName[0]}{teacher.lastName[0]}
+        </div>
+        <div className="min-w-0">
+          <InlineEdit
+            value={`${teacher.lastName} ${teacher.firstName}`}
+            onSave={(val) => {
+              const parts = val.split(" ");
+              onUpdateField(teacher.id, "lastName", parts[0] || "");
+              onUpdateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
+            }}
+            className="font-semibold text-gray-900 text-sm truncate"
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-gray-400 font-mono">{teacher.employeeId}</span>
+            <InlineEdit
+              value={teacher.specialization || "Mutaxassislik..."}
+              onSave={(val) => onUpdateField(teacher.id, "specialization", val)}
+              className="text-[10px] text-gray-500 truncate"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="text-sm text-gray-600 truncate">
+        {teacher.department || "—"}
+      </div>
+
+      <div className="flex flex-wrap gap-1 max-h-8 overflow-hidden">
+        {teacherSubs.length > 0 ? (
+          teacherSubs.slice(0, 3).map((ts: any) => {
+            const sub = subjects.find(s => s.id === ts.subjectId);
+            return (
+              <Badge key={ts.id} variant="outline" className="text-[9px] py-0 px-1 border-gray-100 text-gray-500 whitespace-nowrap">
+                {sub?.name}
+              </Badge>
+            );
+          })
+        ) : (
+          <span className="text-[10px] text-gray-300 italic">Biriktirilmagan</span>
+        )}
+        {teacherSubs.length > 3 && <span className="text-[9px] text-gray-400">+{teacherSubs.length - 3}</span>}
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+          <Clock className="h-3 w-3 text-blue-400" />
+          <InlineEdit
+            value={teacher.maxHoursPerWeek || 30}
+            onSave={(val) => onUpdateField(teacher.id, "maxHoursPerWeek", parseInt(val) || 30)}
+            type="number"
+            className="font-bold w-6"
+          />
+        </div>
+        <button 
+          onClick={() => onOpenUnavail(teacher)}
+          className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-red-500 transition-colors"
+          title="Bandlik cheklovlarini boshqarish"
+        >
+          <CalendarX className={`h-3 w-3 ${teacherUnavail.length > 0 ? 'text-red-400' : 'text-gray-300'}`} />
+          <span className="font-medium">{teacherUnavail.length}</span>
+          <ChevronRight className="h-2.5 w-2.5" />
+        </button>
+      </div>
+
+      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-blue-600" onClick={() => onEdit(teacher)}>
+          <Edit className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-600" onClick={() => onDelete(teacher.id)}>
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function Teachers() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"info" | "unavail">("info");
+  const [excelImportOpen, setExcelImportOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
   const [formData, setFormData] = useState<TeacherFormData>(EMPTY_FORM);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [clearing, setClearing] = useState(false);
-  const [view, setView] = useState<"grid" | "list">("grid");
+  const [view, setView] = useState<"grid" | "list">("list");
+  const [unavailTeacher, setUnavailTeacher] = useState<Teacher | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: teachers = [], isLoading } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
   const { data: subjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
+  const { data: timeSlots = [] } = useQuery<TimeSlot[]>({ queryKey: ["/api/time-slots"] });
 
   // Filtered teachers
   const filtered = teachers.filter(t => {
@@ -131,11 +550,29 @@ export default function Teachers() {
   });
 
   const updateUnavailabilityMutation = useMutation({
-    mutationFn: ({ teacherId, unavailability }: { teacherId: number; unavailability: any[] }) =>
-      apiRequest("POST", `/api/teachers/${teacherId}/unavailability`, { unavailability }),
-    onSuccess: () => {
+    mutationFn: ({ teacherId, slots }: { teacherId: number; slots: any[] }) =>
+      apiRequest("POST", `/api/teachers/${teacherId}/unavailability`, { slots }),
+    onMutate: async ({ teacherId, slots }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/teachers"] });
+      const previousTeachers = queryClient.getQueryData<Teacher[]>(["/api/teachers"]);
+      if (previousTeachers) {
+        queryClient.setQueryData<Teacher[]>(["/api/teachers"], 
+          previousTeachers.map(t => t.id === teacherId 
+            ? { ...t, unavailability: slots } 
+            : t
+          )
+        );
+      }
+      return { previousTeachers };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousTeachers) {
+        queryClient.setQueryData(["/api/teachers"], context.previousTeachers);
+      }
+      toast({ title: "Xatolik", description: "Saqlab bo'lmadi", variant: "destructive" });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
-      toast({ title: "Muvaffaqiyat", description: "Bandlik ma'lumotlari yangilandi" });
     },
   });
 
@@ -147,36 +584,25 @@ export default function Teachers() {
 
   const handleEdit = (t: Teacher) => {
     setEditing(t);
-    // teacherSubjects ni subjectId lariga o'tkazish
     const subjectIds = (t as any).teacherSubjects?.map((ts: any) => ts.subjectId) || [];
     setFormData({
-      firstName: t.firstName,
-      lastName: t.lastName,
-      department: t.department || "",
-      specialization: t.specialization || "",
-      phone: t.phone || "",
-      maxHoursPerWeek: t.maxHoursPerWeek || 30,
-      subjectIds,
-      gradeLevel: (t as any).gradeLevel || "high",
+      firstName: t.firstName, lastName: t.lastName, department: t.department || "",
+      specialization: t.specialization || "", phone: t.phone || "",
+      maxHoursPerWeek: t.maxHoursPerWeek || 30, subjectIds, gradeLevel: (t as any).gradeLevel || "high",
     });
     setOpen(true);
   };
 
-  const toggleUnavailability = (teacherId: number, day: number, period: number) => {
-    const teacher = teachers.find(t => t.id === teacherId);
-    if (!teacher) return;
-    const current = (teacher as any).unavailability || [];
-    const exists = current.find((u: any) => u.dayOfWeek === day && u.periodNumber === period);
-    const updated = exists
-      ? current.filter((u: any) => !(u.dayOfWeek === day && u.periodNumber === period))
-      : [...current, { dayOfWeek: day, periodNumber: period }];
-    updateUnavailabilityMutation.mutate({ teacherId, unavailability: updated });
+  const updateUnavailability = (teacherId: number, slots: any[]) => {
+    const formattedSlots = slots.map((s: any) => ({
+      dayOfWeek: Number(s.dayOfWeek),
+      periodNumber: Number(s.periodNumber)
+    }));
+    updateUnavailabilityMutation.mutate({ teacherId, slots: formattedSlots });
   };
 
-  const updateField = (id: number, field: string, value: string | number) => {
-    const teacher = teachers.find(t => t.id === id);
-    if (!teacher) return;
-    updateMutation.mutate({ id, data: { ...teacher, [field]: value } });
+  const updateField = (id: number, field: string, value: any) => {
+    updateMutation.mutate({ id, data: { [field]: value } });
   };
 
   return (
@@ -189,11 +615,14 @@ export default function Teachers() {
         </div>
         <div className="flex items-center gap-2">
           {teachers.length > 0 && (
-            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setClearing(true)}>
+            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100" onClick={() => setClearing(true)}>
               <Trash2 className="h-4 w-4 mr-1.5" /> Hammasini o'chirish
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)} className="border-blue-200 text-blue-700 hover:bg-blue-50">
+          <Button variant="outline" size="sm" onClick={() => setExcelImportOpen(true)} className="border-emerald-100 text-emerald-700 hover:bg-emerald-50">
+            <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel Import
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)} className="border-blue-100 text-blue-700 hover:bg-blue-50">
             <Zap className="h-4 w-4 mr-1.5 text-amber-500" /> Ko'p qo'shish
           </Button>
           <Button size="sm" onClick={() => { setEditing(null); setFormData(EMPTY_FORM); setOpen(true); }} className="bg-blue-600 hover:bg-blue-700 shadow-sm">
@@ -204,50 +633,50 @@ export default function Teachers() {
 
       {/* Stats row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-sm border-gray-100">
+        <Card className="shadow-sm border-gray-100 bg-white">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
               <Users className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500">Jami o'qituvchilar</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Jami o'qituvchilar</p>
               <p className="text-xl font-bold text-gray-900">{teachers.length}</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-gray-100">
+        <Card className="shadow-sm border-gray-100 bg-white">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
               <BookOpen className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500">O'rtacha dars soati</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">O'rtacha dars soati</p>
               <p className="text-xl font-bold text-gray-900">
                 {teachers.length ? Math.round(teachers.reduce((s, t) => s + (t.maxHoursPerWeek || 0), 0) / teachers.length) : 0} s.
               </p>
             </div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-gray-100">
+        <Card className="shadow-sm border-gray-100 bg-white">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600">
               <Clock className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500">Cheklov o'rnatilgan</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Cheklov o'rnatilgan</p>
               <p className="text-xl font-bold text-gray-900">
                 {teachers.filter(t => ((t as any).unavailability || []).length > 0).length} ta
               </p>
             </div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm border-gray-100">
+        <Card className="shadow-sm border-gray-100 bg-white">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
               <LayoutGrid className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-gray-500">Kafedralar</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Kafedralar</p>
               <p className="text-xl font-bold text-gray-900">
                 {new Set(teachers.map(t => t.department).filter(Boolean)).size} ta
               </p>
@@ -257,43 +686,45 @@ export default function Teachers() {
       </div>
 
       {/* Filters and View controls */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input 
             placeholder="F.I.O yoki kafedra bo'yicha qidirish..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-gray-50 border-gray-100 focus:bg-white transition-all"
+            className="pl-9 h-9 text-sm bg-gray-50 border-transparent focus:bg-white focus:border-blue-200 transition-all rounded-lg"
           />
         </div>
         <div className="flex items-center gap-2 self-end">
-          <div className="flex items-center bg-gray-100 p-1 rounded-lg">
+          <div className="flex items-center bg-gray-50 p-1 rounded-lg border border-gray-100">
             <Button 
               variant={view === "grid" ? "secondary" : "ghost"} 
               size="sm" 
-              className={`h-7 px-3 ${view === "grid" ? "bg-white shadow-sm" : "text-gray-500"}`}
+              className={`h-7 w-8 p-0 ${view === "grid" ? "bg-white shadow-sm text-blue-600" : "text-gray-500"}`}
               onClick={() => setView("grid")}
+              title="Grid ko'rinishi"
             >
-              <LayoutGrid className="h-4 w-4 mr-1.5" /> Grid
+              <LayoutGrid className="h-3.5 w-3.5" />
             </Button>
             <Button 
               variant={view === "list" ? "secondary" : "ghost"} 
               size="sm" 
-              className={`h-7 px-3 ${view === "list" ? "bg-white shadow-sm" : "text-gray-500"}`}
+              className={`h-7 w-8 p-0 ${view === "list" ? "bg-white shadow-sm text-blue-600" : "text-gray-500"}`}
               onClick={() => setView("list")}
+              title="Ro'yxat ko'rinishi"
             >
-              <List className="h-4 w-4 mr-1.5" /> List
+              <List className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Main content grid */}
+      {/* Main content */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array(6).fill(0).map((_, i) => (
-            <div key={i} className="h-64 bg-gray-50 animate-pulse rounded-2xl border border-gray-100" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {Array(8).fill(0).map((_, i) => (
+            <div key={i} className="h-48 bg-gray-50 animate-pulse rounded-2xl border border-gray-100" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -306,124 +737,42 @@ export default function Teachers() {
           <Button variant="outline" className="mt-6" onClick={() => setSearch("")}>Barcha o'qituvchilar</Button>
         </div>
       ) : (
-        <div className={view === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
-          {filtered.map((teacher) => (
-            <Card key={teacher.id} className="group hover:shadow-md transition-all duration-300 border-gray-100 rounded-2xl overflow-hidden relative">
-              <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(teacher)}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={() => setDeletingId(teacher.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <CardHeader className="pb-3">
-                <div className="flex items-start gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-blue-100 shadow-lg flex-shrink-0">
-                    {teacher.firstName[0]}{teacher.lastName[0]}
-                  </div>
-                  <div className="min-w-0 pr-10">
-                    <CardTitle className="text-lg font-bold text-gray-900 truncate flex items-center gap-2">
-                      <InlineEdit
-                        value={`${teacher.lastName} ${teacher.firstName}`}
-                        onSave={(val) => {
-                          const parts = val.split(" ");
-                          updateField(teacher.id, "lastName", parts[0] || "");
-                          updateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
-                        }}
-                        className="truncate"
-                      />
-                    </CardTitle>
-                    <p className="text-sm text-gray-500 font-medium truncate">{teacher.specialization || "Mutaxassislik kiritilmagan"}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-600 border-none px-2 py-0 text-[10px] font-bold uppercase tracking-wider">
-                        {teacher.employeeId}
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px] border-blue-100 text-blue-600 bg-blue-50/50">
-                        {teacher.department}
-                      </Badge>
-                      {(teacher as any).gradeLevel && (
-                        <Badge variant="outline" className="text-[10px] border-purple-100 text-purple-600 bg-purple-50/50">
-                          {(teacher as any).gradeLevel === "primary" ? "1-4 sinf" : (teacher as any).gradeLevel === "high" ? "5-11 sinf" : "Barcha sinf"}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {/* Contact and Hours */}
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Phone className="h-3.5 w-3.5 text-gray-400" />
-                    {teacher.phone || "Telefon yo'q"}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-3.5 w-3.5 text-blue-500" />
-                    <span className="text-sm font-bold text-gray-900">{teacher.maxHoursPerWeek} soat</span>
-                  </div>
-                </div>
-
-                {/* Subjects */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Fanlar</Label>
-                    <span className="text-[10px] font-medium text-gray-400">{(teacher as any).teacherSubjects?.length || 0} ta</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {((teacher as any).teacherSubjects || []).length > 0 ? (
-                      (teacher as any).teacherSubjects.map((ts: any) => {
-                        const sub = subjects.find(s => s.id === ts.subjectId);
-                        return (
-                          <Badge key={ts.id} variant="outline" className="text-[10px] font-medium transition-colors hover:border-blue-300" style={{ borderColor: `${sub?.color}40`, color: sub?.color }}>
-                            {sub?.name}
-                          </Badge>
-                        );
-                      })
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">Fan biriktirilmagan</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Unavailability grid */}
-                <div className="space-y-2 pt-2 border-t border-gray-50">
-                  <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center justify-between">
-                    O'qituvchi bandligi (Cheklovlar)
-                    <CalendarX className="h-3 w-3" />
-                  </Label>
-                  <div className="flex gap-1.5">
-                    {DAYS.map((day, dIdx) => (
-                      <div key={day} className="flex-1 flex flex-col gap-1">
-                        <span className="text-[9px] font-bold text-gray-400 text-center mb-0.5">{day}</span>
-                        <div className="grid grid-cols-1 gap-1">
-                          {PERIODS.map(period => {
-                            const isBlocked = ((teacher as any).unavailability || []).some((u: any) => u.dayOfWeek === dIdx + 1 && u.periodNumber === period);
-                            return (
-                              <button
-                                key={period}
-                                onClick={() => toggleUnavailability(teacher.id, dIdx + 1, period)}
-                                title={`${day}, ${period}-soat: ${isBlocked ? 'Band (dars qo\'yib bo\'lmaydi)' : 'Bo\'sh (dars qo\'yish mumkin)'}`}
-                                className={`h-4 rounded-sm transition-all border ${
-                                  isBlocked 
-                                    ? "bg-red-500 border-red-600 shadow-sm" 
-                                    : "bg-gray-100 border-gray-200 hover:bg-gray-200"
-                                }`}
-                              />
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[9px] text-gray-400 mt-1 italic">* Qizil kataklar — o'qituvchi dars o'ta olmaydigan vaqtlar</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        view === "grid" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filtered.map((teacher) => (
+              <TeacherCard 
+                key={teacher.id} 
+                teacher={teacher} 
+                subjects={subjects}
+                onEdit={handleEdit}
+                onDelete={id => setDeletingId(id)}
+                onOpenUnavail={setUnavailTeacher}
+                onUpdateField={updateField}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-[1.5fr_1fr_1fr_150px_100px] gap-4 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 bg-gray-50 rounded-xl border border-gray-100">
+              <div>O'qituvchi</div>
+              <div>Kafedra</div>
+              <div>Fanlar</div>
+              <div>Yuklama / Bandlik</div>
+              <div className="text-right">Amallar</div>
+            </div>
+            {filtered.map((teacher) => (
+              <TeacherRow
+                key={teacher.id}
+                teacher={teacher}
+                subjects={subjects}
+                onEdit={handleEdit}
+                onDelete={id => setDeletingId(id)}
+                onOpenUnavail={setUnavailTeacher}
+                onUpdateField={updateField}
+              />
+            ))}
+          </div>
+        )
       )}
 
       {/* MODALS */}
@@ -541,12 +890,27 @@ export default function Teachers() {
         onConfirm={() => clearAllMutation.mutate()}
       />
 
+      <UnavailabilityDialog
+        open={unavailTeacher !== null}
+        onClose={() => setUnavailTeacher(null)}
+        teacher={unavailTeacher ? (teachers.find(t => t.id === unavailTeacher.id) || unavailTeacher) : null}
+        onSave={updateUnavailability}
+        timeSlots={timeSlots}
+      />
+
       <BulkAddTeachers 
         open={bulkOpen} 
         onClose={() => setBulkOpen(false)} 
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/teachers"] })}
         autoGenerateMutation={autoGenerateMutation}
       />
+
+      <ExcelImportDialog 
+        open={excelImportOpen} 
+        onClose={() => setExcelImportOpen(false)} 
+        type="teachers" 
+      />
     </div>
   );
 }
+

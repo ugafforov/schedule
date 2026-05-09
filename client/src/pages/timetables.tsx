@@ -9,8 +9,25 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Wand2, Trash2, ChevronLeft, ChevronRight,
   AlertTriangle, CheckCircle2, Printer, Clock, RefreshCw,
-  BookOpen, Users, DoorOpen, GraduationCap, UserCheck
+  BookOpen, Users, DoorOpen, GraduationCap, UserCheck, GripVertical, FileText, FileSpreadsheet
 } from "lucide-react";
+
+import {
+  DndContext,
+  useDraggable,
+  useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
+
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, Room, TimeSlot, ScheduleEntry } from "@shared/schema";
@@ -35,6 +52,110 @@ function weekLabel(monday: Date): string {
 
 type ViewMode = "class" | "teacher";
 
+// --- Draggable & Droppable Components ---
+
+function DraggableEntry({ 
+  entry, 
+  subject, 
+  room, 
+  teacherName, 
+  className,
+  viewMode,
+  showAllClasses,
+  onEdit,
+  onDelete,
+  isOverlay = false
+}: { 
+  entry: ScheduleEntry; 
+  subject?: Subject; 
+  room?: Room; 
+  teacherName: string;
+  className: string;
+  viewMode: ViewMode;
+  showAllClasses: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  isOverlay?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `entry-${entry.id}`,
+    data: entry
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging && !isOverlay ? 0.4 : 1,
+    zIndex: isOverlay ? 1000 : undefined,
+    borderLeft: `3px solid ${subject?.color || "#3B82F6"}`,
+    backgroundColor: `${subject?.color || "#3B82F6"}15`,
+  };
+
+  const textColor = subject?.color || "#3B82F6";
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-lg p-1.5 cursor-grab active:cursor-grabbing group/cell relative shadow-sm border border-transparent hover:border-blue-200 transition-all ${isOverlay ? 'shadow-lg rotate-1' : ''}`}
+      onClick={(e) => {
+        if (!isDragging) onEdit();
+      }}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1 min-w-0" {...attributes} {...listeners}>
+          <div className="flex items-center gap-1">
+            <GripVertical className="h-2.5 w-2.5 text-gray-400 opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0" />
+            <p className="text-xs font-semibold leading-tight truncate" style={{ color: textColor }}>
+              {subject?.name || "?"}
+            </p>
+          </div>
+          {viewMode === "class" && (showAllClasses
+            ? <p className="text-[10px] text-gray-600 truncate leading-tight mt-0.5">{className}</p>
+            : <p className="text-[10px] text-gray-500 truncate leading-tight mt-0.5">{teacherName}</p>
+          )}
+          {viewMode === "teacher" && (
+            <p className="text-[10px] text-gray-600 truncate font-medium leading-tight mt-0.5">{className}</p>
+          )}
+          <p className="text-[10px] text-gray-400 leading-tight">{room?.roomNumber || ""}</p>
+        </div>
+        {!isOverlay && (
+          <button
+            className="opacity-0 group-hover/cell:opacity-100 text-red-400 hover:text-red-600 transition-opacity p-0.5"
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DroppableCell({ 
+  id, 
+  children,
+  isOverClassName = "bg-blue-50/50"
+}: { 
+  id: string; 
+  children: React.ReactNode;
+  isOverClassName?: string;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <td 
+      ref={setNodeRef} 
+      className={`py-1 px-1 align-top transition-colors ${isOver ? isOverClassName : ""}`}
+    >
+      <div className="space-y-1 min-h-[52px]">
+        {children}
+      </div>
+    </td>
+  );
+}
+
+// --- Main Component ---
+
 export default function Timetables() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("class");
@@ -45,9 +166,18 @@ export default function Timetables() {
   const [editEntry, setEditEntry] = useState<ScheduleEntry | null>(null);
   const [editForm, setEditForm] = useState<{ subjectId: number; teacherId: number; roomId: number } | null>(null);
   const [generatorResult, setGeneratorResult] = useState<any>(null);
+  const [activeDragEntry, setActiveDragEntry] = useState<ScheduleEntry | null>(null);
 
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   const monday = useMemo(() => {
     const m = getMonday(new Date());
@@ -180,6 +310,40 @@ export default function Timetables() {
     },
   });
 
+  const moveEntryMutation = useMutation({
+    mutationFn: async ({ id, timeSlotId }: { id: number; timeSlotId: number }) => {
+      await apiRequest("PATCH", `/api/schedule-entries/${id}`, { timeSlotId });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
+      qc.invalidateQueries({ queryKey: ["/api/schedule-conflicts"] });
+      toast({ title: "Dars ko'chirildi" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Xatolik", description: e.message || "Ko'chirishda xatolik", variant: "destructive" });
+    }
+  });
+
+  const handleDragStart = (event: any) => {
+    const { active } = event;
+    const entry = active.data.current as ScheduleEntry;
+    setActiveDragEntry(entry);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragEntry(null);
+
+    if (over && active.id !== over.id) {
+      const entryId = parseInt(String(active.id).replace('entry-', ''));
+      const slotId = parseInt(String(over.id).replace('slot-', ''));
+      
+      if (!isNaN(entryId) && !isNaN(slotId)) {
+        moveEntryMutation.mutate({ id: entryId, timeSlotId: slotId });
+      }
+    }
+  };
+
   const getSubject = (id: number) => subjects.find(s => s.id === id);
   const getTeacher = (id: number) => teachers.find(t => t.id === id);
   const getRoom = (id: number) => rooms.find(r => r.id === id);
@@ -190,13 +354,78 @@ export default function Timetables() {
     const ln = t.lastName || "";
     return ln ? `${ln} ${fn.charAt(0)}.` : fn || t.employeeId;
   };
-  const teacherFullName = (id: number) => {
-    const t = getTeacher(id);
-    return t ? `${t.firstName} ${t.lastName}`.trim() || t.employeeId : "";
-  };
   const classNameById = (id: number) => classes.find(c => c.id === id)?.name || "";
 
   const showAllClasses = selectedClassId === "all";
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF({ orientation: "landscape" });
+    const tableData: any[][] = [];
+    
+    const headers = ["Dars", ...DAYS];
+
+    periods.forEach((period, pi) => {
+      const row = [`${pi + 1}-dars\n${period.startTime?.slice(0, 5)}–${period.endTime?.slice(0, 5)}`];
+      DAYS.forEach((_, dayIdx) => {
+        const slot = slotMap.get(`${dayIdx + 1}_${period.periodNumber}`);
+        const slotEntries = slot ? entryBySlot.get(slot.id) || [] : [];
+        const cellText = slotEntries.map(e => {
+          const sub = getSubject(e.subjectId)?.name || "";
+          const teacherOrClass = viewMode === "class" ? teacherShortName(e.teacherId) : classNameById(e.classId);
+          const room = getRoom(e.roomId)?.roomNumber || "";
+          return `${sub}\n${teacherOrClass} ${room ? `(${room})` : ""}`;
+        }).join("\n---\n");
+        row.push(cellText);
+      });
+      tableData.push(row);
+    });
+
+    const title = viewMode === "class" 
+      ? (selectedClassId === "all" ? "Barcha sinflar dars jadvali" : `${classNameById(selectedClassId as number)} sinfi dars jadvali`)
+      : (selectedTeacherId ? `${getTeacher(selectedTeacherId)?.firstName} ${getTeacher(selectedTeacherId)?.lastName} dars jadvali` : "Barcha o'qituvchilar dars jadvali");
+
+    doc.setFontSize(16);
+    doc.text(title, 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Hafta: ${weekLabel(monday)}`, 14, 22);
+
+    autoTable(doc, {
+      head: [headers],
+      body: tableData,
+      startY: 28,
+      styles: { fontSize: 8, cellPadding: 2, minCellHeight: 20 },
+      headStyles: { fillColor: [59, 130, 246] }
+    });
+    
+    doc.save(`jadval_${Date.now()}.pdf`);
+  };
+
+  const handleExportExcel = () => {
+    const tableData: any[][] = [];
+    
+    const headers = ["Dars vaqti", ...DAYS];
+    tableData.push(headers);
+
+    periods.forEach((period, pi) => {
+      const row = [`${pi + 1}-dars (${period.startTime?.slice(0, 5)}–${period.endTime?.slice(0, 5)})`];
+      DAYS.forEach((_, dayIdx) => {
+        const slot = slotMap.get(`${dayIdx + 1}_${period.periodNumber}`);
+        const slotEntries = slot ? entryBySlot.get(slot.id) || [] : [];
+        const cellText = slotEntries.map(e => {
+          const sub = getSubject(e.subjectId)?.name || "";
+          const teacherOrClass = viewMode === "class" ? teacherShortName(e.teacherId) : classNameById(e.classId);
+          return `${sub} / ${teacherOrClass}`;
+        }).join(" | ");
+        row.push(cellText);
+      });
+      tableData.push(row);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(tableData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Jadval");
+    XLSX.writeFile(wb, `jadval_${Date.now()}.xlsx`);
+  };
 
   return (
     <div className="p-6 space-y-5 max-w-full">
@@ -207,6 +436,12 @@ export default function Timetables() {
           <p className="text-gray-500 text-sm mt-0.5">Haftalik dars jadvalini boshqarish va yaratish</p>
         </div>
         <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" onClick={handleExportPDF} className="text-red-600 border-red-200 hover:bg-red-50">
+            <FileText className="mr-1.5 h-4 w-4" />PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportExcel} className="text-green-600 border-green-200 hover:bg-green-50">
+            <FileSpreadsheet className="mr-1.5 h-4 w-4" />Excel
+          </Button>
           <Button variant="outline" size="sm" onClick={() => window.print()} className="text-gray-600">
             <Printer className="mr-1.5 h-4 w-4" />Chop etish
           </Button>
@@ -445,89 +680,99 @@ export default function Timetables() {
             </div>
           ) : (
             <div className="overflow-x-auto -mx-2">
-              <table className="w-full min-w-[700px]">
-                <thead>
-                  <tr>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 w-24">Dars</th>
-                    {DAYS.map((day, i) => (
-                      <th key={day} className="text-center py-2 px-1 text-xs font-semibold text-gray-700 w-1/5">
-                        <div>{day}</div>
-                        <div className="text-gray-400 font-normal">{(() => {
-                          const d = new Date(monday);
-                          d.setDate(monday.getDate() + i);
-                          return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
-                        })()}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {periods.map((period, pi) => (
-                    <tr key={period.id} className={pi % 2 === 0 ? "bg-gray-50/50" : "bg-white"}>
-                      <td className="py-2 px-3">
-                        <div className="text-xs font-semibold text-gray-700">{pi + 1}-dars</div>
-                        <div className="text-xs text-gray-400 font-mono">
-                          {period.startTime?.slice(0, 5)}–{period.endTime?.slice(0, 5)}
-                        </div>
-                      </td>
-                      {DAYS.map((_, dayIdx) => {
-                        const dayNum = dayIdx + 1;
-                        const slot = slotMap.get(`${dayNum}_${period.periodNumber}`);
-                        if (!slot) return <td key={dayIdx} className="py-1 px-1" />;
-                        const slotEntries = entryBySlot.get(slot.id) || [];
+              <DndContext 
+                sensors={sensors}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <table className="w-full min-w-[700px]">
+                  <thead>
+                    <tr>
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 w-24">Dars</th>
+                      {DAYS.map((day, i) => (
+                        <th key={day} className="text-center py-2 px-1 text-xs font-semibold text-gray-700 w-1/5">
+                          <div>{day}</div>
+                          <div className="text-gray-400 font-normal">{(() => {
+                            const d = new Date(monday);
+                            d.setDate(monday.getDate() + i);
+                            return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
+                          })()}</div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {periods.map((period, pi) => (
+                      <tr key={period.id} className={pi % 2 === 0 ? "bg-gray-50/50" : "bg-white"}>
+                        <td className="py-2 px-3">
+                          <div className="text-xs font-semibold text-gray-700">{pi + 1}-dars</div>
+                          <div className="text-xs text-gray-400 font-mono">
+                            {period.startTime?.slice(0, 5)}–{period.endTime?.slice(0, 5)}
+                          </div>
+                        </td>
+                        {DAYS.map((_, dayIdx) => {
+                          const dayNum = dayIdx + 1;
+                          const slot = slotMap.get(`${dayNum}_${period.periodNumber}`);
+                          if (!slot) return <td key={dayIdx} className="py-1 px-1" />;
+                          const slotEntries = entryBySlot.get(slot.id) || [];
 
-                        return (
-                          <td key={dayIdx} className="py-1 px-1 align-top">
-                            <div className="space-y-1 min-h-[52px]">
+                          return (
+                            <DroppableCell key={dayIdx} id={`slot-${slot.id}`}>
                               {slotEntries.map(entry => {
                                 const sub = getSubject(entry.subjectId);
                                 const room = getRoom(entry.roomId);
-                                const bgStyle = sub?.color ? `${sub.color}15` : "#3B82F615";
-                                const borderColor = sub?.color || "#3B82F6";
-                                const textColor = sub?.color || "#3B82F6";
-
+                                
                                 return (
-                                  <div
+                                  <DraggableEntry
                                     key={entry.id}
-                                    className="rounded-lg p-1.5 cursor-pointer group/cell relative"
-                                    style={{ backgroundColor: bgStyle, borderLeft: `3px solid ${borderColor}` }}
-                                    onClick={() => {
+                                    entry={entry}
+                                    subject={sub}
+                                    room={room}
+                                    teacherName={teacherShortName(entry.teacherId)}
+                                    className={classNameById(entry.classId)}
+                                    viewMode={viewMode}
+                                    showAllClasses={showAllClasses}
+                                    onEdit={() => {
                                       setEditEntry(entry);
                                       setEditForm({ subjectId: entry.subjectId, teacherId: entry.teacherId, roomId: entry.roomId });
                                     }}
-                                  >
-                                    <p className="text-xs font-semibold leading-tight truncate" style={{ color: textColor }}>
-                                      {sub?.name || "?"}
-                                    </p>
-                                    {/* In class view show teacher; in teacher view show class */}
-                                    {viewMode === "class" && (showAllClasses
-                                      ? <p className="text-xs text-gray-600 truncate">{classNameById(entry.classId)}</p>
-                                      : <p className="text-xs text-gray-500 truncate">{teacherShortName(entry.teacherId)}</p>
-                                    )}
-                                    {viewMode === "teacher" && (
-                                      <p className="text-xs text-gray-600 truncate font-medium">{classNameById(entry.classId)}</p>
-                                    )}
-                                    <p className="text-xs text-gray-400">{room?.roomNumber || ""}</p>
-                                    <button
-                                      className="absolute top-0.5 right-0.5 opacity-0 group-hover/cell:opacity-100 text-red-400 hover:text-red-600 transition-opacity"
-                                      onClick={e => { e.stopPropagation(); deleteEntryMutation.mutate(entry.id); }}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </button>
-                                  </div>
+                                    onDelete={() => deleteEntryMutation.mutate(entry.id)}
+                                  />
                                 );
                               })}
-                              {slotEntries.length === 0 && (
-                                <div className="h-12 rounded-lg border-2 border-dashed border-gray-100 hover:border-blue-200 transition-colors" />
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            </DroppableCell>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                <DragOverlay dropAnimation={{
+                  sideEffects: defaultDropAnimationSideEffects({
+                    styles: {
+                      active: {
+                        opacity: '0.4',
+                      },
+                    },
+                  }),
+                }}>
+                  {activeDragEntry ? (
+                    <DraggableEntry
+                      entry={activeDragEntry}
+                      subject={getSubject(activeDragEntry.subjectId)}
+                      room={getRoom(activeDragEntry.roomId)}
+                      teacherName={teacherShortName(activeDragEntry.teacherId)}
+                      className={classNameById(activeDragEntry.classId)}
+                      viewMode={viewMode}
+                      showAllClasses={showAllClasses}
+                      onEdit={() => {}}
+                      onDelete={() => {}}
+                      isOverlay
+                    />
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
             </div>
           )}
         </CardContent>

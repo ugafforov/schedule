@@ -1,0 +1,236 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list [ref=e354]:
+      - status [ref=e355]:
+        - generic [ref=e357]: Saqlashda xatolik
+        - button [ref=e358] [cursor=pointer]:
+          - img [ref=e359]
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - button [ref=e363] [cursor=pointer]:
+            - img
+          - generic [ref=e7]:
+            - img [ref=e9]
+            - generic [ref=e14]:
+              - paragraph [ref=e15]: Maktab Dars Jadvali
+              - paragraph [ref=e16]: Xush kelibsiz, Admin User
+        - generic [ref=e17]:
+          - generic [ref=e20]: Online
+          - button "Yuklab olish" [ref=e21] [cursor=pointer]:
+            - img
+            - generic [ref=e22]: Yuklab olish
+          - generic [ref=e23]:
+            - generic [ref=e25]: AU
+            - generic [ref=e26]:
+              - paragraph [ref=e27]: Admin User
+              - paragraph [ref=e28]: Administrator
+    - main [ref=e75]:
+      - generic [ref=e268]:
+        - generic [ref=e269]:
+          - heading "Fan biriktirishlar" [level=1] [ref=e270]
+          - paragraph [ref=e271]: Sinfga fan va o'qituvchi biriktirish · O'qituvchi yuki hisobi
+        - generic [ref=e272]:
+          - button "Fan biriktirishlar" [ref=e273] [cursor=pointer]:
+            - img [ref=e274]
+            - text: Fan biriktirishlar
+          - button "Yuk hisobi" [ref=e276] [cursor=pointer]:
+            - img [ref=e277]
+            - text: Yuk hisobi
+        - generic [ref=e279]:
+          - generic [ref=e281]:
+            - generic [ref=e283]:
+              - img [ref=e284]
+              - text: Sinflar
+              - generic [ref=e287]: "11"
+            - generic [ref=e289]:
+              - button "1 1-A" [active] [ref=e290] [cursor=pointer]:
+                - generic [ref=e291]: "1"
+                - generic [ref=e292]: 1-A
+                - img [ref=e293]
+              - button "2 2-A" [ref=e295] [cursor=pointer]:
+                - generic [ref=e296]: "2"
+                - generic [ref=e297]: 2-A
+                - img [ref=e298]
+              - button "3 3-A" [ref=e300] [cursor=pointer]:
+                - generic [ref=e301]: "3"
+                - generic [ref=e302]: 3-A
+                - img [ref=e303]
+              - button "4 4-A" [ref=e305] [cursor=pointer]:
+                - generic [ref=e306]: "4"
+                - generic [ref=e307]: 4-A
+                - img [ref=e308]
+              - button "5 5-A" [ref=e310] [cursor=pointer]:
+                - generic [ref=e311]: "5"
+                - generic [ref=e312]: 5-A
+                - img [ref=e313]
+              - button "6 6-A" [ref=e315] [cursor=pointer]:
+                - generic [ref=e316]: "6"
+                - generic [ref=e317]: 6-A
+                - img [ref=e318]
+              - button "7 7-A" [ref=e320] [cursor=pointer]:
+                - generic [ref=e321]: "7"
+                - generic [ref=e322]: 7-A
+                - img [ref=e323]
+              - button "8 8-A" [ref=e325] [cursor=pointer]:
+                - generic [ref=e326]: "8"
+                - generic [ref=e327]: 8-A
+                - img [ref=e328]
+              - button "9 9-A" [ref=e330] [cursor=pointer]:
+                - generic [ref=e331]: "9"
+                - generic [ref=e332]: 9-A
+                - img [ref=e333]
+              - button "10 10-A" [ref=e335] [cursor=pointer]:
+                - generic [ref=e336]: "10"
+                - generic [ref=e337]: 10-A
+                - img [ref=e338]
+              - button "11 11-A" [ref=e340] [cursor=pointer]:
+                - generic [ref=e341]: "11"
+                - generic [ref=e342]: 11-A
+                - img [ref=e343]
+          - generic [ref=e346]:
+            - generic [ref=e365]:
+              - generic [ref=e366]:
+                - img [ref=e368]
+                - generic [ref=e371]:
+                  - generic [ref=e372]: 1-A
+                  - paragraph [ref=e373]: 1-sinf · 25 o'quvchi
+              - generic [ref=e374]:
+                - generic [ref=e375]:
+                  - img [ref=e376]
+                  - text: "Jami: 21 soat/h"
+                - generic [ref=e379]:
+                  - img [ref=e380]
+                  - text: Xatolik
+                - button "DTS biriktirish" [ref=e382] [cursor=pointer]:
+                  - img
+                  - text: DTS biriktirish
+                - button "Tez tozalash" [ref=e383] [cursor=pointer]:
+                  - img
+                  - text: Tez tozalash
+            - generic [ref=e384]:
+              - generic [ref=e385]:
+                - generic [ref=e386]: Fan
+                - generic [ref=e387]: O'qituvchi
+                - generic [ref=e388]: Soat/hafta
+              - generic [ref=e390]:
+                - generic [ref=e391]:
+                  - combobox [ref=e392] [cursor=pointer]:
+                    - generic:
+                      - generic: Ona tili
+                    - img [ref=e393]
+                  - combobox [ref=e395] [cursor=pointer]:
+                    - img [ref=e396]
+                  - spinbutton [ref=e398]: "4"
+                  - button [ref=e399] [cursor=pointer]:
+                    - img [ref=e400]
+                - generic [ref=e403]:
+                  - combobox [ref=e404] [cursor=pointer]:
+                    - generic:
+                      - generic: O'qish savodxonligi
+                    - img [ref=e405]
+                  - combobox [ref=e407] [cursor=pointer]:
+                    - img [ref=e408]
+                  - spinbutton [ref=e410]: "4"
+                  - button [ref=e411] [cursor=pointer]:
+                    - img [ref=e412]
+                - generic [ref=e415]:
+                  - combobox [ref=e416] [cursor=pointer]:
+                    - generic:
+                      - generic: Chet tili
+                    - img [ref=e417]
+                  - combobox [ref=e419] [cursor=pointer]:
+                    - img [ref=e420]
+                  - spinbutton [ref=e422]: "1"
+                  - button [ref=e423] [cursor=pointer]:
+                    - img [ref=e424]
+                - generic [ref=e427]:
+                  - combobox [ref=e428] [cursor=pointer]:
+                    - generic:
+                      - generic: Tarbiya
+                    - img [ref=e429]
+                  - combobox [ref=e431] [cursor=pointer]:
+                    - img [ref=e432]
+                  - spinbutton [ref=e434]: "1"
+                  - button [ref=e435] [cursor=pointer]:
+                    - img [ref=e436]
+                - generic [ref=e439]:
+                  - combobox [ref=e440] [cursor=pointer]:
+                    - generic:
+                      - generic: Matematika
+                    - img [ref=e441]
+                  - combobox [ref=e443] [cursor=pointer]:
+                    - img [ref=e444]
+                  - spinbutton [ref=e446]: "5"
+                  - button [ref=e447] [cursor=pointer]:
+                    - img [ref=e448]
+                - generic [ref=e451]:
+                  - combobox [ref=e452] [cursor=pointer]:
+                    - generic:
+                      - generic: Informatika va axborot texnologiyalari
+                    - img [ref=e453]
+                  - combobox [ref=e455] [cursor=pointer]:
+                    - img [ref=e456]
+                  - spinbutton [ref=e458]: "1"
+                  - button [ref=e459] [cursor=pointer]:
+                    - img [ref=e460]
+                - generic [ref=e463]:
+                  - combobox [ref=e464] [cursor=pointer]:
+                    - generic:
+                      - generic: Tabiiy fanlar (Science)
+                    - img [ref=e465]
+                  - combobox [ref=e467] [cursor=pointer]:
+                    - img [ref=e468]
+                  - spinbutton [ref=e470]: "1"
+                  - button [ref=e471] [cursor=pointer]:
+                    - img [ref=e472]
+                - generic [ref=e475]:
+                  - combobox [ref=e476] [cursor=pointer]:
+                    - generic:
+                      - generic: Musiqa madaniyati
+                    - img [ref=e477]
+                  - combobox [ref=e479] [cursor=pointer]:
+                    - img [ref=e480]
+                  - spinbutton [ref=e482]: "1"
+                  - button [ref=e483] [cursor=pointer]:
+                    - img [ref=e484]
+                - generic [ref=e487]:
+                  - combobox [ref=e488] [cursor=pointer]:
+                    - generic:
+                      - generic: Tasviriy san'at
+                    - img [ref=e489]
+                  - combobox [ref=e491] [cursor=pointer]:
+                    - img [ref=e492]
+                  - spinbutton [ref=e494]: "1"
+                  - button [ref=e495] [cursor=pointer]:
+                    - img [ref=e496]
+                - generic [ref=e499]:
+                  - combobox [ref=e500] [cursor=pointer]:
+                    - generic:
+                      - generic: Texnologiya
+                    - img [ref=e501]
+                  - combobox [ref=e503] [cursor=pointer]:
+                    - img [ref=e504]
+                  - spinbutton [ref=e506]: "1"
+                  - button [ref=e507] [cursor=pointer]:
+                    - img [ref=e508]
+                - generic [ref=e511]:
+                  - combobox [ref=e512] [cursor=pointer]:
+                    - generic:
+                      - generic: Jismoniy tarbiya
+                    - img [ref=e513]
+                  - combobox [ref=e515] [cursor=pointer]:
+                    - img [ref=e516]
+                  - spinbutton [ref=e518]: "1"
+                  - button [ref=e519] [cursor=pointer]:
+                    - img [ref=e520]
+              - button "Fan qo'shish" [ref=e523] [cursor=pointer]:
+                - img
+                - text: Fan qo'shish
+              - generic [ref=e525]:
+                - img [ref=e526]
+                - generic [ref=e529]:
+                  - generic [ref=e530]: 11/11 to'liq
+                  - generic [ref=e531]: 21 soat/h
+                  - generic [ref=e532]: 0 ta o'qituvchisiz

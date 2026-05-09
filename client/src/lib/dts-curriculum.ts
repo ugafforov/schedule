@@ -274,6 +274,153 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
   },
 ];
 
+export const RUSSIAN_DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
+  {
+    name: "Ona tili",
+    codes: ["ONA"],
+    keywords: ["ona tili", "rodnoy yazik"],
+    hours: { 1: 4, 2: 4, 3: 4, 4: 4, 5: 3, 6: 3, 7: 2, 8: 2, 9: 2, 10: 1, 11: 1 },
+  },
+  {
+    name: "O'qish savodxonligi",
+    codes: ["OQISH"],
+    keywords: ["o'qish savodxonligi", "chtenie"],
+    hours: { 1: 4, 2: 3, 3: 3, 4: 3 },
+  },
+  {
+    name: "Adabiyot",
+    codes: ["ADAB"],
+    keywords: ["adabiyot", "literatura"],
+    hours: { 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
+  },
+  {
+    name: "O'zbek tili",
+    codes: ["UZB"],
+    keywords: ["o'zbek tili"],
+    hours: { 2: 2, 3: 2, 4: 2, 5: 3, 6: 3, 7: 3, 8: 3, 9: 3, 10: 3, 11: 3 },
+  },
+  {
+    name: "Chet tili",
+    codes: ["ING"],
+    keywords: ["ingliz tili", "chet tili", "inostranniy"],
+    hours: { 1: 1, 2: 2, 3: 2, 4: 2, 5: 4, 6: 4, 7: 4, 8: 3, 9: 3, 10: 2, 11: 2 },
+  },
+  {
+    name: "Tarbiya",
+    codes: ["TARB"],
+    keywords: ["tarbiya", "vospitanie"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
+  },
+  {
+    name: "Matematika",
+    codes: ["MATH"],
+    keywords: ["matematika"],
+    hours: { 1: 5, 2: 5, 3: 5, 4: 5, 5: 5, 6: 5, 7: 5 },
+  },
+  {
+    name: "Algebra",
+    codes: ["ALG"],
+    keywords: ["algebra"],
+    hours: { 8: 3, 9: 3, 10: 3, 11: 3 },
+  },
+  {
+    name: "Geometriya",
+    codes: ["GEOM"],
+    keywords: ["geometriya"],
+    hours: { 8: 2, 9: 2, 10: 2, 11: 2 },
+  },
+  {
+    name: "Informatika va axborot texnologiyalari",
+    codes: ["INF"],
+    keywords: ["informatika"],
+    hours: { 1: 1, 2: 1, 3: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 2, 10: 2, 11: 2 },
+  },
+  {
+    name: "Tabiiy fanlar (Science)",
+    codes: ["TABIIY"],
+    keywords: ["tabiiy fanlar", "science"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 3 },
+  },
+  {
+    name: "Fizika",
+    codes: ["FIZ"],
+    keywords: ["fizika"],
+    hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
+  },
+  {
+    name: "Astronomiya",
+    codes: ["ASTRO"],
+    keywords: ["astronomiya"],
+    hours: { 11: 1 },
+  },
+  {
+    name: "Kimyo",
+    codes: ["KIM"],
+    keywords: ["kimyo"],
+    hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
+  },
+  {
+    name: "Biologiya",
+    codes: ["BIO"],
+    keywords: ["biologiya"],
+    hours: { 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
+  },
+  {
+    name: "Geografiya",
+    codes: ["GEOG"],
+    keywords: ["geografiya"],
+    hours: { 7: 2, 8: 1.5, 9: 1.5, 10: 2 },
+  },
+  {
+    name: "Iqtisodiy bilim asoslari",
+    codes: ["IQT"],
+    keywords: ["iqtisodiy bilim"],
+    hours: { 8: 0.5, 9: 0.5 },
+  },
+  {
+    name: "Tadbirkorlik asoslari",
+    codes: ["TADBIR"],
+    keywords: ["tadbirkorlik"],
+    hours: { 11: 1 },
+  },
+  {
+    name: "Musiqa madaniyati",
+    codes: ["MUS"],
+    keywords: ["musiqa"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1 },
+  },
+  {
+    name: "Tasviriy san'at",
+    codes: ["TASV"],
+    keywords: ["tasviriy"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1 },
+  },
+  {
+    name: "Chizmachilik",
+    codes: ["CHIZMA"],
+    keywords: ["chizmachilik"],
+    hours: { 8: 1, 9: 1 },
+  },
+  {
+    name: "Texnologiya",
+    codes: ["TECH"],
+    keywords: ["texnologiya"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2, 7: 2, 8: 1, 9: 1 },
+  },
+  {
+    name: "Jismoniy tarbiya",
+    codes: ["JT"],
+    keywords: ["jismoniy tarbiya"],
+    hours: { 1: 1, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2, 8: 2, 9: 2, 10: 2, 11: 2 },
+  },
+  {
+    name: "Chaqiruvga qadar boshlang'ich tayyorgarlik",
+    codes: ["CHQBT"],
+    keywords: ["chqbt"],
+    hours: { 10: 2, 11: 2 },
+  },
+];
+
 // ── Matching function ─────────────────────────────────────────────────────────
 
 export interface AutoAssignResult {
@@ -284,9 +431,11 @@ export interface AutoAssignResult {
 
 export function getAutoAssignments(
   grade: number,
-  dbSubjects: Array<{ id: number; name: string; code: string }>
+  dbSubjects: Array<{ id: number; name: string; code: string }>,
+  language: string = "uz"
 ): AutoAssignResult {
-  const gradeEntries = DTS_CURRICULUM_2025.filter((e) => grade in e.hours);
+  const curriculum = language === "ru" ? RUSSIAN_DTS_CURRICULUM_2025 : DTS_CURRICULUM_2025;
+  const gradeEntries = curriculum.filter((e) => grade in e.hours);
   const assignments: AutoAssignResult["assignments"] = [];
   const matchedNames: string[] = [];
   const missingNames: string[] = [];

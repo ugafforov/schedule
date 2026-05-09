@@ -2,6 +2,7 @@ import { storage } from "../storage/index";
 import { db } from "../db";
 import { scheduleEntries, timeSlots } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
+import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory } from "@shared/constants";
 
 const DAYS = [1, 2, 3, 4, 5];
 const DAY_NAMES = ["", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma"];
@@ -46,6 +47,9 @@ export interface GenerateScheduleOptions {
   clearExisting?: boolean;
 }
 
+const DAY_QUALITY: Record<number, number> = { 2: 10, 3: 10, 4: 9, 1: 7, 5: 6 };
+const PERIOD_QUALITY: Record<number, number> = { 2: 10, 3: 10, 4: 10, 1: 7, 5: 7, 6: 5 };
+
 export async function generateSchedule(options: GenerateScheduleOptions) {
   const { weekStart, classIds, clearExisting } = options;
   const weekStartDate = new Date(weekStart);
@@ -72,160 +76,160 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     ? allClasses.filter((c) => classIds.includes(c.id))
     : allClasses;
 
-  if (targetClasses.length === 0) throw new Error("Sinflar mavjud emas. Avval sinf qo'shing.");
-  if (allRooms.length === 0) throw new Error("Xonalar mavjud emas. Avval xona qo'shing.");
+  if (targetClasses.length === 0) throw new Error("Sinflar mavjud emas.");
+  if (allRooms.length === 0) throw new Error("Xonalar mavjud emas.");
 
   const unavailSet = new Set<string>(
     allUnavailability.map((u) => `${u.teacherId}_${u.dayOfWeek}_${u.periodNumber}`)
   );
 
-  const teacherHoursCount: Record<number, number> = {};
-  for (const t of allTeachers) teacherHoursCount[t.id] = 0;
-
-  const teacherBusy = new Set<string>();
-  const roomBusy = new Set<string>();
-  const classBusy = new Set<string>();
-  const classPerDay = new Map<string, number>();
-  const subjectPerDay = new Map<string, number>();
-
-  const existingEntries = await storage.getScheduleEntriesForWeek(weekStartDate);
-  for (const e of existingEntries) {
-    teacherBusy.add(`${e.teacherId}_${e.timeSlotId}`);
-    roomBusy.add(`${e.roomId}_${e.timeSlotId}`);
-    classBusy.add(`${e.classId}_${e.timeSlotId}`);
-    teacherHoursCount[e.teacherId] = (teacherHoursCount[e.teacherId] || 0) + 1;
-  }
-
-  const slotsByDay: Record<number, typeof activeSlots> = {};
-  for (const s of activeSlots) {
-    if (!slotsByDay[s.dayOfWeek]) slotsByDay[s.dayOfWeek] = [];
-    slotsByDay[s.dayOfWeek].push(s);
-  }
-  for (const day of DAYS) {
-    slotsByDay[day] = (slotsByDay[day] || []).sort((a, b) => a.periodNumber - b.periodNumber);
-  }
-
   const subjectMap = new Map(allSubjects.map((s) => [s.id, s]));
-  const toCreate: any[] = [];
-  const stats: Record<number, { className: string; scheduled: number; total: number }> = {};
+  
+  // CSP: All individual lessons that need to be scheduled
+  interface LessonRequirement {
+    id: string;
+    classId: number;
+    subjectId: number;
+    teacherId: number;
+    teacherId2: number | null;
+    weeklyHours: number;
+    complexity: number;
+    category: SubjectCategory;
+    grade: number;
+  }
 
-  const dayRotations = [
-    [1, 2, 3, 4, 5],
-    [2, 3, 4, 5, 1],
-    [3, 4, 5, 1, 2],
-    [4, 5, 1, 2, 3],
-    [5, 1, 2, 3, 4],
-  ];
-
+  const lessonsToSchedule: LessonRequirement[] = [];
   for (const cls of targetClasses) {
-    const classSubjectList = allClassSubjects
-      .filter((cs) => cs.classId === cls.id)
-      .sort((a, b) => b.weeklyHours - a.weeklyHours);
-
-    if (classSubjectList.length === 0) continue;
-
-    const totalNeeded = classSubjectList.reduce((s, cs) => s + cs.weeklyHours, 0);
-    stats[cls.id] = { className: cls.name, scheduled: 0, total: totalNeeded };
-
+    const classSubjectList = allClassSubjects.filter((cs) => cs.classId === cls.id);
     for (const cs of classSubjectList) {
       if (!cs.teacherId) continue;
-
-      const subject = subjectMap.get(cs.subjectId);
-      const requiredRoomType = subject?.requiredRoomType || "any";
-      const needed = cs.weeklyHours;
-      let scheduled = 0;
-
-      const maxSameSubjectPerDay = cs.weeklyHours >= 5 ? 2 : 1;
-      const maxPerDay = Math.ceil(needed / 5) + 1;
-      const teacher = allTeachers.find((t) => t.id === cs.teacherId);
-      if (!teacher) continue;
-      const teacherMax = teacher.maxHoursPerWeek || 30;
-
-      for (let attempt = 0; attempt < 5 && scheduled < needed; attempt++) {
-        const dayOrder = dayRotations[attempt % 5];
-
-        for (const day of dayOrder) {
-          if (scheduled >= needed) break;
-
-          const daySlots = slotsByDay[day] || [];
-          const classDay = `${cls.id}_${day}`;
-          const subjectDay = `${cls.id}_${cs.subjectId}_${day}`;
-
-          if ((classPerDay.get(classDay) || 0) >= 6) continue;
-          if ((subjectPerDay.get(subjectDay) || 0) >= maxSameSubjectPerDay) continue;
-
-          for (const slot of daySlots) {
-            if (scheduled >= needed) break;
-
-            const tk = `${cs.teacherId}_${slot.id}`;
-            const ck = `${cls.id}_${slot.id}`;
-
-            if (teacherBusy.has(tk)) continue;
-            if (classBusy.has(ck)) continue;
-            if (unavailSet.has(`${cs.teacherId}_${day}_${slot.periodNumber}`)) continue;
-            if ((teacherHoursCount[cs.teacherId] || 0) >= teacherMax) continue;
-
-            const classStudents = cls.totalStudents || 25;
-            const availableRooms = allRooms.filter((r) => !roomBusy.has(`${r.id}_${slot.id}`));
-            if (availableRooms.length === 0) continue;
-
-            let selectedRoom =
-              requiredRoomType !== "any"
-                ? (availableRooms.find((r) => r.roomType === requiredRoomType && r.capacity >= classStudents) ??
-                  availableRooms.find((r) => r.roomType === requiredRoomType))
-                : null;
-
-            selectedRoom ??=
-              availableRooms.find((r) => r.capacity >= classStudents) ?? availableRooms[0];
-
-            if (!selectedRoom) continue;
-
-            teacherBusy.add(tk);
-            classBusy.add(ck);
-            roomBusy.add(`${selectedRoom.id}_${slot.id}`);
-            teacherHoursCount[cs.teacherId] = (teacherHoursCount[cs.teacherId] || 0) + 1;
-            classPerDay.set(classDay, (classPerDay.get(classDay) || 0) + 1);
-            subjectPerDay.set(subjectDay, (subjectPerDay.get(subjectDay) || 0) + 1);
-
-            toCreate.push({
-              classId: cls.id,
-              subjectId: cs.subjectId,
-              teacherId: cs.teacherId,
-              roomId: selectedRoom.id,
-              timeSlotId: slot.id,
-              weekStartDate: weekStartDate,
-              isActive: true,
-            });
-            scheduled++;
-            stats[cls.id].scheduled++;
-          }
-        }
+      const sub = subjectMap.get(cs.subjectId);
+      const hours = Math.ceil(cs.weeklyHours);
+      for (let i = 0; i < hours; i++) {
+        lessonsToSchedule.push({
+          id: `${cls.id}_${cs.subjectId}_${i}`,
+          classId: cls.id,
+          subjectId: cs.subjectId,
+          teacherId: cs.teacherId,
+          teacherId2: cs.teacherId2 || null,
+          weeklyHours: cs.weeklyHours,
+          complexity: getSubjectComplexity(sub?.name || ""),
+          category: getSubjectCategory(sub?.name || ""),
+          grade: parseInt(String(cls.grade)),
+        });
       }
     }
   }
 
-  const created = await storage.createScheduleEntriesBulk(toCreate);
+  // Sort lessons by difficulty (Heuristic: MRV - Most Constrained Variable first)
+  // Higher grades and higher complexity subjects are harder to place
+  lessonsToSchedule.sort((a, b) => b.grade - a.grade || b.complexity - a.complexity);
 
-  const classResults = Object.values(stats).map((s) => ({
-    className: s.className,
-    scheduled: s.scheduled,
-    total: s.total,
-    coverage: s.total > 0 ? Math.round((s.scheduled / s.total) * 100) : 0,
-  }));
+  const currentSchedule: any[] = [];
+  const teacherBusy = new Set<string>();
+  const roomBusy = new Set<string>();
+  const classBusy = new Set<string>();
+  const classDailyCount = new Map<string, number>();
+  const subjectDailyCount = new Map<string, number>();
 
-  const totalNeeded = classResults.reduce((s, r) => s + r.total, 0);
-  const totalScheduled = classResults.reduce((s, r) => s + r.scheduled, 0);
-  const coverage = totalNeeded > 0 ? Math.round((totalScheduled / totalNeeded) * 100) : 100;
+  // Backtracking Solver
+  function solve(lessonIdx: number): boolean {
+    if (lessonIdx >= lessonsToSchedule.length) return true;
+
+    const lesson = lessonsToSchedule[lessonIdx];
+    const maxDaily = getMaxHoursPerDay(String(lesson.grade));
+
+    // Try each available slot
+    for (const slot of activeSlots) {
+      const day = slot.dayOfWeek;
+      const cdKey = `${lesson.classId}_${day}`;
+      const sdKey = `${lesson.classId}_${lesson.subjectId}_${day}`;
+      const tKey1 = `${lesson.teacherId}_${slot.id}`;
+      const tKey2 = lesson.teacherId2 ? `${lesson.teacherId2}_${slot.id}` : null;
+      const cKey = `${lesson.classId}_${slot.id}`;
+
+      // HARD CONSTRAINTS
+      if (classBusy.has(cKey)) continue;
+      if (teacherBusy.has(tKey1)) continue;
+      if (tKey2 && teacherBusy.has(tKey2)) continue;
+      if (unavailSet.has(`${lesson.teacherId}_${day}_${slot.periodNumber}`)) continue;
+      if (lesson.teacherId2 && unavailSet.has(`${lesson.teacherId2}_${day}_${slot.periodNumber}`)) continue;
+      
+      if ((classDailyCount.get(cdKey) || 0) >= maxDaily) continue;
+      
+      // Limit same subject per day
+      const maxSameSubject = (lesson.grade >= 5 && lesson.complexity >= 6) ? 2 : 1;
+      if ((subjectDailyCount.get(sdKey) || 0) >= maxSameSubject) continue;
+
+      // Find suitable room
+      const classStudents = targetClasses.find(c => c.id === lesson.classId)?.totalStudents || 25;
+      const reqType = subjectMap.get(lesson.subjectId)?.requiredRoomType || "any";
+      
+      const availableRooms = allRooms.filter(r => !roomBusy.has(`${r.id}_${slot.id}`));
+      const room1 = availableRooms.find(r => 
+        (reqType === "any" || r.roomType === reqType) && r.capacity >= (lesson.teacherId2 ? classStudents/2 : classStudents)
+      );
+
+      if (!room1) continue;
+
+      let room2 = null;
+      if (lesson.teacherId2) {
+        room2 = availableRooms.find(r => 
+          r.id !== room1.id && (reqType === "any" || r.roomType === reqType) && r.capacity >= classStudents/2
+        );
+        if (!room2) continue;
+      }
+
+      // PLACE LESSON
+      classBusy.add(cKey);
+      teacherBusy.add(tKey1);
+      if (tKey2) teacherBusy.add(tKey2);
+      roomBusy.add(`${room1.id}_${slot.id}`);
+      if (room2) roomBusy.add(`${room2.id}_${slot.id}`);
+      classDailyCount.set(cdKey, (classDailyCount.get(cdKey) || 0) + 1);
+      subjectDailyCount.set(sdKey, (subjectDailyCount.get(sdKey) || 0) + 1);
+
+      const entry = {
+        classId: lesson.classId, subjectId: lesson.subjectId, teacherId: lesson.teacherId,
+        roomId: room1.id, timeSlotId: slot.id, weekStartDate, isActive: true,
+      };
+      currentSchedule.push(entry);
+      if (lesson.teacherId2 && room2) {
+        currentSchedule.push({ ...entry, teacherId: lesson.teacherId2, roomId: room2.id });
+      }
+
+      // RECURSE
+      if (solve(lessonIdx + 1)) return true;
+
+      // BACKTRACK
+      currentSchedule.pop();
+      if (lesson.teacherId2) currentSchedule.pop();
+      classDailyCount.set(cdKey, (classDailyCount.get(cdKey) || 0) - 1);
+      subjectDailyCount.set(sdKey, (subjectDailyCount.get(sdKey) || 0) - 1);
+      roomBusy.delete(`${room1.id}_${slot.id}`);
+      if (room2) roomBusy.delete(`${room2.id}_${slot.id}`);
+      teacherBusy.delete(tKey1);
+      if (tKey2) teacherBusy.delete(tKey2);
+      classBusy.delete(cKey);
+    }
+
+    return false; // No solution for this branch
+  }
+
+  // Start the search
+  const success = solve(0);
+
+  if (currentSchedule.length > 0) {
+    await storage.createScheduleEntriesBulk(currentSchedule);
+  }
 
   return {
-    message: `${created.length} ta dars muvaffaqiyatli jadvallandi (${coverage}% qoplanish)`,
-    count: created.length,
-    classesScheduled: targetClasses.length,
-    coverage,
-    classResults,
-    warnings: classResults
-      .filter((r) => r.coverage < 100)
-      .map((r) => `${r.className}: ${r.scheduled}/${r.total} dars jadvallandi`),
+    message: success 
+      ? "Barcha darslar CSP algoritmi orqali 100% muvaffaqiyatli joylashtirildi!" 
+      : "Ba'zi darslarni joylashtirib bo'lmadi (ziddiyatlar mavjud).",
+    count: currentSchedule.length,
+    coverage: Math.round((currentSchedule.length / lessonsToSchedule.length) * 100),
+    success
   };
 }
 

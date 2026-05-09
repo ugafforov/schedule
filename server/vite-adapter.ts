@@ -1,13 +1,9 @@
 import type { Hono } from "hono";
-import { createServer as createViteServer, createLogger } from "vite";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "http";
 import fs from "fs";
 import path from "path";
 import { nanoid } from "nanoid";
-import viteConfig from "../vite.config";
 import { networkInterfaces } from "os";
-
-const viteLogger = createLogger();
 
 export function log(message: string, source = "server") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -21,12 +17,12 @@ export function log(message: string, source = "server") {
 
 /**
  * Development: Node.js http.Server + Vite middleware + Hono API
- *
- * Arxitektura:
- *   http.Server → /api/* → Hono (Web Fetch API)
- *               → /*    → Vite middleware → SPA fallback
  */
 export async function startDevServer(app: Hono, port: number): Promise<void> {
+  const { createServer: createViteServer, createLogger } = await import("vite");
+  const viteConfig = (await import("../vite.config")).default;
+  const viteLogger = createLogger();
+
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
@@ -44,19 +40,14 @@ export async function startDevServer(app: Hono, port: number): Promise<void> {
   const httpServer = createHttpServer((req: IncomingMessage, res: ServerResponse) => {
     const url = req.url || "/";
 
-    // API so'rovlarini Hono ga yo'naltirish
     if (url.startsWith("/api")) {
       handleHono(app, req, res, port);
       return;
     }
 
-    // Boshqa so'rovlarni Vite ga uzatish
     vite.middlewares(req, res, async () => {
-      // Vite handle qilmadi — SPA fallback (index.html)
       try {
-        const clientTemplate = path.resolve(
-          import.meta.dirname, "..", "client", "index.html"
-        );
+        const clientTemplate = path.resolve(process.cwd(), "client", "index.html");
         let template = await fs.promises.readFile(clientTemplate, "utf-8");
         template = template.replace(
           `src="/src/main.tsx"`,
@@ -155,12 +146,11 @@ async function handleHono(
  * Production: Hono serve + static files
  */
 export function serveStaticFiles(app: Hono) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  const distPath = path.resolve(process.cwd(), "dist", "public");
 
   if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Build directory topilmadi: ${distPath}. Avval 'npm run build' ni ishga tushiring.`
-    );
+    log(`Build directory topilmadi: ${distPath}. Dev rejimda bo'lishingiz mumkin.`, "server");
+    return;
   }
 
   const mimeTypes: Record<string, string> = {
@@ -179,21 +169,36 @@ export function serveStaticFiles(app: Hono) {
     ".webmanifest": "application/manifest+json",
   };
 
+  // Static files middleware
   app.use("/*", async (c, next) => {
-    if (c.req.path.startsWith("/api")) return next();
-    const filePath = path.join(distPath, c.req.path);
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-      const content = fs.readFileSync(filePath);
-      const ext = path.extname(filePath);
-      return new Response(new Uint8Array(content), {
-        headers: { "Content-Type": mimeTypes[ext] || "application/octet-stream" },
-      });
+    const url = new URL(c.req.url);
+    if (url.pathname.startsWith("/api")) return next();
+    
+    const filePath = path.join(distPath, url.pathname);
+    
+    try {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const content = fs.readFileSync(filePath);
+        const ext = path.extname(filePath);
+        return c.body(content, 200, {
+          "Content-Type": mimeTypes[ext] || "application/octet-stream",
+          "Cache-Control": "public, max-age=31536000, immutable"
+        });
+      }
+    } catch (e) {
+      // Ignore errors and fall through
     }
+    
     return next();
   });
 
   // SPA fallback
   app.get("*", (c) => {
-    return c.html(fs.readFileSync(path.resolve(distPath, "index.html"), "utf-8"));
+    if (c.req.path.startsWith("/api")) return new Response("Not Found", { status: 404 });
+    const indexPath = path.resolve(distPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      return c.html(fs.readFileSync(indexPath, "utf-8"));
+    }
+    return c.text("Not Found", 404);
   });
 }

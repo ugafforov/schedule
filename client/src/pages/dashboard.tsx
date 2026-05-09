@@ -180,7 +180,9 @@ export default function Dashboard() {
                       <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-orange-900">
-                          {c.conflictType === "room" ? "Xona ziddiyati" : c.conflictType === "teacher" ? "O'qituvchi ziddiyati" : "Sinf ziddiyati"}
+                          {c.conflictType === "room" ? "Xona ziddiyati" : 
+                           c.conflictType === "teacher" ? "O'qituvchi ziddiyati" : 
+                           c.conflictType === "unavailability" ? "Bandlik ziddiyati" : "Sinf ziddiyati"}
                         </p>
                         <p className="text-xs text-orange-700 mt-0.5 truncate">{c.description}</p>
                       </div>

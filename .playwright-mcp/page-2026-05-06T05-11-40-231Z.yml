@@ -1,0 +1,98 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e7]:
+          - img [ref=e9]
+          - generic [ref=e14]:
+            - paragraph [ref=e15]: Maktab Dars Jadvali
+            - paragraph [ref=e16]: Xush kelibsiz, Admin User
+        - generic [ref=e17]:
+          - generic [ref=e20]: Online
+          - button "Yuklab olish" [ref=e21] [cursor=pointer]:
+            - img
+            - generic [ref=e22]: Yuklab olish
+          - generic [ref=e23]:
+            - generic [ref=e25]: AU
+            - generic [ref=e26]:
+              - paragraph [ref=e27]: Admin User
+              - paragraph [ref=e28]: Administrator
+    - generic [ref=e29]:
+      - complementary [ref=e30]:
+        - navigation [ref=e31]:
+          - button "Bosh sahifa" [ref=e32] [cursor=pointer]:
+            - img [ref=e33]
+            - generic: Bosh sahifa
+          - button "Dars jadvali" [ref=e38] [cursor=pointer]:
+            - img [ref=e39]
+            - generic: Dars jadvali
+          - button "O'qituvchilar" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - generic: O'qituvchilar
+          - button "Fanlar" [ref=e47] [cursor=pointer]:
+            - img [ref=e48]
+            - generic: Fanlar
+          - button "Xonalar" [ref=e50] [cursor=pointer]:
+            - img [ref=e51]
+            - generic: Xonalar
+          - button "Dars soatlari" [ref=e54] [cursor=pointer]:
+            - img [ref=e55]
+            - generic: Dars soatlari
+          - button "Sinflar" [ref=e58] [cursor=pointer]:
+            - img [ref=e59]
+            - generic: Sinflar
+          - button "Biriktirishlar" [ref=e62] [cursor=pointer]:
+            - img [ref=e63]
+            - generic: Biriktirishlar
+        - generic [ref=e66]:
+          - button "Sozlamalar" [ref=e67] [cursor=pointer]:
+            - img [ref=e68]
+            - generic: Sozlamalar
+          - button "Chiqish" [ref=e71] [cursor=pointer]:
+            - img [ref=e72]
+            - generic: Chiqish
+      - main [ref=e75]:
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - heading "Sozlamalar" [level=1] [ref=e78]
+            - paragraph [ref=e79]: Tizim va foydalanuvchi sozlamalari
+          - generic [ref=e80]:
+            - generic [ref=e82]:
+              - img [ref=e83]
+              - text: Profil ma'lumotlari
+            - generic [ref=e87]:
+              - generic [ref=e89]: A
+              - generic [ref=e90]:
+                - paragraph [ref=e91]: Admin User
+                - paragraph [ref=e92]: usmonjonteacher@gmail.com
+                - generic [ref=e93]:
+                  - img [ref=e94]
+                  - text: Administrator
+          - generic [ref=e96]:
+            - generic [ref=e98]:
+              - img [ref=e99]
+              - text: Foydalanuvchilarni boshqarish
+            - generic [ref=e101]:
+              - paragraph [ref=e102]: Foydalanuvchilarni qo'shish, o'chirish va rollarini belgilash Supabase Dashboard orqali amalga oshiriladi.
+              - link "Supabase Auth Dashboard" [ref=e103] [cursor=pointer]:
+                - /url: https://supabase.com/dashboard/project/yfafnvypynldweuxsvdh/auth/users
+                - button "Supabase Auth Dashboard" [ref=e104]:
+                  - img
+                  - text: Supabase Auth Dashboard
+              - paragraph [ref=e105]:
+                - text: Yangi foydalanuvchi qo'shganda
+                - code [ref=e106]: user_metadata
+                - text: ga
+                - code [ref=e107]: "{ \"role\": \"admin\" }"
+                - text: yoki
+                - code [ref=e108]: "{ \"role\": \"teacher\" }"
+                - text: qo'shing.
+          - generic [ref=e111]:
+            - generic [ref=e112]:
+              - paragraph [ref=e113]: Tizimdan chiqish
+              - paragraph [ref=e114]: Sessiyani yakunlash va login sahifasiga qaytish
+            - button "Chiqish" [ref=e115] [cursor=pointer]:
+              - img
+              - text: Chiqish

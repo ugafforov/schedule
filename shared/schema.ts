@@ -60,6 +60,7 @@ export const classes = pgTable("classes", {
   name: text("name").notNull(),
   grade: text("grade").notNull(),
   section: text("section"),
+  language: text("language").notNull().default("uz"), // 'uz', 'ru'
   classTeacherId: integer("class_teacher_id").references(() => teachers.id),
   totalStudents: integer("total_students").default(30),
   isActive: boolean("is_active").notNull().default(true),
@@ -103,6 +104,7 @@ export const classSubjects = pgTable("class_subjects", {
   classId: integer("class_id").references(() => classes.id, { onDelete: "cascade" }).notNull(),
   subjectId: integer("subject_id").references(() => subjects.id, { onDelete: "cascade" }).notNull(),
   teacherId: integer("teacher_id").references(() => teachers.id),
+  teacherId2: integer("teacher_id_2").references(() => teachers.id),
   weeklyHours: real("weekly_hours").notNull().default(2),
 }, (table) => ({
   classIdIdx: index("class_subjects_class_id_idx").on(table.classId),
@@ -137,6 +139,14 @@ export const scheduleConflicts = pgTable("schedule_conflicts", {
   scheduleEntry2Id: integer("schedule_entry_2_id").references(() => scheduleEntries.id),
   severity: text("severity").notNull().default("medium"),
   isResolved: boolean("is_resolved").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// User roles table
+export const userRoles = pgTable("user_roles", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().unique(), // Supabase auth.users UUID
+  role: text("role").notNull().default("teacher"), // "admin" | "teacher"
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -219,6 +229,7 @@ export const insertTeacherSubjectSchema = createInsertSchema(teacherSubjects).om
 export const insertClassSubjectSchema = createInsertSchema(classSubjects).omit({ id: true });
 export const insertScheduleEntrySchema = createInsertSchema(scheduleEntries).omit({ id: true, createdAt: true });
 export const insertScheduleConflictSchema = createInsertSchema(scheduleConflicts).omit({ id: true, createdAt: true });
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 
 // Types
@@ -244,6 +255,8 @@ export type ScheduleEntry = typeof scheduleEntries.$inferSelect;
 export type InsertScheduleEntry = z.infer<typeof insertScheduleEntrySchema>;
 export type ScheduleConflict = typeof scheduleConflicts.$inferSelect;
 export type InsertScheduleConflict = z.infer<typeof insertScheduleConflictSchema>;
+export type UserRole = typeof userRoles.$inferSelect;
+export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 

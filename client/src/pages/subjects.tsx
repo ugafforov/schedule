@@ -7,12 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, BookOpen, X, Clock, DoorOpen, Zap, CheckSquare, Square, GraduationCap, LayoutGrid, List } from "lucide-react";
+import { Plus, Search, Edit, Trash2, BookOpen, X, Clock, DoorOpen, Zap, CheckSquare, Square, GraduationCap, LayoutGrid, List, FileSpreadsheet } from "lucide-react";
 
 import { apiRequest } from "@/lib/queryClient";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
 import type { Subject } from "@shared/schema";
 import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
+import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
 
 interface SubjectFormData {
   name: string; code: string; description: string;
@@ -268,8 +269,13 @@ function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boole
   );
 }
 
-function SubjectCard({ subject, openEdit, onDelete }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void }) {
+function SubjectCard({ subject, openEdit, onDelete, onSave, isUpdating }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void; onSave: (data: Partial<Subject>) => void; isUpdating?: boolean }) {
   const roomType = (subject as any).requiredRoomType || "any";
+  const roomTypeOptions = Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  }));
+
   return (
     <div className="group border border-gray-100 rounded-xl p-4 hover:border-violet-200 hover:shadow-sm transition-all bg-white">
       <div className="flex items-start justify-between mb-3">
@@ -277,41 +283,123 @@ function SubjectCard({ subject, openEdit, onDelete }: { subject: Subject; openEd
           <BookOpen className="h-5 w-5" style={{ color: subject.color || "#3B82F6" }} />
         </div>
         <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => openEdit(subject)}><Edit className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => onDelete(subject.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => openEdit(subject)} disabled={isUpdating}><Edit className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => onDelete(subject.id)} disabled={isUpdating}><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
       </div>
       <div className="flex items-center space-x-2 mb-1">
         <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: subject.color || "#3B82F6" }} />
-        <h3 className="font-semibold text-gray-900 text-sm leading-tight truncate">{subject.name}</h3>
+        <InlineEdit
+          value={subject.name}
+          onSave={(name) => onSave({ name })}
+          placeholder="Fan nomi"
+          className="font-semibold text-gray-900 text-sm leading-tight truncate flex-1"
+          disabled={isUpdating}
+        />
       </div>
-      {subject.code && <p className="text-xs text-gray-400 font-mono ml-5">#{subject.code}</p>}
-      {subject.description && <p className="text-xs text-gray-500 mt-1.5 line-clamp-2 ml-5">{subject.description}</p>}
+      <div className="ml-5">
+        <InlineEdit
+          value={subject.code || ""}
+          onSave={(code) => onSave({ code: code.toUpperCase() })}
+          placeholder="KOD"
+          className="text-xs text-gray-400 font-mono"
+          disabled={isUpdating}
+        />
+      </div>
+      <div className="ml-5 mt-1.5">
+        <InlineEdit
+          value={subject.description || ""}
+          onSave={(description) => onSave({ description })}
+          placeholder="Tavsif..."
+          className="text-xs text-gray-500 line-clamp-2"
+          disabled={isUpdating}
+        />
+      </div>
       <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-50">
-        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}>{ROOM_TYPE_LABELS[roomType] || roomType}</span>
-        <div className="flex items-center space-x-1 text-gray-400"><Clock className="h-3 w-3" /><span className="text-xs">{subject.weeklyHours || 4} soat</span></div>
+        <InlineSelect
+          value={roomType}
+          options={roomTypeOptions}
+          onSave={(val) => onSave({ requiredRoomType: val })}
+          className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}
+          disabled={isUpdating}
+        />
+        <div className="flex items-center space-x-1 text-gray-400">
+          <Clock className="h-3 w-3" />
+          <InlineEdit
+            value={subject.weeklyHours || 4}
+            onSave={(val) => onSave({ weeklyHours: parseInt(val) || 4 })}
+            type="number"
+            min={1}
+            max={12}
+            className="text-xs w-8"
+            disabled={isUpdating}
+          />
+          <span className="text-xs">soat</span>
+        </div>
       </div>
     </div>
   );
 }
 
-function SubjectRow({ subject, openEdit, onDelete, isUpdating }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void; isUpdating?: boolean }) {
+function SubjectRow({ subject, openEdit, onDelete, onSave, isUpdating }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void; onSave: (data: Partial<Subject>) => void; isUpdating?: boolean }) {
   const roomType = (subject as any).requiredRoomType || "any";
+  const roomTypeOptions = Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => ({
+    value,
+    label,
+  }));
+
   return (
     <div className="group grid grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_130px] gap-4 px-4 py-3 items-center border border-gray-100 rounded-xl hover:border-violet-200 hover:bg-gray-50 transition-all bg-white">
       <div className="flex items-center space-x-2 min-w-0">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: subject.color ? `${subject.color}20` : "#3B82F620" }}>
           <BookOpen className="h-4 w-4" style={{ color: subject.color || "#3B82F6" }} />
         </div>
-        <div className="min-w-0">
-          <p className="font-semibold text-gray-900 text-sm truncate">{subject.name}</p>
-          {subject.code && <p className="text-xs text-gray-400 font-mono">{subject.code}</p>}
+        <div className="min-w-0 flex-1">
+          <InlineEdit
+            value={subject.name}
+            onSave={(name) => onSave({ name })}
+            placeholder="Fan nomi"
+            className="font-semibold text-gray-900 text-sm truncate"
+            disabled={isUpdating}
+          />
+          <InlineEdit
+            value={subject.code || ""}
+            onSave={(code) => onSave({ code: code.toUpperCase() })}
+            placeholder="KOD"
+            className="text-xs text-gray-400 font-mono block"
+            disabled={isUpdating}
+          />
         </div>
       </div>
-      <p className="text-sm text-gray-600 truncate">{subject.description || "—"}</p>
-      <span className={`text-xs px-2 py-1 rounded-full border font-medium w-fit ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}>{ROOM_TYPE_LABELS[roomType] || roomType}</span>
+      <div className="min-w-0">
+        <InlineEdit
+          value={subject.description || ""}
+          onSave={(description) => onSave({ description })}
+          placeholder="Tavsif..."
+          className="text-sm text-gray-600 truncate block"
+          disabled={isUpdating}
+        />
+      </div>
+      <InlineSelect
+        value={roomType}
+        options={roomTypeOptions}
+        onSave={(val) => onSave({ requiredRoomType: val })}
+        className={`text-xs px-2 py-1 rounded-full border font-medium w-fit ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}
+        disabled={isUpdating}
+      />
       <div className="flex items-center justify-end space-x-2">
-        <div className="flex items-center space-x-1 text-gray-400"><Clock className="h-3.5 w-3.5" /><span className="text-xs">{subject.weeklyHours || 4}</span></div>
+        <div className="flex items-center space-x-1 text-gray-400">
+          <Clock className="h-3.5 w-3.5" />
+          <InlineEdit
+            value={subject.weeklyHours || 4}
+            onSave={(val) => onSave({ weeklyHours: parseInt(val) || 4 })}
+            type="number"
+            min={1}
+            max={12}
+            className="text-xs w-8"
+            disabled={isUpdating}
+          />
+        </div>
         <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => openEdit(subject)} disabled={isUpdating}><Edit className="h-3.5 w-3.5" /></Button>
           <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => onDelete(subject.id)} disabled={isUpdating}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -325,6 +413,7 @@ export default function Subjects() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [dtsOpen, setDtsOpen] = useState(false);
+  const [excelImportOpen, setExcelImportOpen] = useState(false);
   const [editing, setEditing] = useState<Subject | null>(null);
   const [form, setForm] = useState<SubjectFormData>(EMPTY_FORM);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
@@ -408,6 +497,9 @@ export default function Subjects() {
             <Trash2 className="mr-2 h-4 w-4" />
             Barchasini tozalash
           </Button>
+          <Button variant="outline" onClick={() => setExcelImportOpen(true)} className="border-emerald-100 text-emerald-700 hover:bg-emerald-50">
+            <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel Import
+          </Button>
           <Button variant="outline" onClick={() => setDtsOpen(true)} className="border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300">
             <GraduationCap className="mr-2 h-4 w-4 text-blue-600" /> DTS fanlarini qo'shish
           </Button>
@@ -458,14 +550,32 @@ export default function Subjects() {
           ) : filtered.length > 0 ? (
             viewMode === "grid" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filtered.map(subject => <SubjectCard key={subject.id} subject={subject} openEdit={openEdit} onDelete={id => setDeleteId(id)} />)}
+                {filtered.map(subject => (
+                  <SubjectCard
+                    key={subject.id}
+                    subject={subject}
+                    openEdit={openEdit}
+                    onDelete={id => setDeleteId(id)}
+                    onSave={(data) => inlineUpdateMutation.mutate({ id: subject.id, data })}
+                    isUpdating={inlineUpdateMutation.isPending}
+                  />
+                ))}
               </div>
             ) : (
               <div className="space-y-3">
                 <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_130px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
                   <div>Fan</div><div>Tavsif</div><div>Xona turi</div><div className="text-right">Soat / Amal</div>
                 </div>
-                {filtered.map(subject => <SubjectRow key={subject.id} subject={subject} openEdit={openEdit} onDelete={id => setDeleteId(id)} isUpdating={inlineUpdateMutation.isPending} />)}
+                {filtered.map(subject => (
+                  <SubjectRow
+                    key={subject.id}
+                    subject={subject}
+                    openEdit={openEdit}
+                    onDelete={id => setDeleteId(id)}
+                    onSave={(data) => inlineUpdateMutation.mutate({ id: subject.id, data })}
+                    isUpdating={inlineUpdateMutation.isPending}
+                  />
+                ))}
               </div>
             )
           ) : (
@@ -533,6 +643,12 @@ export default function Subjects() {
           if (deleteId !== null) deleteMutation.mutate(deleteId);
           setDeleteId(null);
         }}
+      />
+
+      <ExcelImportDialog
+        open={excelImportOpen}
+        onClose={() => setExcelImportOpen(false)}
+        type="subjects"
       />
     </div>
   );

@@ -2,7 +2,7 @@ import { storage } from "../storage/index";
 import { db } from "../db";
 import { classSubjects, teacherSubjects, type Subject, type Class, type Teacher, type ClassSubject } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
-import { UZBEK_CURRICULUM } from "@shared/curriculum";
+import { UZBEK_CURRICULUM, RUSSIAN_CURRICULUM } from "@shared/curriculum";
 import { getSpecialty } from "./curriculum.service";
 
 const DEFAULT_MAX_HOURS = 24;
@@ -31,7 +31,8 @@ export async function autoGenerateTeachers() {
   const unassignedBySpecialty = new Map<string, AssignmentEntry[]>();
 
   for (const cls of allClasses) {
-    const gradeRequirements = UZBEK_CURRICULUM[cls.grade];
+    const curriculum = (cls as any).language === "ru" ? RUSSIAN_CURRICULUM : UZBEK_CURRICULUM;
+    const gradeRequirements = curriculum[cls.grade];
     if (!gradeRequirements) {
       updatedAssignmentsByClass.set(
         cls.id,
@@ -59,7 +60,7 @@ export async function autoGenerateTeachers() {
       }
 
       processedSubjectIds.add(subject.id);
-      const specialty = getSpecialty(subjectName, cls.grade);
+      const specialty = getSpecialty(subjectName, cls.grade, (cls as any).language || "uz");
 
       const existing = existingClassSubjects.find(
         (cs) => cs.classId === cls.id && cs.subjectId === subject!.id
@@ -71,7 +72,7 @@ export async function autoGenerateTeachers() {
         if (!t) {
           teacherId = null;
         } else {
-          const tSpecialty = getSpecialty(t.specialization || "", cls.grade);
+          const tSpecialty = getSpecialty(t.specialization || "", cls.grade, (cls as any).language || "uz");
           if (tSpecialty !== specialty && t.firstName.toLowerCase().includes("vakant")) {
             teacherId = null;
           }

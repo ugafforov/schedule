@@ -1,0 +1,55 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img [ref=e7]
+        - generic [ref=e12]: Maktab Dars Jadvali
+      - generic [ref=e13]:
+        - heading "Maktab jadvalini oson boshqaring" [level=1] [ref=e14]:
+          - text: Maktab jadvalini
+          - text: oson boshqaring
+        - paragraph [ref=e15]: Avtomatik jadval yaratish, o'qituvchi va xona boshqarish — barchasi bir joyda.
+        - generic [ref=e16]:
+          - generic [ref=e17]:
+            - img [ref=e19]
+            - generic [ref=e21]:
+              - heading "Avtomatik jadval" [level=3] [ref=e22]
+              - paragraph [ref=e23]: Bir tugma bilan to'liq haftalik dars jadvalini yarating
+          - generic [ref=e24]:
+            - img [ref=e26]
+            - generic [ref=e31]:
+              - heading "O'qituvchi boshqaruvi" [level=3] [ref=e32]
+              - paragraph [ref=e33]: O'qituvchilar va ularning dars yuklamasini kuzatib boring
+          - generic [ref=e34]:
+            - img [ref=e36]
+            - generic [ref=e38]:
+              - heading "Ziddiyatsiz jadval" [level=3] [ref=e39]
+              - paragraph [ref=e40]: Xona va o'qituvchi ziddiyatlarini avtomatik aniqlang
+      - generic [ref=e41]: © 2024 Maktab Dars Jadvali tizimi
+    - generic [ref=e44]:
+      - generic [ref=e45]:
+        - img [ref=e47]
+        - heading "Kirish" [level=2] [ref=e52]
+        - paragraph [ref=e53]: Tizimga kirish uchun kodingizni kiriting
+      - generic [ref=e54]:
+        - alert [ref=e72]:
+          - generic [ref=e73]: Email yoki parol noto'g'ri.
+        - generic [ref=e55]:
+          - text: Email
+          - generic [ref=e56]:
+            - img [ref=e57]
+            - textbox "Email" [ref=e60]:
+              - /placeholder: email@maktab.uz
+              - text: usmonjonteacher@gmail.com
+        - generic [ref=e61]:
+          - text: Parol
+          - generic [ref=e62]:
+            - img [ref=e63]
+            - textbox "Parol" [ref=e66]:
+              - /placeholder: Parolingizni kiriting
+              - text: Test@1234
+            - button [ref=e67] [cursor=pointer]:
+              - img [ref=e68]
+        - button "Kirish" [ref=e71] [cursor=pointer]

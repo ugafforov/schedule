@@ -25,6 +25,30 @@ const bulkTeacherSchema = z.object({
 export const teacherRoutes = new Hono()
   .use(authMiddleware)
 
+  // Unavailability
+  .get("/:id/unavailability", async (c) => {
+    return c.json(await storage.getTeacherUnavailability(parseInt(c.req.param("id"))));
+  })
+
+  .post("/:id/unavailability", async (c) => {
+    const id = parseInt(c.req.param("id"));
+    const { slots } = await c.req.json();
+    console.log(`[API] Setting unavailability for teacher ${id}:`, slots);
+    await storage.setTeacherUnavailability(id, slots || []);
+    return c.json({ ok: true });
+  })
+
+  // Subjects
+  .get("/:id/subjects", async (c) => {
+    return c.json(await storage.getTeacherSubjects(parseInt(c.req.param("id"))));
+  })
+
+  .put("/:id/subjects", async (c) => {
+    const { subjectIds } = await c.req.json();
+    await storage.setTeacherSubjects(parseInt(c.req.param("id")), subjectIds || []);
+    return c.json({ ok: true });
+  })
+
   .get("/", async (c) => c.json(await storage.getTeachers()))
 
   .post("/", async (c) => {
@@ -173,23 +197,6 @@ export const teacherRoutes = new Hono()
   // Subjects
   .get("/:id/subjects", async (c) => {
     return c.json(await storage.getTeacherSubjects(parseInt(c.req.param("id"))));
-  })
-
-  .put("/:id/subjects", async (c) => {
-    const { subjectIds } = await c.req.json();
-    await storage.setTeacherSubjects(parseInt(c.req.param("id")), subjectIds || []);
-    return c.json({ ok: true });
-  })
-
-  // Unavailability
-  .get("/:id/unavailability", async (c) => {
-    return c.json(await storage.getTeacherUnavailability(parseInt(c.req.param("id"))));
-  })
-
-  .put("/:id/unavailability", async (c) => {
-    const { slots } = await c.req.json();
-    await storage.setTeacherUnavailability(parseInt(c.req.param("id")), slots || []);
-    return c.json({ ok: true });
   })
 
   // Teacher load analytics

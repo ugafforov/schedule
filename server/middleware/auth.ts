@@ -1,5 +1,8 @@
 import { createMiddleware } from "hono/factory";
 import { createClient } from "@supabase/supabase-js";
+import { db } from "../db";
+import { userRoles } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey =
@@ -32,12 +35,31 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
     const user = data.user;
     const meta = user.user_metadata || {};
-    const appMeta = user.app_metadata || {};
+
+    // DB dan rolini olish
+    let roleData = await db
+      .select()
+      .from(userRoles)
+      .where(eq(userRoles.userId, user.id))
+      .limit(1)
+      .then((res) => res[0]);
+
+    // Agar DB da roli bo'lmasa (yangi foydalanuvchi), avtomatik "teacher" roli beramiz
+    if (!roleData) {
+      const [newRole] = await db
+        .insert(userRoles)
+        .values({
+          userId: user.id,
+          role: "teacher",
+        })
+        .returning();
+      roleData = newRole;
+    }
 
     c.set("user", {
       id: user.id,
       email: user.email,
-      role: appMeta.role || meta.role || "teacher",
+      role: roleData.role,
       firstName: meta.first_name || meta.firstName || "",
       lastName: meta.last_name || meta.lastName || "",
     });

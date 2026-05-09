@@ -17,6 +17,7 @@ export const classRoutes = new Hono()
       name,
       grade: body.grade || name.split("-")[0] || "1",
       section: body.section || null,
+      language: body.language || "uz",
       totalStudents: body.totalStudents || 25,
       isActive: true,
     });
@@ -54,8 +55,12 @@ export const classRoutes = new Hono()
     for (const item of items) {
       const name = `${item.grade}${item.section ? "-" + item.section : ""}`;
       const data = insertClassSchema.parse({
-        name, grade: item.grade, section: item.section || null,
-        totalStudents: item.totalStudents || 25, isActive: true,
+        name, 
+        grade: item.grade, 
+        section: item.section || null,
+        language: item.language || "uz",
+        totalStudents: item.totalStudents || 25, 
+        isActive: true,
       });
       created.push(await storage.createClass(data));
     }

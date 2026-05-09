@@ -1,0 +1,585 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e3]:
+    - banner [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e10]:
+          - img [ref=e12]
+          - generic [ref=e17]:
+            - paragraph [ref=e18]: Maktab Dars Jadvali
+            - paragraph [ref=e19]: Xush kelibsiz, Admin User
+        - generic [ref=e20]:
+          - generic [ref=e23]: Online
+          - button "Yuklab olish" [ref=e24] [cursor=pointer]:
+            - img
+            - generic [ref=e25]: Yuklab olish
+          - generic [ref=e26]:
+            - generic [ref=e28]: AU
+            - generic [ref=e29]:
+              - paragraph [ref=e30]: Admin User
+              - paragraph [ref=e31]: Administrator
+    - generic [ref=e32]:
+      - complementary [ref=e33]:
+        - navigation [ref=e34]:
+          - button "Bosh sahifa" [ref=e35] [cursor=pointer]:
+            - img [ref=e36]
+            - generic: Bosh sahifa
+          - button "Dars jadvali" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - generic: Dars jadvali
+          - button "O'qituvchilar" [ref=e44] [cursor=pointer]:
+            - img [ref=e45]
+            - generic: O'qituvchilar
+          - button "Fanlar" [ref=e50] [cursor=pointer]:
+            - img [ref=e51]
+            - generic: Fanlar
+          - button "Xonalar" [ref=e53] [cursor=pointer]:
+            - img [ref=e54]
+            - generic: Xonalar
+          - button "Dars soatlari" [ref=e57] [cursor=pointer]:
+            - img [ref=e58]
+            - generic: Dars soatlari
+          - button "Sinflar" [ref=e61] [cursor=pointer]:
+            - img [ref=e62]
+            - generic: Sinflar
+          - button "Biriktirishlar" [ref=e65] [cursor=pointer]:
+            - img [ref=e66]
+            - generic: Biriktirishlar
+        - generic [ref=e69]:
+          - button "Sozlamalar" [ref=e70] [cursor=pointer]:
+            - img [ref=e71]
+            - generic: Sozlamalar
+          - button "Chiqish" [ref=e74] [cursor=pointer]:
+            - img [ref=e75]
+            - generic: Chiqish
+      - main [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - heading "Fanlar" [level=1] [ref=e82]
+              - paragraph [ref=e83]: O'quv fanlarini va xona talablarini boshqarish
+            - generic [ref=e84]:
+              - button "Barchasini tozalash" [ref=e85] [cursor=pointer]:
+                - img
+                - text: Barchasini tozalash
+              - button "DTS fanlarini qo'shish" [ref=e86] [cursor=pointer]:
+                - img
+                - text: DTS fanlarini qo'shish
+              - button "Fan qo'shish" [ref=e87] [cursor=pointer]:
+                - img
+                - text: Fan qo'shish
+          - generic [ref=e88]:
+            - generic [ref=e90]:
+              - generic [ref=e91]:
+                - img [ref=e92]
+                - text: Fanlar ro'yxati
+                - generic [ref=e94]: 29 ta
+              - generic [ref=e95]:
+                - generic [ref=e96]:
+                  - img [ref=e97]
+                  - textbox "Qidirish..." [ref=e100]
+                - generic [ref=e101]:
+                  - button "Grid view" [ref=e102] [cursor=pointer]:
+                    - img
+                  - button "List view" [ref=e103] [cursor=pointer]:
+                    - img
+            - generic [ref=e105]:
+              - generic [ref=e106]:
+                - generic [ref=e107]: Fan
+                - generic [ref=e108]: Tavsif
+                - generic [ref=e109]: Xona turi
+                - generic [ref=e110]: Soat / Amal
+              - generic [ref=e111]:
+                - generic [ref=e112]:
+                  - img [ref=e114]
+                  - generic [ref=e116]:
+                    - paragraph [ref=e117]: Ona tili
+                    - paragraph [ref=e118]: ONA
+                - paragraph [ref=e119]: "1–6: 4s | 7–9: 3s | 10–11: 2s (haftalik)"
+                - generic [ref=e120]: Sinf xonasi
+                - generic [ref=e121]:
+                  - generic [ref=e122]:
+                    - img [ref=e123]
+                    - generic [ref=e126]: "4"
+                  - generic [ref=e127]:
+                    - button [ref=e128] [cursor=pointer]:
+                      - img
+                    - button [ref=e129] [cursor=pointer]:
+                      - img
+              - generic [ref=e130]:
+                - generic [ref=e131]:
+                  - img [ref=e133]
+                  - generic [ref=e135]:
+                    - paragraph [ref=e136]: O'qish savodxonligi
+                    - paragraph [ref=e137]: OQISH
+                - paragraph [ref=e138]: "Faqat 1–4-sinf: 1=4s, 2-4=3s"
+                - generic [ref=e139]: Sinf xonasi
+                - generic [ref=e140]:
+                  - generic [ref=e141]:
+                    - img [ref=e142]
+                    - generic [ref=e145]: "4"
+                  - generic [ref=e146]:
+                    - button [ref=e147] [cursor=pointer]:
+                      - img
+                    - button [ref=e148] [cursor=pointer]:
+                      - img
+              - generic [ref=e149]:
+                - generic [ref=e150]:
+                  - img [ref=e152]
+                  - generic [ref=e154]:
+                    - paragraph [ref=e155]: Adabiyot
+                    - paragraph [ref=e156]: ADAB
+                - paragraph [ref=e157]: "5–11-sinf: 2s"
+                - generic [ref=e158]: Sinf xonasi
+                - generic [ref=e159]:
+                  - generic [ref=e160]:
+                    - img [ref=e161]
+                    - generic [ref=e164]: "2"
+                  - generic [ref=e165]:
+                    - button [ref=e166] [cursor=pointer]:
+                      - img
+                    - button [ref=e167] [cursor=pointer]:
+                      - img
+              - generic [ref=e168]:
+                - generic [ref=e169]:
+                  - img [ref=e171]
+                  - generic [ref=e173]:
+                    - paragraph [ref=e174]: Rus tili
+                    - paragraph [ref=e175]: RUS
+                - paragraph [ref=e176]: "2–11-sinf: 2s"
+                - generic [ref=e177]: Sinf xonasi
+                - generic [ref=e178]:
+                  - generic [ref=e179]:
+                    - img [ref=e180]
+                    - generic [ref=e183]: "2"
+                  - generic [ref=e184]:
+                    - button [ref=e185] [cursor=pointer]:
+                      - img
+                    - button [ref=e186] [cursor=pointer]:
+                      - img
+              - generic [ref=e187]:
+                - generic [ref=e188]:
+                  - img [ref=e190]
+                  - generic [ref=e192]:
+                    - paragraph [ref=e193]: Chet tili
+                    - paragraph [ref=e194]: ING
+                - paragraph [ref=e195]: 1=1s | 2-4=2s | 5-7=4s | 8-9=3s | 10-11=2s
+                - generic [ref=e196]: Sinf xonasi
+                - generic [ref=e197]:
+                  - generic [ref=e198]:
+                    - img [ref=e199]
+                    - generic [ref=e202]: "4"
+                  - generic [ref=e203]:
+                    - button [ref=e204] [cursor=pointer]:
+                      - img
+                    - button [ref=e205] [cursor=pointer]:
+                      - img
+              - generic [ref=e206]:
+                - generic [ref=e207]:
+                  - img [ref=e209]
+                  - generic [ref=e211]:
+                    - paragraph [ref=e212]: Tarixdan hikoyalar
+                    - paragraph [ref=e213]: TARHIK
+                - paragraph [ref=e214]: "Faqat 5-sinf: 2s"
+                - generic [ref=e215]: Sinf xonasi
+                - generic [ref=e216]:
+                  - generic [ref=e217]:
+                    - img [ref=e218]
+                    - generic [ref=e221]: "2"
+                  - generic [ref=e222]:
+                    - button [ref=e223] [cursor=pointer]:
+                      - img
+                    - button [ref=e224] [cursor=pointer]:
+                      - img
+              - generic [ref=e225]:
+                - generic [ref=e226]:
+                  - img [ref=e228]
+                  - generic [ref=e230]:
+                    - paragraph [ref=e231]: Qadimgi dunyo tarixi
+                    - paragraph [ref=e232]: QADTARIX
+                - paragraph [ref=e233]: "Faqat 6-sinf: 2s"
+                - generic [ref=e234]: Sinf xonasi
+                - generic [ref=e235]:
+                  - generic [ref=e236]:
+                    - img [ref=e237]
+                    - generic [ref=e240]: "2"
+                  - generic [ref=e241]:
+                    - button [ref=e242] [cursor=pointer]:
+                      - img
+                    - button [ref=e243] [cursor=pointer]:
+                      - img
+              - generic [ref=e244]:
+                - generic [ref=e245]:
+                  - img [ref=e247]
+                  - generic [ref=e249]:
+                    - paragraph [ref=e250]: O'zbekiston tarixi
+                    - paragraph [ref=e251]: UZBT
+                - paragraph [ref=e252]: "7–9: 2s | 10–11: 1s"
+                - generic [ref=e253]: Sinf xonasi
+                - generic [ref=e254]:
+                  - generic [ref=e255]:
+                    - img [ref=e256]
+                    - generic [ref=e259]: "2"
+                  - generic [ref=e260]:
+                    - button [ref=e261] [cursor=pointer]:
+                      - img
+                    - button [ref=e262] [cursor=pointer]:
+                      - img
+              - generic [ref=e263]:
+                - generic [ref=e264]:
+                  - img [ref=e266]
+                  - generic [ref=e268]:
+                    - paragraph [ref=e269]: Jahon tarixi
+                    - paragraph [ref=e270]: JTAR
+                - paragraph [ref=e271]: "7–11-sinf: 1s"
+                - generic [ref=e272]: Sinf xonasi
+                - generic [ref=e273]:
+                  - generic [ref=e274]:
+                    - img [ref=e275]
+                    - generic [ref=e278]: "1"
+                  - generic [ref=e279]:
+                    - button [ref=e280] [cursor=pointer]:
+                      - img
+                    - button [ref=e281] [cursor=pointer]:
+                      - img
+              - generic [ref=e282]:
+                - generic [ref=e283]:
+                  - img [ref=e285]
+                  - generic [ref=e287]:
+                    - paragraph [ref=e288]: Davlat va huquq asoslari
+                    - paragraph [ref=e289]: DHQ
+                - paragraph [ref=e290]: "8–11-sinf: 1s"
+                - generic [ref=e291]: Sinf xonasi
+                - generic [ref=e292]:
+                  - generic [ref=e293]:
+                    - img [ref=e294]
+                    - generic [ref=e297]: "1"
+                  - generic [ref=e298]:
+                    - button [ref=e299] [cursor=pointer]:
+                      - img
+                    - button [ref=e300] [cursor=pointer]:
+                      - img
+              - generic [ref=e301]:
+                - generic [ref=e302]:
+                  - img [ref=e304]
+                  - generic [ref=e306]:
+                    - paragraph [ref=e307]: Tarbiya
+                    - paragraph [ref=e308]: TARB
+                - paragraph [ref=e309]: "1–11-sinf: 1s (sinf soati)"
+                - generic [ref=e310]: Sinf xonasi
+                - generic [ref=e311]:
+                  - generic [ref=e312]:
+                    - img [ref=e313]
+                    - generic [ref=e316]: "1"
+                  - generic [ref=e317]:
+                    - button [ref=e318] [cursor=pointer]:
+                      - img
+                    - button [ref=e319] [cursor=pointer]:
+                      - img
+              - generic [ref=e320]:
+                - generic [ref=e321]:
+                  - img [ref=e323]
+                  - generic [ref=e325]:
+                    - paragraph [ref=e326]: Matematika
+                    - paragraph [ref=e327]: MATH4
+                - paragraph [ref=e328]: "1–7-sinf: 5s"
+                - generic [ref=e329]: Sinf xonasi
+                - generic [ref=e330]:
+                  - generic [ref=e331]:
+                    - img [ref=e332]
+                    - generic [ref=e335]: "5"
+                  - generic [ref=e336]:
+                    - button [ref=e337] [cursor=pointer]:
+                      - img
+                    - button [ref=e338] [cursor=pointer]:
+                      - img
+              - generic [ref=e339]:
+                - generic [ref=e340]:
+                  - img [ref=e342]
+                  - generic [ref=e344]:
+                    - paragraph [ref=e345]: Algebra
+                    - paragraph [ref=e346]: ALG
+                - paragraph [ref=e347]: "8–11-sinf: 3s"
+                - generic [ref=e348]: Sinf xonasi
+                - generic [ref=e349]:
+                  - generic [ref=e350]:
+                    - img [ref=e351]
+                    - generic [ref=e354]: "3"
+                  - generic [ref=e355]:
+                    - button [ref=e356] [cursor=pointer]:
+                      - img
+                    - button [ref=e357] [cursor=pointer]:
+                      - img
+              - generic [ref=e358]:
+                - generic [ref=e359]:
+                  - img [ref=e361]
+                  - generic [ref=e363]:
+                    - paragraph [ref=e364]: Geometriya
+                    - paragraph [ref=e365]: GEOM
+                - paragraph [ref=e366]: "8–11-sinf: 2s"
+                - generic [ref=e367]: Sinf xonasi
+                - generic [ref=e368]:
+                  - generic [ref=e369]:
+                    - img [ref=e370]
+                    - generic [ref=e373]: "2"
+                  - generic [ref=e374]:
+                    - button [ref=e375] [cursor=pointer]:
+                      - img
+                    - button [ref=e376] [cursor=pointer]:
+                      - img
+              - generic [ref=e377]:
+                - generic [ref=e378]:
+                  - img [ref=e380]
+                  - generic [ref=e382]:
+                    - paragraph [ref=e383]: Informatika va axborot texnologiyalari
+                    - paragraph [ref=e384]: INF4
+                - paragraph [ref=e385]: 1–3=1s | 5–8=1s | 9–11=2s (4-sinfda yo'q)
+                - generic [ref=e386]: Kompyuter xonasi
+                - generic [ref=e387]:
+                  - generic [ref=e388]:
+                    - img [ref=e389]
+                    - generic [ref=e392]: "1"
+                  - generic [ref=e393]:
+                    - button [ref=e394] [cursor=pointer]:
+                      - img
+                    - button [ref=e395] [cursor=pointer]:
+                      - img
+              - generic [ref=e396]:
+                - generic [ref=e397]:
+                  - img [ref=e399]
+                  - generic [ref=e401]:
+                    - paragraph [ref=e402]: Tabiiy fanlar (Science)
+                    - paragraph [ref=e403]: ATRO
+                - paragraph [ref=e404]: 1–3=1s | 4=2s | 5=2s | 6=3s
+                - generic [ref=e405]: Sinf xonasi
+                - generic [ref=e406]:
+                  - generic [ref=e407]:
+                    - img [ref=e408]
+                    - generic [ref=e411]: "2"
+                  - generic [ref=e412]:
+                    - button [ref=e413] [cursor=pointer]:
+                      - img
+                    - button [ref=e414] [cursor=pointer]:
+                      - img
+              - generic [ref=e415]:
+                - generic [ref=e416]:
+                  - img [ref=e418]
+                  - generic [ref=e420]:
+                    - paragraph [ref=e421]: Fizika
+                    - paragraph [ref=e422]: FIZ
+                - paragraph [ref=e423]: "7–11-sinf: 2s"
+                - generic [ref=e424]: Laboratoriya
+                - generic [ref=e425]:
+                  - generic [ref=e426]:
+                    - img [ref=e427]
+                    - generic [ref=e430]: "2"
+                  - generic [ref=e431]:
+                    - button [ref=e432] [cursor=pointer]:
+                      - img
+                    - button [ref=e433] [cursor=pointer]:
+                      - img
+              - generic [ref=e434]:
+                - generic [ref=e435]:
+                  - img [ref=e437]
+                  - generic [ref=e439]:
+                    - paragraph [ref=e440]: Astronomiya
+                    - paragraph [ref=e441]: ASTRO
+                - paragraph [ref=e442]: "Faqat 11-sinf: 1s"
+                - generic [ref=e443]: Laboratoriya
+                - generic [ref=e444]:
+                  - generic [ref=e445]:
+                    - img [ref=e446]
+                    - generic [ref=e449]: "1"
+                  - generic [ref=e450]:
+                    - button [ref=e451] [cursor=pointer]:
+                      - img
+                    - button [ref=e452] [cursor=pointer]:
+                      - img
+              - generic [ref=e453]:
+                - generic [ref=e454]:
+                  - img [ref=e456]
+                  - generic [ref=e458]:
+                    - paragraph [ref=e459]: Kimyo
+                    - paragraph [ref=e460]: KIM
+                - paragraph [ref=e461]: "7–11-sinf: 2s"
+                - generic [ref=e462]: Laboratoriya
+                - generic [ref=e463]:
+                  - generic [ref=e464]:
+                    - img [ref=e465]
+                    - generic [ref=e468]: "2"
+                  - generic [ref=e469]:
+                    - button [ref=e470] [cursor=pointer]:
+                      - img
+                    - button [ref=e471] [cursor=pointer]:
+                      - img
+              - generic [ref=e472]:
+                - generic [ref=e473]:
+                  - img [ref=e475]
+                  - generic [ref=e477]:
+                    - paragraph [ref=e478]: Biologiya
+                    - paragraph [ref=e479]: BIO
+                - paragraph [ref=e480]: "7–11-sinf: 2s"
+                - generic [ref=e481]: Laboratoriya
+                - generic [ref=e482]:
+                  - generic [ref=e483]:
+                    - img [ref=e484]
+                    - generic [ref=e487]: "2"
+                  - generic [ref=e488]:
+                    - button [ref=e489] [cursor=pointer]:
+                      - img
+                    - button [ref=e490] [cursor=pointer]:
+                      - img
+              - generic [ref=e491]:
+                - generic [ref=e492]:
+                  - img [ref=e494]
+                  - generic [ref=e496]:
+                    - paragraph [ref=e497]: Geografiya
+                    - paragraph [ref=e498]: GEOG
+                - paragraph [ref=e499]: 7=2s | 8–9=1.5s | 10=2s (11-sinfda yo'q)
+                - generic [ref=e500]: Sinf xonasi
+                - generic [ref=e501]:
+                  - generic [ref=e502]:
+                    - img [ref=e503]
+                    - generic [ref=e506]: "2"
+                  - generic [ref=e507]:
+                    - button [ref=e508] [cursor=pointer]:
+                      - img
+                    - button [ref=e509] [cursor=pointer]:
+                      - img
+              - generic [ref=e510]:
+                - generic [ref=e511]:
+                  - img [ref=e513]
+                  - generic [ref=e515]:
+                    - paragraph [ref=e516]: Iqtisodiy bilim asoslari
+                    - paragraph [ref=e517]: IQT
+                - paragraph [ref=e518]: "8–9-sinf: 0.5s"
+                - generic [ref=e519]: Sinf xonasi
+                - generic [ref=e520]:
+                  - generic [ref=e521]:
+                    - img [ref=e522]
+                    - generic [ref=e525]: "1"
+                  - generic [ref=e526]:
+                    - button [ref=e527] [cursor=pointer]:
+                      - img
+                    - button [ref=e528] [cursor=pointer]:
+                      - img
+              - generic [ref=e529]:
+                - generic [ref=e530]:
+                  - img [ref=e532]
+                  - generic [ref=e534]:
+                    - paragraph [ref=e535]: Tadbirkorlik asoslari
+                    - paragraph [ref=e536]: TADBIR
+                - paragraph [ref=e537]: "Faqat 11-sinf: 1s"
+                - generic [ref=e538]: Sinf xonasi
+                - generic [ref=e539]:
+                  - generic [ref=e540]:
+                    - img [ref=e541]
+                    - generic [ref=e544]: "1"
+                  - generic [ref=e545]:
+                    - button [ref=e546] [cursor=pointer]:
+                      - img
+                    - button [ref=e547] [cursor=pointer]:
+                      - img
+              - generic [ref=e548]:
+                - generic [ref=e549]:
+                  - img [ref=e551]
+                  - generic [ref=e553]:
+                    - paragraph [ref=e554]: Musiqa madaniyati
+                    - paragraph [ref=e555]: MUS
+                - paragraph [ref=e556]: "1–7-sinf: 1s"
+                - generic [ref=e557]: Musiqa xonasi
+                - generic [ref=e558]:
+                  - generic [ref=e559]:
+                    - img [ref=e560]
+                    - generic [ref=e563]: "1"
+                  - generic [ref=e564]:
+                    - button [ref=e565] [cursor=pointer]:
+                      - img
+                    - button [ref=e566] [cursor=pointer]:
+                      - img
+              - generic [ref=e567]:
+                - generic [ref=e568]:
+                  - img [ref=e570]
+                  - generic [ref=e572]:
+                    - paragraph [ref=e573]: Tasviriy san'at
+                    - paragraph [ref=e574]: TASV
+                - paragraph [ref=e575]: "1–7-sinf: 1s"
+                - generic [ref=e576]: Rasm xonasi
+                - generic [ref=e577]:
+                  - generic [ref=e578]:
+                    - img [ref=e579]
+                    - generic [ref=e582]: "1"
+                  - generic [ref=e583]:
+                    - button [ref=e584] [cursor=pointer]:
+                      - img
+                    - button [ref=e585] [cursor=pointer]:
+                      - img
+              - generic [ref=e586]:
+                - generic [ref=e587]:
+                  - img [ref=e589]
+                  - generic [ref=e591]:
+                    - paragraph [ref=e592]: Chizmachilik
+                    - paragraph [ref=e593]: CHIZMA
+                - paragraph [ref=e594]: "8–9-sinf: 1s"
+                - generic [ref=e595]: Sinf xonasi
+                - generic [ref=e596]:
+                  - generic [ref=e597]:
+                    - img [ref=e598]
+                    - generic [ref=e601]: "1"
+                  - generic [ref=e602]:
+                    - button [ref=e603] [cursor=pointer]:
+                      - img
+                    - button [ref=e604] [cursor=pointer]:
+                      - img
+              - generic [ref=e605]:
+                - generic [ref=e606]:
+                  - img [ref=e608]
+                  - generic [ref=e610]:
+                    - paragraph [ref=e611]: Texnologiya
+                    - paragraph [ref=e612]: TECH4
+                - paragraph [ref=e613]: 1–4=1s | 5–7=2s | 8–9=1s
+                - generic [ref=e614]: Sinf xonasi
+                - generic [ref=e615]:
+                  - generic [ref=e616]:
+                    - img [ref=e617]
+                    - generic [ref=e620]: "2"
+                  - generic [ref=e621]:
+                    - button [ref=e622] [cursor=pointer]:
+                      - img
+                    - button [ref=e623] [cursor=pointer]:
+                      - img
+              - generic [ref=e624]:
+                - generic [ref=e625]:
+                  - img [ref=e627]
+                  - generic [ref=e629]:
+                    - paragraph [ref=e630]: Jismoniy tarbiya
+                    - paragraph [ref=e631]: JT4
+                - paragraph [ref=e632]: 1=1s | 2–11=2s
+                - generic [ref=e633]: Sport zali
+                - generic [ref=e634]:
+                  - generic [ref=e635]:
+                    - img [ref=e636]
+                    - generic [ref=e639]: "2"
+                  - generic [ref=e640]:
+                    - button [ref=e641] [cursor=pointer]:
+                      - img
+                    - button [ref=e642] [cursor=pointer]:
+                      - img
+              - generic [ref=e643]:
+                - generic [ref=e644]:
+                  - img [ref=e646]
+                  - generic [ref=e648]:
+                    - paragraph [ref=e649]: Chaqiruvga qadar boshlang'ich tayyorgarlik
+                    - paragraph [ref=e650]: CHQBT
+                - paragraph [ref=e651]: "10–11-sinf: 2s"
+                - generic [ref=e652]: Sport zali
+                - generic [ref=e653]:
+                  - generic [ref=e654]:
+                    - img [ref=e655]
+                    - generic [ref=e658]: "2"
+                  - generic [ref=e659]:
+                    - button [ref=e660] [cursor=pointer]:
+                      - img
+                    - button [ref=e661] [cursor=pointer]:
+                      - img

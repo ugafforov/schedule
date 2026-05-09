@@ -127,7 +127,13 @@ export class DatabaseStorage implements IStorage {
 
   // ─── TEACHERS ────────────────────────────────────────────────────────────────
   async getTeachers(): Promise<Teacher[]> {
-    return db.select().from(teachers).where(eq(teachers.isActive, true));
+    return db.query.teachers.findMany({
+      where: eq(teachers.isActive, true),
+      with: {
+        teacherSubjects: true,
+        unavailability: true,
+      },
+    });
   }
   async createTeacher(data: InsertTeacher): Promise<Teacher> {
     const [r] = await db.insert(teachers).values(data).returning();
@@ -206,6 +212,7 @@ export class DatabaseStorage implements IStorage {
       classId: classSubjects.classId,
       subjectId: classSubjects.subjectId,
       teacherId: classSubjects.teacherId,
+      teacherId2: classSubjects.teacherId2,
       weeklyHours: classSubjects.weeklyHours,
     })
     .from(classSubjects)

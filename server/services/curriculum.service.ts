@@ -2,17 +2,27 @@
  * O'quv reja bo'yicha fan ixtisosligini aniqlash
  * Bu funksiya routes ichida emas, alohida service da
  */
-export function getSpecialty(subjectName: string, grade: string): string {
+export function getSpecialty(subjectName: string, grade: string, language: string = "uz"): string {
   const name = subjectName.toLowerCase().trim();
   const g = parseInt(grade);
 
   // Boshlang'ich sinflar (1-4)
   if (g >= 1 && g <= 4) {
     const primary = [
-      "ona tili", "o'qish savodxonligi", "matematika",
+      "ona tili", "o'qish savodxonligi", "matematika", "o'zbek tili", "rus tili",
       "tarbiya", "tabiiy fanlar (science)", "tasviriy san'at", "texnologiya",
     ];
     if (primary.includes(name)) return "Boshlang'ich sinf o'qituvchisi";
+  }
+
+  // Rus maktablarida "Ona tili" va "Adabiyot" aslida Rus tili va adabiyoti
+  if (language === "ru") {
+    if (["ona tili", "adabiyot", "rus tili"].includes(name)) return "Rus tili";
+    if (["o'zbek tili"].includes(name)) return "O'zbek tili";
+  } else {
+    if (["ona tili", "adabiyot"].includes(name)) return "Ona tili va adabiyot";
+    if (["rus tili"].includes(name)) return "Rus tili";
+    if (["o'zbek tili"].includes(name)) return "O'zbek tili";
   }
 
   if (["matematika", "algebra", "geometriya"].includes(name)) return "Matematika";

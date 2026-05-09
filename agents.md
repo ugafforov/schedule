@@ -9,13 +9,15 @@ Barcha UI o'zbek tilida. O'quv reja: DTS 2025-2026 (121-son buyruq, 10.04.2025).
 ## Buyruqlar
 
 ```bash
-npm run dev        # Server + Vite birgalikda port 5000 (bitta buyruq yetarli)
-npm run build && npm start   # Production
-npm run check      # TypeScript
-npm run db:push    # Migratsiya
+npm run dev           # Server + Vite birgalikda port 5000 (bitta buyruq yetarli)
+npm run build && npm start  # Production build va start
+npm run check         # TypeScript tekshiruvi
+npm run db:push       # Dev: Schemani bazaga tezkor "surish" (migration yaratmaydi)
+npm run db:generate   # Prod: Yangi migration fayl yaratish (shared/schema.ts o'zgarganda)
+npm run db:migrate    # Prod: Yaratilgan migrationlarni bazaga qo'llash
 ```
 
-`localhost:5000` — dev va prod da bir xil. Vite server ichida middleware, alohida port yo'q.
+**Eslatma:** Development jarayonida tezkorlik uchun `db:push` dan foydalaning. Production muhitida yoki jamoada ishlashda esa `db:generate` va `db:migrate` orqali o'zgarishlarni boshqaring.
 
 ---
 

@@ -108,7 +108,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
 }) {
   if (!selectedClass) return null;
   const grade = parseInt(selectedClass.grade);
-  const result = getAutoAssignments(grade, subjects);
+  const result = getAutoAssignments(grade, subjects, (selectedClass as any).language || "uz");
   const teacherSubjectMap = new Map<number, number[]>();
   for (const teacher of teachers) {
     teacherSubjectMap.set(teacher.id, teacher.subjectIds || []);

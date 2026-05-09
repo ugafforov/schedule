@@ -8,16 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square, LayoutGrid, List } from "lucide-react";
+import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square, LayoutGrid, List, FileSpreadsheet } from "lucide-react";
 
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher } from "@shared/schema";
+import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
 import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
 
-interface SubjectAssignment { subjectId: number; teacherId: number | null; weeklyHours: number; }
-interface ClassFormData { name: string; grade: string; section: string; totalStudents: number; subjects: SubjectAssignment[]; }
+interface SubjectAssignment { subjectId: number; teacherId: number | null; teacherId2: number | null; weeklyHours: number; }
+interface ClassFormData { name: string; grade: string; section: string; language: string; totalStudents: number; subjects: SubjectAssignment[]; }
 
-const EMPTY_FORM: ClassFormData = { name: "", grade: "", section: "", totalStudents: 25, subjects: [] };
+const EMPTY_FORM: ClassFormData = { name: "", grade: "", section: "", language: "uz", totalStudents: 25, subjects: [] };
 const GRADE_COLORS = [
   "bg-blue-100 text-blue-700", "bg-green-100 text-green-700", "bg-purple-100 text-purple-700",
   "bg-orange-100 text-orange-700", "bg-pink-100 text-pink-700", "bg-cyan-100 text-cyan-700",
@@ -64,6 +65,7 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
   const { toast } = useToast();
   const [selectedGrades, setSelectedGrades] = useState<string[]>(["1","2","3","4","5","6","7","8","9","10","11"]);
   const [sections, setSections] = useState("A, B");
+  const [language, setLanguage] = useState("uz");
   const [totalStudents, setTotalStudents] = useState(25);
   const [loading, setLoading] = useState(false);
 
@@ -80,11 +82,12 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
       const dbClasses = selectedGrades.flatMap(grade => parsedSections.map(section => ({ 
         grade, 
         section, 
+        language,
         name: `${grade}-${section}`,
         total_students: totalStudents,
         is_active: true 
       })));
-      await apiRequest("POST", "/api/classes/bulk", { classes: dbClasses.map(c => ({ grade: c.grade, section: c.section, totalStudents: c.total_students })) });
+      await apiRequest("POST", "/api/classes/bulk", { classes: dbClasses.map(c => ({ grade: c.grade, section: c.section, language: c.language, totalStudents: c.total_students })) });
       toast({ title: "Muvaffaqiyat", description: `${dbClasses.length} ta sinf yaratildi` });
       onSuccess();
       onClose();
@@ -102,6 +105,14 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-5 py-1">
+          {/* Language selector */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">Ta'lim tili</Label>
+            <div className="flex gap-2">
+              <Button variant={language === "uz" ? "default" : "outline"} size="sm" onClick={() => setLanguage("uz")} className="flex-1">O'zbekcha</Button>
+              <Button variant={language === "ru" ? "default" : "outline"} size="sm" onClick={() => setLanguage("ru")} className="flex-1">Ruscha</Button>
+            </div>
+          </div>
           {/* Grade selector */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -166,6 +177,7 @@ export default function Classes() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [excelImportOpen, setExcelImportOpen] = useState(false);
   const [editing, setEditing] = useState<Class | null>(null);
   const [form, setForm] = useState<ClassFormData>(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState<"info" | "subjects">("info");
@@ -252,22 +264,22 @@ export default function Classes() {
       const res = await apiRequest("GET", `/api/classes/${cls.id}/subjects`);
       if (res.ok) {
         const data = await res.json();
-        subs = data.map((cs: any) => ({ subjectId: cs.subjectId, teacherId: cs.teacherId, weeklyHours: cs.weeklyHours }));
+        subs = data.map((cs: any) => ({ subjectId: cs.subjectId, teacherId: cs.teacherId, teacherId2: cs.teacherId2 || null, weeklyHours: cs.weeklyHours }));
       }
     } catch (e) {
       console.error("Error fetching class subjects:", e);
     }
-    setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", totalStudents: cls.totalStudents || 25, subjects: subs });
+    setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", language: (cls as any).language || "uz", totalStudents: cls.totalStudents || 25, subjects: subs });
     setActiveTab("info"); setOpen(true);
   };
 
   const addSubject = (subjectId: number) => {
     if (form.subjects.find(s => s.subjectId === subjectId)) return;
     const sub = subjects.find(s => s.id === subjectId);
-    setForm(p => ({ ...p, subjects: [...p.subjects, { subjectId, teacherId: null, weeklyHours: sub?.weeklyHours || 2 }] }));
+    setForm(p => ({ ...p, subjects: [...p.subjects, { subjectId, teacherId: null, teacherId2: null, weeklyHours: sub?.weeklyHours || 2 }] }));
   };
   const removeSubject = (subjectId: number) => setForm(p => ({ ...p, subjects: p.subjects.filter(s => s.subjectId !== subjectId) }));
-  const updateSubjectField = (subjectId: number, field: "teacherId" | "weeklyHours", value: any) =>
+  const updateSubjectField = (subjectId: number, field: "teacherId" | "teacherId2" | "weeklyHours", value: any) =>
     setForm(p => ({ ...p, subjects: p.subjects.map(s => s.subjectId === subjectId ? { ...s, [field]: value } : s) }));
 
   const filtered = classes.filter(c => `${c.name} ${c.grade} ${c.section}`.toLowerCase().includes(search.toLowerCase()));
@@ -290,6 +302,9 @@ export default function Classes() {
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Barchasini tozalash
+          </Button>
+          <Button variant="outline" onClick={() => setExcelImportOpen(true)} className="border-emerald-100 text-emerald-700 hover:bg-emerald-50">
+            <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel Import
           </Button>
           <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300">
             <Zap className="mr-2 h-4 w-4 text-amber-500" />
@@ -351,7 +366,12 @@ export default function Classes() {
                         </Button>
                       </div>
                     </div>
-                    <h3 className="font-bold text-gray-900 text-lg">{cls.name}</h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-bold text-gray-900 text-lg">{cls.name}</h3>
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase bg-gray-50 text-gray-500 border-gray-200">
+                        {(cls as any).language || "uz"}
+                      </Badge>
+                    </div>
                     <div className="flex items-center space-x-1 mt-1 text-gray-400">
                       <Users className="h-3 w-3" /><span className="text-xs">{cls.totalStudents} o'quvchi</span>
                     </div>
@@ -377,13 +397,18 @@ export default function Classes() {
                           <span className={`font-bold text-lg ${text}`}>{cls.grade || cls.name?.[0] || "?"}</span>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <InlineEdit
-                            value={cls.name}
-                            onSave={(name) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { name } })}
-                            placeholder="Sinf nomi"
-                            className="font-semibold text-gray-900 text-sm"
-                            disabled={isUpdating}
-                          />
+                          <div className="flex items-center gap-2">
+                            <InlineEdit
+                              value={cls.name}
+                              onSave={(name) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { name } })}
+                              placeholder="Sinf nomi"
+                              className="font-semibold text-gray-900 text-sm"
+                              disabled={isUpdating}
+                            />
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase bg-gray-50 text-gray-500 border-gray-200">
+                              {(cls as any).language || "uz"}
+                            </Badge>
+                          </div>
                           <InlineEdit
                             value={cls.section || ""}
                             onSave={(section) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { section } })}
@@ -460,6 +485,16 @@ export default function Classes() {
           {activeTab === "info" && (
             <div className="space-y-4">
               <div className="space-y-1.5">
+                <Label className="text-sm">Ta'lim tili</Label>
+                <Select value={form.language} onValueChange={v => setForm(p => ({ ...p, language: v }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Tilni tanlang" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="uz">O'zbek tili</SelectItem>
+                    <SelectItem value="ru">Rus tili</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
                 <Label className="text-sm">Sinf nomi *</Label>
                 <Input placeholder="Masalan: 9-A" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
               </div>
@@ -506,22 +541,33 @@ export default function Classes() {
                         </div>
                         <button onClick={() => removeSubject(sa.subjectId)} className="text-gray-400 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-[1fr_1fr_60px] gap-2 items-start">
                         <div className="space-y-1">
-                          <label className="text-xs text-gray-500">O'qituvchi</label>
+                          <label className="text-[10px] uppercase font-bold text-gray-500">1-O'qituvchi</label>
                           <Select value={sa.teacherId ? String(sa.teacherId) : "none"}
                             onValueChange={v => updateSubjectField(sa.subjectId, "teacherId", v === "none" ? null : parseInt(v))}>
                             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tanlang" /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">— Biriktirilmagan —</SelectItem>
+                              <SelectItem value="none">— Tanlanmagan —</SelectItem>
                               {teachers.map(t => <SelectItem key={t.id} value={String(t.id)}>{`${t.firstName} ${t.lastName}`.trim() || t.employeeId}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs text-gray-500">Soat/hafta</label>
+                          <label className="text-[10px] uppercase font-bold text-gray-500">2-O'qituvchi (Guruh)</label>
+                          <Select value={sa.teacherId2 ? String(sa.teacherId2) : "none"}
+                            onValueChange={v => updateSubjectField(sa.subjectId, "teacherId2", v === "none" ? null : parseInt(v))}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tanlang" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— Tanlanmagan —</SelectItem>
+                              {teachers.map(t => <SelectItem key={t.id} value={String(t.id)}>{`${t.firstName} ${t.lastName}`.trim() || t.employeeId}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold text-gray-500">Soat</label>
                           <Input type="number" min={1} max={8} value={sa.weeklyHours}
-                            onChange={e => updateSubjectField(sa.subjectId, "weeklyHours", parseInt(e.target.value) || 2)} className="h-8 text-xs" />
+                            onChange={e => updateSubjectField(sa.subjectId, "weeklyHours", parseInt(e.target.value) || 2)} className="h-8 text-xs px-2" />
                         </div>
                       </div>
                     </div>
@@ -575,6 +621,12 @@ export default function Classes() {
           if (deleteId !== null) deleteMutation.mutate(deleteId);
           setDeleteId(null);
         }}
+      />
+
+      <ExcelImportDialog
+        open={excelImportOpen}
+        onClose={() => setExcelImportOpen(false)}
+        type="classes"
       />
     </div>
   );
