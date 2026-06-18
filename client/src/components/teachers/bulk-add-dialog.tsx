@@ -28,7 +28,7 @@ interface BulkTeacherItem {
   subjectColor?: string;
 }
 
-const CURRICULUM_MAX_HOURS = 24;
+const CURRICULUM_MAX_HOURS = 30;
 
 export function BulkAddTeachers({ 
   open, 
@@ -43,7 +43,7 @@ export function BulkAddTeachers({
 }) {
   const { toast } = useToast();
   const [mode, setMode] = useState<"recommend" | "manual">("recommend");
-  const [maxHours, setMaxHours] = useState(24);
+  const [maxHours, setMaxHours] = useState(30);
   const [loading, setLoading] = useState(false);
   const [manualText, setManualText] = useState("");
   const [generatedList, setGeneratedList] = useState<BulkTeacherItem[]>([]);
@@ -111,7 +111,8 @@ export function BulkAddTeachers({
           firstName: p.firstName,
           lastName: p.lastName,
           subjectId: p.subjectId,
-          maxHoursPerWeek: maxHours
+          maxHoursPerWeek: maxHours,
+          specialization: p.subjectName || p.firstName
         }))
       });
       toast({ title: "Muvaffaqiyat", description: `${activeList.length} ta o'qituvchi qo'shildi va fanlariga biriktirildi` });
@@ -183,8 +184,13 @@ export function BulkAddTeachers({
                     <Button 
                       size="sm"
                       onClick={() => {
-                        onClose();
-                        autoGenerateMutation.mutate();
+                        const confirmed = window.confirm(
+                          `DTS dars yuklamalari asosida jami ${totalVacancies} ta vakant o'qituvchi avtomatik yaratilishini tasdiqlaysizmi?`
+                        );
+                        if (confirmed) {
+                          onClose();
+                          autoGenerateMutation.mutate();
+                        }
                       }}
                       className="bg-amber-600 hover:bg-amber-700 text-white h-8 text-xs px-3"
                     >

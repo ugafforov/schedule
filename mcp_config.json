@@ -1,20 +1,14 @@
 {
   "mcpServers": {
-    "supabase": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://mcp.supabase.com/mcp?project_ref=yfafnvypynldweuxsvdh"
-      ]
-    },
     "playwright": {
       "command": "npx",
       "args": [
         "-y",
-        "@playwright/mcp@latest",
-        "--headed"
+        "@playwright/mcp"
       ]
+    },
+    "supabase": {
+      "httpUrl": "https://mcp.supabase.com/mcp?project_ref=yfafnvypynldweuxsvdh"
     }
   }
 }

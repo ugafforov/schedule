@@ -51,6 +51,31 @@ function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; ti
   );
 }
 
+function AutoGenerateConfirmDialog({ open, onClose, onConfirm, count }: { open: boolean; onClose: () => void; onConfirm: () => void; count: number }) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Avtomatik yaratishni tasdiqlash</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 mt-2">
+          <p className="text-sm text-gray-500">
+            DTS dars yuklamalari asosida jami <strong className="text-gray-900 font-bold">{count} ta</strong> vakant o'qituvchi avtomatik yaratiladi va tegishli sinf darslariga biriktiriladi.
+          </p>
+          <p className="text-sm text-gray-500">
+            Tasdiqlaysizmi?
+          </p>
+        </div>
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
+          <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={onConfirm}>Tasdiqlash</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 function UnavailabilityDialog({ 
   open, 
   onClose, 
@@ -251,17 +276,24 @@ function TeacherCard({
 }) {
   const teacherUnavail = (teacher as any).unavailability || [];
   const teacherSubs = (teacher as any).teacherSubjects || [];
+  const isVacant = teacher.lastName?.toLowerCase().includes("vakant") || teacher.firstName?.toLowerCase().includes("vakant");
 
   return (
-    <Card className="group hover:shadow-md transition-all duration-300 border-gray-100 rounded-2xl overflow-hidden bg-white">
+    <Card className={`group hover:shadow-md transition-all duration-300 border-gray-100 rounded-2xl overflow-hidden bg-white ${isVacant ? 'border-l-4 border-l-amber-400 bg-amber-50/10' : ''}`}>
       <div className="p-4 space-y-4">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold shadow-sm flex-shrink-0">
-              {teacher.firstName[0]}{teacher.lastName[0]}
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
+            {isVacant ? (
+              <div className="w-12 h-12 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 flex items-center justify-center text-amber-600 text-lg font-bold shadow-sm flex-shrink-0 animate-pulse" title="Tahrirlanmagan vakant o'qituvchi. F.I.O ni yozish uchun bosing.">
+                V
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold shadow-sm flex-shrink-0">
+                {teacher.firstName[0]}{teacher.lastName[0]}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-col">
                 <InlineEdit
                   value={`${teacher.lastName} ${teacher.firstName}`}
                   onSave={(val) => {
@@ -269,13 +301,19 @@ function TeacherCard({
                     onUpdateField(teacher.id, "lastName", parts[0] || "");
                     onUpdateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
                   }}
-                  className="font-bold text-gray-900 text-sm truncate"
+                  className={`font-bold text-sm truncate ${isVacant ? 'text-amber-800' : 'text-gray-900'}`}
+                  placeholder="F.I.O ni kiriting..."
                 />
+                {isVacant && (
+                  <span className="text-[10px] text-amber-500 font-semibold animate-pulse ml-1.5 mt-0.5">
+                    ⚠️ Haqiqiy F.I.O ni yozish uchun bosing
+                  </span>
+                )}
               </div>
               <InlineEdit
                 value={teacher.specialization || "Mutaxassislik..."}
                 onSave={(val) => onUpdateField(teacher.id, "specialization", val)}
-                className="text-xs text-gray-500 truncate block"
+                className="text-xs text-gray-500 truncate block mt-0.5"
               />
             </div>
           </div>
@@ -386,24 +424,39 @@ function TeacherRow({
 }) {
   const teacherSubs = (teacher as any).teacherSubjects || [];
   const teacherUnavail = (teacher as any).unavailability || [];
+  const isVacant = teacher.lastName?.toLowerCase().includes("vakant") || teacher.firstName?.toLowerCase().includes("vakant");
 
   return (
-    <div className="group grid grid-cols-[1.5fr_1fr_1fr_150px_100px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
+    <div className={`group grid grid-cols-[1.5fr_1fr_1fr_150px_100px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all ${isVacant ? 'border-l-4 border-l-amber-400 bg-amber-50/5' : ''}`}>
       <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
-          {teacher.firstName[0]}{teacher.lastName[0]}
-        </div>
-        <div className="min-w-0">
-          <InlineEdit
-            value={`${teacher.lastName} ${teacher.firstName}`}
-            onSave={(val) => {
-              const parts = val.split(" ");
-              onUpdateField(teacher.id, "lastName", parts[0] || "");
-              onUpdateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
-            }}
-            className="font-semibold text-gray-900 text-sm truncate"
-          />
+        {isVacant ? (
+          <div className="w-10 h-10 rounded-xl border border-dashed border-amber-300 bg-amber-50 flex items-center justify-center text-amber-600 font-bold text-sm flex-shrink-0 animate-pulse">
+            V
+          </div>
+        ) : (
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
+            {teacher.firstName[0]}{teacher.lastName[0]}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
+            <InlineEdit
+              value={`${teacher.lastName} ${teacher.firstName}`}
+              onSave={(val) => {
+                const parts = val.split(" ");
+                onUpdateField(teacher.id, "lastName", parts[0] || "");
+                onUpdateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
+              }}
+              className={`font-semibold text-sm truncate ${isVacant ? 'text-amber-800' : 'text-gray-900'}`}
+              placeholder="F.I.O ni kiriting..."
+            />
+            {isVacant && (
+              <span className="text-[9px] text-amber-500 font-semibold animate-pulse whitespace-nowrap bg-amber-50 px-1 rounded border border-amber-100">
+                ⚠️ Ism kiritish uchun bosing
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] text-gray-400 font-mono">{teacher.employeeId}</span>
             <InlineEdit
               value={teacher.specialization || "Mutaxassislik..."}
@@ -478,6 +531,7 @@ export default function Teachers() {
   const [clearing, setClearing] = useState(false);
   const [view, setView] = useState<"grid" | "list">("list");
   const [unavailTeacher, setUnavailTeacher] = useState<Teacher | null>(null);
+  const [autoGenerateConfirmOpen, setAutoGenerateConfirmOpen] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -485,6 +539,9 @@ export default function Teachers() {
   const { data: teachers = [], isLoading } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
   const { data: subjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
   const { data: timeSlots = [] } = useQuery<TimeSlot[]>({ queryKey: ["/api/time-slots"] });
+  const { data: recs = [] } = useQuery<any[]>({ queryKey: ["/api/teacher-recommendation"] });
+
+  const totalVacancies = recs.filter(r => r.vacancies > 0).reduce((s, r) => s + r.vacancies, 0);
 
   // Filtered teachers
   const filtered = teachers.filter(t => {
@@ -502,6 +559,7 @@ export default function Teachers() {
     mutationFn: (data: any) => apiRequest("POST", "/api/teachers", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teacher-recommendation"] });
       setOpen(false);
       setFormData(EMPTY_FORM);
       toast({ title: "Muvaffaqiyat", description: "O'qituvchi muvaffaqiyatli qo'shildi" });
@@ -513,6 +571,7 @@ export default function Teachers() {
     mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest("PATCH", `/api/teachers/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teacher-recommendation"] });
       setOpen(false);
       setEditing(null);
       setFormData(EMPTY_FORM);
@@ -525,6 +584,7 @@ export default function Teachers() {
     mutationFn: (id: number) => apiRequest("DELETE", `/api/teachers/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teacher-recommendation"] });
       setDeletingId(null);
       toast({ title: "Muvaffaqiyat", description: "O'qituvchi tizimdan o'chirildi" });
     },
@@ -535,6 +595,7 @@ export default function Teachers() {
     mutationFn: () => apiRequest("DELETE", "/api/teachers/all"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/teacher-recommendation"] });
       setClearing(false);
       toast({ title: "Muvaffaqiyat", description: "Barcha o'qituvchilar o'chirildi" });
     },
@@ -544,7 +605,8 @@ export default function Teachers() {
     mutationFn: () => apiRequest("POST", "/api/teachers/auto-generate"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/teachers"] });
-      toast({ title: "Muvaffaqiyat", description: "O'qituvchilar avtomatik yaratildi va fanlarga biriktirildi" });
+      queryClient.invalidateQueries({ queryKey: ["/api/teacher-recommendation"] });
+      toast({ title: "Muvaffaqiyat", description: "Vakant o'qituvchilar avtomatik yaratildi va fanlarga biriktirildi" });
     },
     onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
   });
@@ -684,6 +746,33 @@ export default function Teachers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* DTS Recommendation Banner */}
+      {totalVacancies > 0 && (
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50/70 border border-amber-200 rounded-2xl shadow-sm">
+          <div className="flex items-start gap-3 flex-1">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 flex-shrink-0 animate-pulse">
+              <Zap className="h-5 w-5 fill-amber-500 text-amber-500" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-amber-900">DTS dars yuklamalari bo'yicha {totalVacancies} ta o'qituvchi yetishmayapti</h3>
+              <p className="text-xs text-amber-700/80 mt-0.5">Sinflar va dars soatlari asosida tizim kerakli vakantlarni hisobladi. Ularni avtomatik qo'shish va darslarga biriktirish uchun tugmani bosing.</p>
+            </div>
+          </div>
+          <Button 
+            onClick={() => setAutoGenerateConfirmOpen(true)} 
+            disabled={autoGenerateMutation.isPending}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm flex-shrink-0 rounded-xl h-10 px-4 gap-2"
+          >
+            {autoGenerateMutation.isPending ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent animate-spin rounded-full" />
+            ) : (
+              <Zap className="h-4 w-4 fill-white" />
+            )}
+            Vakantlarni avtomatik qo'shish
+          </Button>
+        </div>
+      )}
 
       {/* Filters and View controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
@@ -888,6 +977,16 @@ export default function Teachers() {
         title="Barcha o'qituvchilarni o'chirib tashlamoqchimisiz? Bu amal barcha o'qituvchi ma'lumotlarini tozalaydi."
         onClose={() => setClearing(false)}
         onConfirm={() => clearAllMutation.mutate()}
+      />
+
+      <AutoGenerateConfirmDialog
+        open={autoGenerateConfirmOpen}
+        count={totalVacancies}
+        onClose={() => setAutoGenerateConfirmOpen(false)}
+        onConfirm={() => {
+          setAutoGenerateConfirmOpen(false);
+          autoGenerateMutation.mutate();
+        }}
       />
 
       <UnavailabilityDialog

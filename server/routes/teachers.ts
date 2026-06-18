@@ -104,7 +104,7 @@ const getTeacherRecommendationLogic = async () => {
   ]);
 
   const recommendations: any[] = [];
-  const MAX_HOURS = 24;
+  const MAX_HOURS = 30;
   const specialtyStats = new Map<string, {
     totalHours: number; classCount: number; uniqueClassIds: Set<number>;
     subjectIds: Set<number>; subjectName: string; color: string;
@@ -144,10 +144,15 @@ const getTeacherRecommendationLogic = async () => {
   }
 
   for (const [specialty, stats] of Array.from(specialtyStats.entries())) {
+    const classId = Array.from(stats.uniqueClassIds)[0];
+    const targetClass = allClasses.find(c => c.id === classId);
+    const grade = targetClass ? String(targetClass.grade) : "5";
+    const language = targetClass ? (targetClass as any).language || "uz" : "uz";
+
     const existingTeachers = allTeachers.filter(
       (t) =>
         t.isActive &&
-        (getSpecialty(t.specialization || "", "5") === specialty ||
+        (getSpecialty(t.specialization || "", "5", language) === specialty ||
           `${t.firstName} ${t.lastName}`.includes(specialty))
     );
     let neededTeachers = Math.ceil(stats.totalHours / MAX_HOURS);
@@ -173,7 +178,12 @@ const getTeacherRecommendationLogic = async () => {
 export const teacherRoutes = new Hono()
   .use(authMiddleware)
 
-  // Unavailability
+  // Unavailability for all teachers
+  .get("/unavailability", async (c) => {
+    return c.json(await storage.getAllTeacherUnavailability());
+  })
+
+  // Unavailability for specific teacher
   .get("/:id/unavailability", async (c) => {
     return c.json(await storage.getTeacherUnavailability(parseInt(c.req.param("id"))));
   })
@@ -255,7 +265,16 @@ export const teacherRoutes = new Hono()
   })
 
   .delete("/:id", async (c) => {
-    await storage.deleteTeacher(parseInt(c.req.param("id")));
+    const idParam = c.req.param("id");
+    if (idParam === "all") {
+      await db.update(teachers).set({ isActive: false });
+      return c.body(null, 204);
+    }
+    const id = parseInt(idParam);
+    if (isNaN(id)) {
+      return c.json({ message: "Noto'g'ri ID" }, 400);
+    }
+    await storage.deleteTeacher(id);
     return c.body(null, 204);
   })
 
@@ -316,13 +335,21 @@ export const teacherRoutes = new Hono()
     const { teachers: teachersData } = validation.data;
     const results = [];
     for (const tData of teachersData) {
+      let specialization = tData.specialization || tData.subjectName || "";
+      if (!specialization && tData.subjectId) {
+        const sub = await storage.getSubjects().then(subs => subs.find(s => s.id === tData.subjectId));
+        if (sub) {
+          specialization = getSpecialty(sub.name, "5", "uz");
+        }
+      }
+
       const teacher = await storage.createTeacher({
         firstName: tData.firstName,
         lastName: tData.lastName,
         employeeId: tData.employeeId || `T_${Date.now()}_${Math.random().toString(36).slice(-4)}`,
-        maxHoursPerWeek: tData.maxHoursPerWeek || 24,
+        maxHoursPerWeek: tData.maxHoursPerWeek || 30,
         isActive: true,
-        specialization: tData.specialization || tData.subjectName || "",
+        specialization,
       });
       if (tData.subjectId) {
         await db.insert(teacherSubjects).values({ teacherId: teacher.id, subjectId: tData.subjectId });

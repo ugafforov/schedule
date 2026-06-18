@@ -4,7 +4,13 @@ import { eq } from "drizzle-orm";
 
 export class ClassStorage {
   async getClasses(): Promise<Class[]> {
-    return db.select().from(classes).where(eq(classes.isActive, true));
+    const data = await db.select().from(classes).where(eq(classes.isActive, true));
+    return data.sort((a, b) => {
+      const ga = parseInt(a.grade) || 0;
+      const gb = parseInt(b.grade) || 0;
+      if (ga !== gb) return ga - gb;
+      return (a.section || "").localeCompare(b.section || "");
+    });
   }
   async createClass(data: InsertClass): Promise<Class> {
     const [r] = await db.insert(classes).values(data).returning();

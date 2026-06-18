@@ -60,7 +60,7 @@ registerRoutes(app);
 (async () => {
   await seedAccessCodes();
 
-  const port = 5000;
+  const port = Number(process.env.PORT) || 5001;
   const isDev = process.env.NODE_ENV === "development";
   let server: any;
 

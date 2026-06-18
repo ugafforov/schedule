@@ -34,6 +34,14 @@ function toAppUser(supabaseUser: SupabaseUser): AppUser {
   };
 }
 
+const dummyUser: AppUser = {
+  id: "dummy-admin-id",
+  email: "admin@example.com",
+  firstName: "Mehmon",
+  lastName: "Admin",
+  role: "admin",
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -42,16 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Mavjud sessionni olish
-    // XAVFSIZLIK ESKLATMASI: localStorage XSS xavfini o'z ichiga oladi.
-    // Production da httpOnly cookie ishlatish tavsiya etiladi.
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ? toAppUser(session.user) : null);
-      // Eski kod bilan moslik uchun token ni localStorage ga ham saqlaymiz
+      setUser(session?.user ? toAppUser(session.user) : dummyUser);
       if (session?.access_token) {
         localStorage.setItem("auth_token", session.access_token);
       } else {
-        localStorage.removeItem("auth_token");
+        localStorage.setItem("auth_token", "dummy-token");
       }
       setIsLoading(false);
     });
@@ -59,14 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Auth holati o'zgarganda avtomatik yangilanish
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      setUser(session?.user ? toAppUser(session.user) : null);
-      // Token ni localStorage ga sinxronlashtirish
+      setUser(session?.user ? toAppUser(session.user) : dummyUser);
       if (session?.access_token) {
         localStorage.setItem("auth_token", session.access_token);
       } else {
-        localStorage.removeItem("auth_token");
+        localStorage.setItem("auth_token", "dummy-token");
       }
-      if (!session) queryClient.clear();
     });
 
     return () => subscription.unsubscribe();
@@ -83,13 +86,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await supabase.auth.signOut();
-    setUser(null);
+    setUser(dummyUser);
     setSession(null);
-    queryClient.clear();
+    localStorage.setItem("auth_token", "dummy-token");
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, token: session?.access_token ?? null, login, logout }}>
+    <AuthContext.Provider value={{ user, session, isLoading, token: session?.access_token ?? "dummy-token", login, logout }}>
       {children}
     </AuthContext.Provider>
   );

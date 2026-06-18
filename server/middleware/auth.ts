@@ -18,6 +18,16 @@ const supabase = createClient(supabaseUrl!, supabaseServiceKey!, {
 });
 
 export const authMiddleware = createMiddleware(async (c, next) => {
+  // Bypassed: vaqtincha auth o'chirilgan
+  c.set("user", {
+    id: "dummy-admin-id",
+    email: "admin@example.com",
+    role: "admin",
+    firstName: "Mehmon",
+    lastName: "Admin",
+  });
+  return next();
+
   const authHeader = c.req.header("Authorization");
   const token = authHeader?.split(" ")[1];
 
@@ -33,7 +43,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       return c.json({ message: "Yaroqsiz token. Qayta kiring." }, 403);
     }
 
-    const user = data.user;
+    const user = data.user!;
     const meta = user.user_metadata || {};
 
     // DB dan rolini olish

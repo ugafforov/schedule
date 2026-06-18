@@ -88,10 +88,10 @@ export function getSubjectCategory(subjectName: string): SubjectCategory {
  */
 export function getMaxHoursPerDay(grade: number | string): number {
   const g = parseInt(String(grade));
-  if (g >= 1 && g <= 2) return 4;
-  if (g >= 3 && g <= 4) return 4;
-  if (g >= 5 && g <= 7) return 6;
-  if (g >= 8 && g <= 11) return 6;
-  return 6;
+  if (g >= 1 && g <= 2) return 5; // Relaxed from 4 to 5 to allow 21h/week
+  if (g >= 3 && g <= 4) return 5; // Relaxed from 4 to 5 to allow 22h/week
+  if (g >= 5 && g <= 7) return 7; // Relaxed to 7
+  if (g >= 8 && g <= 11) return 7; // Relaxed to 7
+  return 7;
 }
 

@@ -5,7 +5,7 @@ import { authMiddleware } from "../middleware/auth";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { generateSchedule } from "../services/schedule.service";
-import { autoDistributeAll, autoDistributeUnassignedOnly, autoDistributeAllForceReassign } from "../services/teacher.service";
+import { autoDistributeAll, autoDistributeUnassignedOnly, autoDistributeAllForceReassign, autoAssignDtsForClasses } from "../services/teacher.service";
 
 export const scheduleRoutes = new Hono().use(authMiddleware)
 
@@ -75,17 +75,40 @@ export const scheduleConflictsRoute = new Hono().use(authMiddleware)
   });
 
 export const classSubjectsRoute = new Hono().use(authMiddleware)
+  .get("/", async (c) => {
+    return c.json(await storage.getAllClassSubjects());
+  })
   .post("/auto-distribute-all", async (c) => {
     const result = await autoDistributeAll();
     return c.json(result);
   })
   .post("/auto-distribute-unassigned", async (c) => {
-    const result = await autoDistributeUnassignedOnly();
+    const body = await c.req.json().catch(() => ({}));
+    const result = await autoDistributeUnassignedOnly(body.classIds);
     return c.json(result);
   })
   .post("/auto-distribute-force-reassign", async (c) => {
-    const result = await autoDistributeAllForceReassign();
+    const body = await c.req.json().catch(() => ({}));
+    const result = await autoDistributeAllForceReassign(body.classIds);
     return c.json(result);
+  })
+  .post("/auto-assign-dts", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    if (!Array.isArray(body.classIds) || body.classIds.length === 0) {
+      return c.json({ message: "classIds massivi kiritilishi shart" }, 400);
+    }
+    const result = await autoAssignDtsForClasses(body.classIds);
+    return c.json(result);
+  })
+  .post("/clear-bulk", async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    if (!Array.isArray(body.classIds) || body.classIds.length === 0) {
+      return c.json({ message: "classIds massivi kiritilishi shart" }, 400);
+    }
+    for (const id of body.classIds) {
+      await storage.setClassSubjects(id, []);
+    }
+    return c.json({ message: `${body.classIds.length} ta sinf biriktirishlari tozalandi.` });
   })
   .post("/bulk-assign", async (c) => {
     const { subjectId, teacherId } = await c.req.json();
