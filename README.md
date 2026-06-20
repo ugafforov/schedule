@@ -39,7 +39,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 npm run dev
 ```
 
-Server `http://localhost:5000` da ishga tushadi (Vite + API birgalikda).
+Server `http://localhost:5001` da ishga tushadi (Vite + API birgalikda).
 
 ### Production build
 

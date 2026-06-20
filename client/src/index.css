@@ -136,6 +136,13 @@
   background: hsl(var(--foreground));
 }
 
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* Animation for schedule grid */
 @keyframes slideIn {
   from {

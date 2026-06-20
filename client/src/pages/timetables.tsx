@@ -21,9 +21,7 @@ import {
   useSensors,
   DragEndEvent,
   DragOverlay,
-  defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -54,6 +52,149 @@ type ViewMode = "class" | "teacher";
 
 // --- Draggable & Droppable Components ---
 
+function DraggableSubjectCard({
+  subject,
+  missingHours,
+  teacherId,
+  teacherId2,
+  classId
+}: {
+  subject: Subject;
+  missingHours: number;
+  teacherId?: number;
+  teacherId2?: number;
+  classId: number;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `new-subject-${subject.id}`,
+    data: { type: 'new-subject', subjectId: subject.id, teacherId, teacherId2, classId }
+  });
+
+  const style = {
+    opacity: isDragging ? 0.3 : 1,
+    borderColor: subject.color,
+    backgroundColor: `${subject.color}15`,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="p-1.5 rounded border-2 cursor-grab active:cursor-grabbing hover:shadow-sm transition-[background-color,border-color,box-shadow,opacity] duration-150"
+      {...attributes}
+      {...listeners}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <div className="flex-1 min-w-0">
+          <p className="text-[9px] font-semibold truncate" style={{ color: subject.color }}>
+            {subject.name}
+          </p>
+          <p className="text-[8px] text-gray-500">
+            {missingHours} soat
+          </p>
+        </div>
+        <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: subject.color }}>
+          {missingHours}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EntryCard({
+  entry,
+  subject,
+  room,
+  teacherName,
+  className,
+  viewMode,
+  showAllClasses,
+  onEdit,
+  onDelete,
+  isOverlay = false,
+  isOptimistic = false,
+  isDragging = false,
+  dragListeners,
+  dragAttributes,
+  innerRef,
+  style
+}: {
+  entry: ScheduleEntry;
+  subject?: Subject;
+  room?: Room;
+  teacherName: string;
+  className: string;
+  viewMode: ViewMode;
+  showAllClasses: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  isOverlay?: boolean;
+  isOptimistic?: boolean;
+  isDragging?: boolean;
+  dragListeners?: any;
+  dragAttributes?: any;
+  innerRef?: (element: HTMLElement | null) => void;
+  style?: React.CSSProperties;
+}) {
+  const isNoRoom = !room;
+  const textColor = subject?.color || "#3B82F6";
+  const cardStyle: React.CSSProperties = {
+    border: isNoRoom ? `1.5px dashed #EF4444` : `1.5px solid transparent`,
+    borderLeft: `3px solid ${subject?.color || "#3B82F6"}`,
+    backgroundColor: isOverlay ? `${subject?.color || "#3B82F6"}25` : `${subject?.color || "#3B82F6"}20`,
+    filter: isOptimistic ? "grayscale(50%)" : undefined,
+    opacity: (isDragging && !isOverlay) || isOptimistic ? 0.3 : 1,
+    ...style
+  };
+
+  return (
+    <div
+      ref={innerRef}
+      style={cardStyle}
+      className={`rounded p-1 cursor-grab active:cursor-grabbing group/cell relative shadow-sm hover:shadow-md transition-[background-color,border-color,box-shadow,opacity] duration-150 ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-white border-gray-200/80 z-[1000]' : ''} ${isOptimistic ? 'animate-pulse' : ''}`}
+      onClick={(e) => {
+        if (!isDragging && !isOptimistic && !isOverlay && onEdit) {
+          onEdit();
+        }
+      }}
+    >
+      <div className="flex items-start justify-between gap-0.5">
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5" {...dragAttributes} {...dragListeners}>
+          <div className="flex items-center gap-1 mb-0.5">
+            <GripVertical className="h-3 w-3 text-gray-400 opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 -ml-1" />
+            <span className="text-[10.5px] font-bold leading-tight truncate" style={{ color: textColor }}>
+              {subject?.name || "?"}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-1 text-gray-700">
+            {viewMode === "class" && showAllClasses ? (
+              <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] font-medium truncate">{className}</span></>
+            ) : viewMode === "class" ? (
+              <><UserCheck className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] truncate">{teacherName}</span></>
+            ) : (
+              <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] font-medium truncate">{className}</span></>
+            )}
+          </div>
+
+          <div className={`flex items-center gap-1 ${isNoRoom ? "text-red-600 font-semibold" : "text-gray-500"}`}>
+            {isNoRoom ? <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0" /> : <DoorOpen className="h-2.5 w-2.5 flex-shrink-0" />}
+            <span className="text-[9px] truncate">{room?.roomNumber || "Xona yo'q"}</span>
+          </div>
+        </div>
+        {!isOverlay && !isOptimistic && onDelete && (
+          <button
+            className="opacity-0 group-hover/cell:opacity-100 text-red-400 hover:text-red-600 transition-opacity p-0.5 absolute right-0.5 top-0.5 bg-white/80 rounded"
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+          >
+            <Trash2 className="h-2.5 w-2.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DraggableEntry({ 
   entry, 
   subject, 
@@ -64,7 +205,6 @@ function DraggableEntry({
   showAllClasses,
   onEdit,
   onDelete,
-  isOverlay = false,
   isOptimistic = false
 }: { 
   entry: ScheduleEntry; 
@@ -76,92 +216,75 @@ function DraggableEntry({
   showAllClasses: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  isOverlay?: boolean;
   isOptimistic?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `entry-${entry.id}`,
     data: entry
   });
 
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    opacity: (isDragging && !isOverlay) || isOptimistic ? 0.4 : 1,
-    zIndex: isOverlay ? 1000 : undefined,
-    borderLeft: `2px solid ${subject?.color || "#3B82F6"}`,
-    backgroundColor: `${subject?.color || "#3B82F6"}15`,
-    filter: isOptimistic ? "grayscale(50%)" : undefined,
-  };
-
-  const textColor = subject?.color || "#3B82F6";
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`rounded-md p-1 cursor-grab active:cursor-grabbing group/cell relative shadow-sm border border-transparent hover:border-blue-200 transition-all ${isOverlay ? 'shadow-lg rotate-1' : ''} ${isOptimistic ? 'animate-pulse' : ''}`}
-      onClick={(e) => {
-        if (!isDragging && !isOptimistic) onEdit();
-      }}
-    >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0" {...attributes} {...listeners}>
-          <div className="flex items-center gap-1">
-            <GripVertical className="h-2 w-2 text-gray-400 opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0" />
-            <p className="text-[10px] font-semibold leading-tight truncate" style={{ color: textColor }}>
-              {subject?.name || "?"}
-            </p>
-          </div>
-          {viewMode === "class" && (showAllClasses
-            ? <p className="text-[9px] text-gray-600 truncate leading-tight mt-0.5">{className}</p>
-            : <p className="text-[9px] text-gray-500 truncate leading-tight mt-0.5">{teacherName}</p>
-          )}
-          {viewMode === "teacher" && (
-            <p className="text-[9px] text-gray-600 truncate font-medium leading-tight mt-0.5">{className}</p>
-          )}
-          <p className="text-[9px] text-gray-400 leading-tight">{room?.roomNumber || ""}</p>
-        </div>
-        {!isOverlay && !isOptimistic && (
-          <button
-            className="opacity-0 group-hover/cell:opacity-100 text-red-400 hover:text-red-600 transition-opacity p-0.5"
-            onClick={e => { e.stopPropagation(); onDelete(); }}
-          >
-            <Trash2 className="h-2.5 w-2.5" />
-          </button>
-        )}
-      </div>
-    </div>
+    <EntryCard
+      entry={entry}
+      subject={subject}
+      room={room}
+      teacherName={teacherName}
+      className={className}
+      viewMode={viewMode}
+      showAllClasses={showAllClasses}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      isOptimistic={isOptimistic}
+      isDragging={isDragging}
+      dragListeners={listeners}
+      dragAttributes={attributes}
+      innerRef={setNodeRef}
+    />
   );
 }
 
 function DroppableCell({ 
   id, 
   children,
-  isOverClassName = "bg-blue-50/50",
   status = "idle" 
 }: { 
   id: string; 
   children: React.ReactNode;
-  isOverClassName?: string;
   status?: "idle" | "valid" | "invalid";
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
   const statusClasses = {
     idle: "",
-    valid: "bg-emerald-50/40 border border-dashed border-emerald-200",
-    invalid: "bg-red-50/40 border border-dashed border-red-200 cursor-not-allowed opacity-60"
+    valid: "bg-emerald-50 ring-1 ring-emerald-300 ring-inset",
+    invalid: "bg-red-50 ring-1 ring-red-200 ring-inset opacity-50 cursor-not-allowed"
   };
 
   return (
     <td 
       ref={setNodeRef} 
-      className={`py-0.5 px-0.5 align-top transition-all duration-200 ${statusClasses[status]} ${isOver ? isOverClassName : ""}`}
+      className={`py-0.5 px-0.5 align-top transition-colors duration-100 ${statusClasses[status]} ${isOver && status !== "invalid" ? "bg-emerald-100 ring-2 ring-emerald-400 ring-inset" : ""}`}
     >
-      <div className="space-y-0.5 min-h-[40px]">
+      <div className="space-y-0.5 min-h-[32px]">
         {children}
       </div>
     </td>
+  );
+}
+
+function DroppableSidebar({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`w-48 flex-shrink-0 space-y-2 p-2 rounded-lg border-2 border-dashed transition-all duration-200 ${
+        isOver
+          ? "border-red-400 bg-red-50/50 scale-[1.02] shadow-sm"
+          : "border-transparent bg-gray-50/10"
+      }`}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -178,6 +301,7 @@ export default function Timetables() {
   const [editForm, setEditForm] = useState<{ subjectId: number; teacherId: number; roomId: number } | null>(null);
   const [generatorResult, setGeneratorResult] = useState<any>(null);
   const [activeDragEntry, setActiveDragEntry] = useState<ScheduleEntry | null>(null);
+  const [activeDragNewSubject, setActiveDragNewSubject] = useState<{ subjectId: number; teacherId?: number; classId: number } | null>(null);
   const [conflictWarning, setConflictWarning] = useState<{
     draggedEntryId: number;
     targetSlotId: number;
@@ -191,7 +315,7 @@ export default function Timetables() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 4,
       },
     })
   );
@@ -220,6 +344,46 @@ export default function Timetables() {
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/schedule-entries?weekStart=${encodeURIComponent(weekStart)}`);
       return res.json();
+    },
+  });
+
+  const createEntryMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/schedule-entries", data);
+      return res.json();
+    },
+    onMutate: async (data: any) => {
+      await qc.cancelQueries({ queryKey: ["/api/schedule-entries", weekStart] });
+      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries", weekStart]);
+      // Optimistic: create a fake entry with a negative temp ID
+      const tempEntry: any = {
+        id: -Date.now(),
+        classId: data.classId,
+        subjectId: data.subjectId,
+        teacherId: data.teacherId,
+        roomId: data.roomId,
+        timeSlotId: data.timeSlotId,
+        weekStartDate: data.weekStartDate,
+        isActive: true,
+        createdAt: new Date(),
+        isOptimistic: true,
+      };
+      if (previousEntries) {
+        qc.setQueryData(["/api/schedule-entries", weekStart], [...previousEntries, tempEntry]);
+      }
+      return { previousEntries };
+    },
+    onSuccess: () => {
+      toast({ title: "Dars qo'shildi" });
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousEntries) {
+        qc.setQueryData(["/api/schedule-entries", weekStart], context.previousEntries);
+      }
+      toast({ title: "Xatolik", description: "Darsni qo'shib bo'lmadi", variant: "destructive" });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["/api/schedule-entries", weekStart] });
     },
   });
 
@@ -280,9 +444,19 @@ export default function Timetables() {
   });
 
   const getSlotStatus = (slotId: number): "idle" | "valid" | "invalid" => {
-    if (!activeDragEntry) return "idle";
     const slot = timeSlots.find(s => s.id === slotId);
     if (!slot) return "idle";
+
+    if (activeDragNewSubject) {
+      const { subjectId, teacherId, classId } = activeDragNewSubject;
+      const isClassBusy = allEntries.some(e => e.timeSlotId === slotId && e.classId === classId);
+      const isTeacherBusy = teacherId ? allEntries.some(e => e.timeSlotId === slotId && e.teacherId === teacherId) : false;
+      const isTeacherUnavail = teacherId ? unavailSet.has(`${teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`) : false;
+      if (isClassBusy || isTeacherBusy || isTeacherUnavail) return "invalid";
+      return "valid";
+    }
+
+    if (!activeDragEntry) return "idle";
 
     const isTeacherBusy = allEntries.some(e => e.id !== activeDragEntry.id && e.timeSlotId === slotId && e.teacherId === activeDragEntry.teacherId);
     const isTeacherUnavail = unavailSet.has(`${activeDragEntry.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
@@ -294,22 +468,98 @@ export default function Timetables() {
 
   const handleDragStart = (event: any) => {
     const { active } = event;
-    const entry = active.data.current as ScheduleEntry;
-    setActiveDragEntry(entry);
+    const data = active.data.current as any;
+    if (data?.type === 'new-subject') {
+      setActiveDragNewSubject({ subjectId: data.subjectId, teacherId: data.teacherId, classId: data.classId });
+    } else {
+      setActiveDragEntry(data as ScheduleEntry);
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveDragEntry(null);
+    setActiveDragNewSubject(null);
 
     if (over && active.id !== over.id) {
+      const activeData = active.data.current as any;
+      
+      // NEW: Handle dragging entry back to sidebar to remove it
+      if (over.id === 'sidebar') {
+        const entryId = parseInt(String(active.id).replace('entry-', ''));
+        if (!isNaN(entryId)) {
+          deleteEntryMutation.mutate(entryId);
+          toast({ title: "Dars olib tashlandi" });
+          return;
+        }
+      }
+
+      // NEW: Handle dragging from sidebar (new subject)
+      if (activeData?.type === 'new-subject') {
+        const slotId = parseInt(String(over.id).replace('slot-', ''));
+        if (isNaN(slotId)) return;
+
+        const slot = timeSlots.find(s => s.id === slotId);
+        if (!slot) return;
+
+        const { subjectId, teacherId, teacherId2, classId } = activeData;
+
+        // Check conflicts
+        const existingInSlot = allEntries.filter(e => e.timeSlotId === slotId && e.classId === classId);
+        
+        if (existingInSlot.length > 0) {
+          const target = existingInSlot[0];
+          // Valid split: same subject, different teacher
+          const isValidSplit = target.subjectId === subjectId && teacherId2 && target.teacherId !== teacherId && target.teacherId !== teacherId2;
+          
+          if (!isValidSplit) {
+            toast({ title: "Bu uyada allaqachon dars bor", variant: "destructive" });
+            return;
+          }
+        }
+
+        // Teacher conflict check
+        if (teacherId) {
+          const teacherConflict = allEntries.find(e => e.timeSlotId === slotId && e.teacherId === teacherId && e.classId !== classId);
+          if (teacherConflict) {
+            toast({ title: "O'qituvchi bu vaqtda boshqa sinfda", variant: "destructive" });
+            return;
+          }
+          const isUnavail = unavailSet.has(`${teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
+          if (isUnavail) {
+            toast({ title: "O'qituvchi bu vaqtda mavjud emas", variant: "destructive" });
+            return;
+          }
+        }
+
+        // Find available room
+        const roomsInUse = allEntries.filter(e => e.timeSlotId === slotId).map(e => e.roomId);
+        const availableRoom = rooms.find(r => !roomsInUse.includes(r.id));
+        
+        if (!availableRoom) {
+          toast({ title: "Bu vaqtda bo'sh xona yo'q", variant: "destructive" });
+          return;
+        }
+
+        // Create new entry
+        createEntryMutation.mutate({
+          classId,
+          subjectId,
+          teacherId: teacherId || 0,
+          roomId: availableRoom.id,
+          timeSlotId: slotId,
+          weekStartDate: new Date(weekStart)
+        });
+        return;
+      }
+
+      // EXISTING: Move existing entry
       const entryId = parseInt(String(active.id).replace('entry-', ''));
       const slotId = parseInt(String(over.id).replace('slot-', ''));
       
       if (!isNaN(entryId) && !isNaN(slotId)) {
         const draggedEntry = allEntries.find(e => e.id === entryId);
 
-        // 1. Check teacher conflict in ANOTHER class
         const teacherConflict = allEntries.find(e => 
           e.timeSlotId === slotId && 
           e.teacherId === draggedEntry?.teacherId && 
@@ -334,7 +584,6 @@ export default function Timetables() {
 
         if (existingEntriesInSlot.length > 0 && draggedEntry) {
           const target = existingEntriesInSlot[0];
-          // Valid split class check: same subject, different teacher
           const isValidSplit = target.subjectId === draggedEntry.subjectId && target.teacherId !== draggedEntry.teacherId;
           
           if (!isValidSplit) {
@@ -344,12 +593,10 @@ export default function Timetables() {
         }
 
         if (shouldReplace && entryToReplaceId) {
-          // Replace: Fire both instantly for 0-latency feel
           deleteEntryMutation.mutate(entryToReplaceId);
           moveEntryMutation.mutate({ id: entryId, timeSlotId: slotId });
           toast({ title: "Dars siqib chiqarildi", description: "Avvalgi dars yetishmayotgan soatlar ro'yxatiga o'tdi." });
         } else {
-          // Normal move or valid split class addition
           moveEntryMutation.mutate({ id: entryId, timeSlotId: slotId });
         }
       }
@@ -444,9 +691,23 @@ export default function Timetables() {
     mutationFn: async (id: number) => {
       await apiRequest("DELETE", `/api/schedule-entries/${id}`);
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
-      toast({ title: "Dars o'chirildi" });
+    onMutate: async (id: number) => {
+      await qc.cancelQueries({ queryKey: ["/api/schedule-entries", weekStart] });
+      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries", weekStart]);
+      if (previousEntries) {
+        qc.setQueryData(["/api/schedule-entries", weekStart], previousEntries.filter(e => e.id !== id));
+      }
+      return { previousEntries };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousEntries) {
+        qc.setQueryData(["/api/schedule-entries", weekStart], context.previousEntries);
+      }
+      toast({ title: "Xatolik", description: "Darsni o'chirib bo'lmadi", variant: "destructive" });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["/api/schedule-entries", weekStart] });
+      qc.invalidateQueries({ queryKey: ["/api/schedule-conflicts"] });
     },
   });
 
@@ -653,68 +914,68 @@ export default function Timetables() {
 
       {/* Main schedule card */}
       <Card className="border border-gray-100 shadow-sm">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-3">
+        <CardHeader className="pb-2 pt-3">
+          {/* Row 1: Week nav + View toggle + Conflicts */}
+          <div className="flex items-center justify-between gap-2">
             {/* Week nav */}
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-1">
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setWeekOffset(w => w - 1)}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <div className="flex items-center space-x-2 px-2">
-                  <Clock className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-semibold text-gray-900">{weekLabel(monday)}</span>
-                </div>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setWeekOffset(w => w + 1)}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+            <div className="flex items-center space-x-1">
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setWeekOffset(w => w - 1)}>
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <div className="flex items-center space-x-1.5 px-1.5">
+                <Clock className="h-3.5 w-3.5 text-blue-600" />
+                <span className="text-xs font-semibold text-gray-900">{weekLabel(monday)}</span>
               </div>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setWeekOffset(w => w + 1)}>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
               {weekOffset !== 0 && (
-                <Button variant="ghost" size="sm" className="text-xs h-7 text-blue-600" onClick={() => setWeekOffset(0)}>
-                  Bugungi hafta
+                <Button variant="ghost" size="sm" className="text-[10px] h-6 px-2 text-blue-600" onClick={() => setWeekOffset(0)}>
+                  Bugun
                 </Button>
               )}
             </div>
-            {/* Conflicts */}
-            <div className="flex items-center space-x-2">
-              {conflicts.length > 0 ? (
-                <Badge variant="destructive" className="text-xs">
-                  <AlertTriangle className="mr-1 h-3 w-3" />{conflicts.length} ta ziddiyat
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="text-xs bg-green-50 text-green-700">
-                  <CheckCircle2 className="mr-1 h-3 w-3" />Ziddiyatsiz
-                </Badge>
-              )}
-              <span className="text-xs text-gray-400">{entries.length} ta dars</span>
-            </div>
-          </div>
 
-          {/* View mode toggle */}
-          <div className="flex items-center space-x-3 mt-3">
+            {/* View mode toggle */}
             <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode("class")}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === "class" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
+                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${viewMode === "class" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
               >
-                <GraduationCap className="h-3.5 w-3.5" />
+                <GraduationCap className="h-3 w-3" />
                 <span>Sinf bo'yicha</span>
               </button>
               <button
                 onClick={() => setViewMode("teacher")}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${viewMode === "teacher" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
+                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${viewMode === "teacher" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
               >
-                <UserCheck className="h-3.5 w-3.5" />
+                <UserCheck className="h-3 w-3" />
                 <span>O'qituvchi bo'yicha</span>
               </button>
             </div>
 
-            {/* Class tabs */}
-            {viewMode === "class" && (
-              <div className="flex flex-wrap gap-1.5 flex-1">
+            {/* Conflicts + Count */}
+            <div className="flex items-center space-x-2">
+              {conflicts.length > 0 ? (
+                <Badge variant="destructive" className="text-[10px] h-5 px-1.5">
+                  <AlertTriangle className="mr-0.5 h-2.5 w-2.5" />{conflicts.length} ta ziddiyat
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-green-50 text-green-700">
+                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />Ziddiyatsiz
+                </Badge>
+              )}
+              <span className="text-[10px] text-gray-400">{entries.length} ta dars</span>
+            </div>
+          </div>
+
+          {/* Row 2: Class tabs or Teacher selector */}
+          <div className="flex items-center gap-2 mt-2 min-w-0">
+            {viewMode === "class" ? (
+              <div className="flex gap-1 overflow-x-auto max-w-[50%] scrollbar-none pb-0.5">
                 <button
                   onClick={() => setSelectedClassId("all")}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${selectedClassId === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${selectedClassId === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                 >
                   Barchasi
                 </button>
@@ -722,22 +983,19 @@ export default function Timetables() {
                   <button
                     key={cls.id}
                     onClick={() => setSelectedClassId(cls.id)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${selectedClassId === cls.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${selectedClassId === cls.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
                   >
                     {cls.name}
                   </button>
                 ))}
               </div>
-            )}
-
-            {/* Teacher selector */}
-            {viewMode === "teacher" && (
+            ) : (
               <div className="flex items-center space-x-2 flex-1">
                 <Select
                   value={selectedTeacherId ? String(selectedTeacherId) : "all"}
                   onValueChange={v => setSelectedTeacherId(v === "all" ? null : parseInt(v))}
                 >
-                  <SelectTrigger className="h-8 text-xs w-56">
+                  <SelectTrigger className="h-7 text-[10px] w-48">
                     <SelectValue placeholder="O'qituvchi tanlang..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -750,7 +1008,7 @@ export default function Timetables() {
                   </SelectContent>
                 </Select>
                 {selectedTeacherId && (
-                  <div className="flex items-center space-x-1.5 text-xs text-gray-500">
+                  <div className="flex items-center space-x-1 text-[10px] text-gray-500">
                     <span>{teacherEntries.length} ta dars</span>
                     {teachers.find(t => t.id === selectedTeacherId)?.maxHoursPerWeek && (
                       <span className="text-gray-400">/ {teachers.find(t => t.id === selectedTeacherId)?.maxHoursPerWeek} max</span>
@@ -759,25 +1017,53 @@ export default function Timetables() {
                 )}
               </div>
             )}
-          </div>
 
-          {/* Missing Lessons Indicator */}
-          {missingLessons.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100 flex items-start space-x-2">
-              <span className="text-xs font-semibold text-gray-500 whitespace-nowrap mt-0.5">Yetishmayotgan soatlar:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {missingLessons.map((ml, idx) => (
-                  <div key={idx} className="px-2 py-0.5 rounded-full text-[10px] font-medium border flex items-center space-x-1 shadow-sm" style={{ borderColor: ml.color, backgroundColor: `${ml.color}15`, color: ml.color }}>
-                    <span>{ml.subjectName}</span>
-                    <span className="w-4 h-4 rounded-full bg-white flex items-center justify-center font-bold">{ml.missingHours}</span>
+            {/* Missing Lessons Indicator - inline */}
+            {missingLessons.length > 0 && (
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <span className="text-[9px] text-gray-400 whitespace-nowrap">Yetishmayotgan:</span>
+                {missingLessons.slice(0, 2).map((ml, idx) => (
+                  <div key={idx} className="px-1.5 py-0.5 rounded-full text-[9px] font-medium border flex items-center gap-0.5 whitespace-nowrap" style={{ borderColor: ml.color, backgroundColor: `${ml.color}15`, color: ml.color }}>
+                    <span className="max-w-[60px] truncate">{ml.subjectName}</span>
+                    <span className="w-3 h-3 rounded-full bg-white flex items-center justify-center font-bold text-[8px] flex-shrink-0">{ml.missingHours}</span>
                   </div>
                 ))}
+                {missingLessons.length > 2 && (
+                  <span className="text-[9px] text-gray-400 whitespace-nowrap">+{missingLessons.length - 2}</span>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </CardHeader>
 
         <CardContent>
+          {/* Legend / Guide */}
+          <div className="flex items-center flex-wrap gap-x-4 gap-y-2 text-[10px] text-gray-600 bg-gray-50 p-2 rounded-lg mb-3 border border-gray-100">
+            <div className="font-bold text-gray-800 mr-1 flex items-center gap-1">
+              <BookOpen className="h-3 w-3 text-blue-600" /> Yo'riqnoma:
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+              <span>Fan rangi (har bir fanning o'z rangi)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <UserCheck className="h-3 w-3 text-gray-500" />
+              <span>O'qituvchi</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <GraduationCap className="h-3 w-3 text-gray-500" />
+              <span>Sinf nomi</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <DoorOpen className="h-3 w-3 text-gray-500" />
+              <span>Xona raqami</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">
+              <AlertTriangle className="h-3 w-3" />
+              <span className="font-medium">Xona biriktirilmagan!</span>
+            </div>
+          </div>
+
           {loadingEntries ? (
             <div className="space-y-2">
               {Array(6).fill(0).map((_, i) => <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-lg" />)}
@@ -788,20 +1074,49 @@ export default function Timetables() {
               <p className="font-medium text-gray-600">Vaqt uyalari yuklanmoqda...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto -mx-2">
-              <DndContext 
-                sensors={sensors}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-              >
-                <table className="w-full min-w-[700px]">
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+            <div className="flex gap-3 justify-between">
+              {/* Left sidebar: Available subjects to drag */}
+              {viewMode === "class" && selectedClassId !== "all" && (
+                <DroppableSidebar id="sidebar">
+                  <div className="text-[10px] font-semibold text-gray-500 mb-1.5">Mavjud fanlar</div>
+                  {missingLessons.length === 0 ? (
+                    <div className="text-[9px] text-gray-400 italic py-2">Barcha fanlar biriktirilgan</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {missingLessons.map((ml, idx) => {
+                        const sub = subjects.find(s => s.name === ml.subjectName);
+                        const cs = classSubjects.find(c => c.classId === selectedClassId && c.subjectId === sub?.id);
+                        return (
+                          <DraggableSubjectCard
+                            key={idx}
+                            subject={sub!}
+                            missingHours={ml.missingHours}
+                            teacherId={cs?.teacherId}
+                            teacherId2={cs?.teacherId2}
+                            classId={selectedClassId as number}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </DroppableSidebar>
+              )}
+              
+              {/* Right: Schedule table */}
+              <div className="w-full lg:w-1/2 lg:ml-auto -mx-2 shadow-sm border border-gray-100 rounded-lg p-2 bg-white">
+                <table className="w-full table-fixed">
                   <thead>
                     <tr>
-                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 w-24">Dars</th>
+                      <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-gray-500 w-20">Dars</th>
                       {DAYS.map((day, i) => (
-                        <th key={day} className="text-center py-2 px-1 text-xs font-semibold text-gray-700 w-1/5">
+                        <th key={day} className="text-center py-1.5 px-1 text-[10px] font-semibold text-gray-700 w-1/5">
                           <div>{day}</div>
-                          <div className="text-gray-400 font-normal">{(() => {
+                          <div className="text-gray-400 font-normal text-[9px]">{(() => {
                             const d = new Date(monday);
                             d.setDate(monday.getDate() + i);
                             return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
@@ -813,9 +1128,9 @@ export default function Timetables() {
                   <tbody>
                     {periods.map((period, pi) => (
                       <tr key={period.id} className={pi % 2 === 0 ? "bg-gray-50/50" : "bg-white"}>
-                        <td className="py-2 px-3">
-                          <div className="text-xs font-semibold text-gray-700">{pi + 1}-dars</div>
-                          <div className="text-xs text-gray-400 font-mono">
+                        <td className="py-1 px-2">
+                          <div className="text-[10px] font-semibold text-gray-700">{pi + 1}-dars</div>
+                          <div className="text-[9px] text-gray-400 font-mono">
                             {period.startTime?.slice(0, 5)}–{period.endTime?.slice(0, 5)}
                           </div>
                         </td>
@@ -862,17 +1177,9 @@ export default function Timetables() {
                   </tbody>
                 </table>
                 
-                <DragOverlay dropAnimation={{
-                  sideEffects: defaultDropAnimationSideEffects({
-                    styles: {
-                      active: {
-                        opacity: '0.4',
-                      },
-                    },
-                  }),
-                }}>
+                <DragOverlay dropAnimation={null}>
                   {activeDragEntry ? (
-                    <DraggableEntry
+                    <EntryCard
                       entry={activeDragEntry}
                       subject={getSubject(activeDragEntry.subjectId)}
                       room={getRoom(activeDragEntry.roomId)}
@@ -880,14 +1187,32 @@ export default function Timetables() {
                       className={classNameById(activeDragEntry.classId)}
                       viewMode={viewMode}
                       showAllClasses={showAllClasses}
-                      onEdit={() => {}}
-                      onDelete={() => {}}
                       isOverlay
                     />
+                  ) : activeDragNewSubject ? (
+                    <div
+                      className="p-1.5 rounded border-2 shadow-lg rotate-1 cursor-grabbing bg-white min-w-[120px] max-w-[180px]"
+                      style={{
+                        borderColor: getSubject(activeDragNewSubject.subjectId)?.color,
+                        backgroundColor: `${getSubject(activeDragNewSubject.subjectId)?.color}15`,
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] font-semibold truncate" style={{ color: getSubject(activeDragNewSubject.subjectId)?.color }}>
+                            {getSubject(activeDragNewSubject.subjectId)?.name}
+                          </p>
+                          <p className="text-[8px] text-gray-500">
+                            Yangi dars
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   ) : null}
                 </DragOverlay>
-              </DndContext>
+              </div>
             </div>
+            </DndContext>
           )}
         </CardContent>
       </Card>

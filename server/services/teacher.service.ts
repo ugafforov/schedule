@@ -3,11 +3,12 @@ import { db } from "../db";
 import { classSubjects, teacherSubjects, type Subject, type Class, type Teacher, type ClassSubject } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { UZBEK_CURRICULUM, RUSSIAN_CURRICULUM } from "@shared/curriculum";
+import { getAutoAssignments } from "@shared/dts-curriculum";
 import { getSpecialty } from "./curriculum.service";
 
 const DEFAULT_MAX_HOURS = 30;
 
-import { PRIMARY_TEACHER_ALLOWED_SUBJECTS, isPrimaryTeacherAllowedSubject } from "@shared/constants";
+import { isPrimaryTeacherFromSpecialty, pickBestTeacher, scoreTeacherForSubject } from "@shared/teacher-matching";
 
 interface AssignmentEntry {
   classId: number;
@@ -143,6 +144,7 @@ export async function autoGenerateTeachers() {
         department: "Avtomatik",
         specialization: specialty,
         maxHoursPerWeek: DEFAULT_MAX_HOURS,
+        gradeLevel: specialty === "Boshlang'ich sinf o'qituvchisi" ? "primary" : "high",
         isActive: true,
       });
       createdTeachersCount++;
@@ -177,13 +179,124 @@ export async function autoGenerateTeachers() {
   };
 }
 
+async function syncPrimaryTeacherGradeLevels(allTeachers: Teacher[]) {
+  for (const t of allTeachers) {
+    if (isPrimaryTeacherFromSpecialty(t) && (t as any).gradeLevel !== "primary") {
+      await storage.updateTeacher(t.id, { gradeLevel: "primary" });
+      (t as any).gradeLevel = "primary";
+    }
+  }
+}
+
+function countEligibleTeachers(
+  allTeachers: Teacher[],
+  teacherSubjectMap: Map<number, Set<number>>,
+  teacherLoadMap: Map<number, number>,
+  subject: Subject,
+  classInfo: Class | undefined,
+  weeklyHours: number,
+): number {
+  const language = classInfo ? ((classInfo as any).language || "uz") : "uz";
+  return allTeachers.filter((t) =>
+    scoreTeacherForSubject(
+      {
+        teacher: t,
+        teacherSubjectIds: teacherSubjectMap.get(t.id) || new Set(),
+        currentHours: teacherLoadMap.get(t.id) || 0,
+      },
+      {
+        subjectId: subject.id,
+        subjectName: subject.name,
+        classGrade: classInfo?.grade || "5",
+        language,
+        weeklyHours,
+      },
+    ) >= 0,
+  ).length;
+}
+
+function sortAssignmentsForDistribution(
+  entries: ClassSubject[],
+  allSubjects: Subject[],
+  allClasses: Class[],
+  allTeachers: Teacher[],
+  teacherSubjectMap: Map<number, Set<number>>,
+  teacherLoadMap: Map<number, number>,
+): ClassSubject[] {
+  return [...entries].sort((a, b) => {
+    const classA = allClasses.find(c => c.id === a.classId);
+    const classB = allClasses.find(c => c.id === b.classId);
+    const subjectA = allSubjects.find(s => s.id === a.subjectId);
+    const subjectB = allSubjects.find(s => s.id === b.subjectId);
+    if (!subjectA || !subjectB) return 0;
+
+    const eligibleA = countEligibleTeachers(allTeachers, teacherSubjectMap, teacherLoadMap, subjectA, classA, a.weeklyHours);
+    const eligibleB = countEligibleTeachers(allTeachers, teacherSubjectMap, teacherLoadMap, subjectB, classB, b.weeklyHours);
+    if (eligibleA !== eligibleB) return eligibleA - eligibleB;
+
+    const gradeA = parseInt(classA?.grade || "0");
+    const gradeB = parseInt(classB?.grade || "0");
+    if (gradeA !== gradeB) return gradeA - gradeB;
+
+    return a.classId - b.classId || a.subjectId - b.subjectId;
+  });
+}
+
+function assignTeachersToEntries(
+  entries: ClassSubject[],
+  allSubjects: Subject[],
+  allClasses: Class[],
+  allTeachers: Teacher[],
+  teacherSubjectMap: Map<number, Set<number>>,
+  teacherLoadMap: Map<number, number>,
+): number {
+  let assignedCount = 0;
+  for (const cs of entries) {
+    if (cs.teacherId) continue;
+    const classInfo = allClasses.find(c => c.id === cs.classId);
+    const subject = allSubjects.find(s => s.id === cs.subjectId);
+    if (!subject) continue;
+
+    const best = findTeacherForClassSubject(
+      allTeachers, teacherSubjectMap, teacherLoadMap, subject, classInfo, cs.weeklyHours,
+    );
+
+    if (best) {
+      cs.teacherId = best.id;
+      teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
+      assignedCount++;
+    }
+  }
+  return assignedCount;
+}
+
+function findTeacherForClassSubject(
+  allTeachers: Teacher[],
+  teacherSubjectMap: Map<number, Set<number>>,
+  teacherLoadMap: Map<number, number>,
+  subject: Subject,
+  classInfo: Class | undefined,
+  weeklyHours: number,
+) {
+  return pickBestTeacher(allTeachers, teacherSubjectMap, teacherLoadMap, {
+    subjectId: subject.id,
+    subjectName: subject.name,
+    classGrade: classInfo?.grade || "5",
+    language: classInfo ? ((classInfo as any).language || "uz") : "uz",
+    weeklyHours,
+  });
+}
+
 export async function autoDistributeAll(classIds?: number[]) {
-  const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects] = await Promise.all([
+  const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects, allClasses] = await Promise.all([
     storage.getSubjects(),
     storage.getTeachers(),
     db.select().from(teacherSubjects),
     storage.getAllClassSubjects(),
+    storage.getClasses(),
   ]);
+
+  await syncPrimaryTeacherGradeLevels(allTeachers);
 
   const teacherSubjectMap = new Map<number, Set<number>>();
   for (const ts of allTeacherSubjects) {
@@ -205,55 +318,15 @@ export async function autoDistributeAll(classIds?: number[]) {
   }
 
   for (const cs of unassignedCS) {
-    // Sinf ma'lumotini olish
-    const allClasses = await storage.getClasses();
     const classInfo = allClasses.find(c => c.id === cs.classId);
-    const gradeNum = classInfo ? parseInt(classInfo.grade) : 5;
-    const isPrimaryClass = gradeNum >= 1 && gradeNum <= 4;
-    
-    // Fan ma'lumotini olish
     const subject = allSubjects.find(s => s.id === cs.subjectId);
-    const subjectName = subject?.name || "";
-    
-    const candidates = allTeachers.filter((t) => {
-      const subjects = teacherSubjectMap.get(t.id) || new Set();
-      const currentLoad = teacherLoadMap.get(t.id) || 0;
-      
-      const teacherGradeLevels = ((t as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
-      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
-      
-      const requiredLevel = isPrimaryClass ? "primary" : "high";
-      const universalSubjects = [
-        "rus tili", "chet tili", "ingliz tili", "nemis tili", "fransuz tili",
-        "musiqa madaniyati", "musiqa", "tasviriy san'at", "jismoniy tarbiya",
-        "tarbiya", "chaqiruvga qadar boshlang'ich tayyorgarlik"
-      ];
-      const isUniversalSubject = universalSubjects.some(s => 
-        subjectName.toLowerCase().includes(s.toLowerCase())
-      );
-      const gradeLevelMatch = isUniversalSubject || teacherGradeLevels.includes(requiredLevel);
-      if (!gradeLevelMatch) return false;
-      
-      if (isPrimaryTeacher && isPrimaryClass && !isPrimaryTeacherAllowedSubject(subjectName)) {
-        return false;
-      }
-      
-      const grade = classInfo ? classInfo.grade : "5";
-      const language = classInfo ? (classInfo as any).language || "uz" : "uz";
-      
-      const teacherSpecialty = getSpecialty(t.specialization || "", "5", language);
-      const subjectSpecialty = getSpecialty(subjectName, grade, language);
-      const specialtyMatch = !!teacherSpecialty && !!subjectSpecialty && teacherSpecialty === subjectSpecialty;
-      
-      const subjectMatch = subjects.has(cs.subjectId) || 
-                           (isPrimaryTeacher && isPrimaryClass && isPrimaryTeacherAllowedSubject(subjectName)) ||
-                           specialtyMatch;
-      return subjectMatch && currentLoad + cs.weeklyHours <= (t.maxHoursPerWeek || 30);
-    });
+    if (!subject) continue;
 
-    if (candidates.length > 0) {
-      candidates.sort((a, b) => (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0));
-      const best = candidates[0];
+    const best = findTeacherForClassSubject(
+      allTeachers, teacherSubjectMap, teacherLoadMap, subject, classInfo, cs.weeklyHours,
+    );
+
+    if (best) {
       cs.teacherId = best.id;
       teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
       assignedCount++;
@@ -284,12 +357,15 @@ export async function autoDistributeAll(classIds?: number[]) {
 
 // ─── Faqat bo'sh fanlarni biriktirish (yangi funksiya) ───────────────────────
 export async function autoDistributeUnassignedOnly(classIds?: number[]) {
-  const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects] = await Promise.all([
+  const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects, allClasses] = await Promise.all([
     storage.getSubjects(),
     storage.getTeachers(),
     db.select().from(teacherSubjects),
     storage.getAllClassSubjects(),
+    storage.getClasses(),
   ]);
+
+  await syncPrimaryTeacherGradeLevels(allTeachers);
 
   const teacherSubjectMap = new Map<number, Set<number>>();
   for (const ts of allTeacherSubjects) {
@@ -311,53 +387,15 @@ export async function autoDistributeUnassignedOnly(classIds?: number[]) {
   }
 
   for (const cs of unassignedCS) {
-    const allClasses = await storage.getClasses();
     const classInfo = allClasses.find(c => c.id === cs.classId);
-    const gradeNum = classInfo ? parseInt(classInfo.grade) : 5;
-    const isPrimaryClass = gradeNum >= 1 && gradeNum <= 4;
-    
     const subject = allSubjects.find(s => s.id === cs.subjectId);
-    const subjectName = subject?.name || "";
-    
-    const candidates = allTeachers.filter((t) => {
-      const subjects = teacherSubjectMap.get(t.id) || new Set();
-      const currentLoad = teacherLoadMap.get(t.id) || 0;
-      
-      const teacherGradeLevels = ((t as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
-      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
-      
-      const requiredLevel = isPrimaryClass ? "primary" : "high";
-      const universalSubjects = [
-        "rus tili", "chet tili", "ingliz tili", "nemis tili", "fransuz tili",
-        "musiqa madaniyati", "musiqa", "tasviriy san'at", "jismoniy tarbiya",
-        "tarbiya", "chaqiruvga qadar boshlang'ich tayyorgarlik"
-      ];
-      const isUniversalSubject = universalSubjects.some(s => 
-        subjectName.toLowerCase().includes(s.toLowerCase())
-      );
-      const gradeLevelMatch = isUniversalSubject || teacherGradeLevels.includes(requiredLevel);
-      if (!gradeLevelMatch) return false;
-      
-      if (isPrimaryTeacher && isPrimaryClass && !isPrimaryTeacherAllowedSubject(subjectName)) {
-        return false;
-      }
-      
-      const grade = classInfo ? classInfo.grade : "5";
-      const language = classInfo ? (classInfo as any).language || "uz" : "uz";
-      
-      const teacherSpecialty = getSpecialty(t.specialization || "", "5", language);
-      const subjectSpecialty = getSpecialty(subjectName, grade, language);
-      const specialtyMatch = !!teacherSpecialty && !!subjectSpecialty && teacherSpecialty === subjectSpecialty;
-      
-      const subjectMatch = subjects.has(cs.subjectId) || 
-                           (isPrimaryTeacher && isPrimaryClass && isPrimaryTeacherAllowedSubject(subjectName)) ||
-                           specialtyMatch;
-      return subjectMatch && currentLoad + cs.weeklyHours <= (t.maxHoursPerWeek || 30);
-    });
+    if (!subject) continue;
 
-    if (candidates.length > 0) {
-      candidates.sort((a, b) => (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0));
-      const best = candidates[0];
+    const best = findTeacherForClassSubject(
+      allTeachers, teacherSubjectMap, teacherLoadMap, subject, classInfo, cs.weeklyHours,
+    );
+
+    if (best) {
       cs.teacherId = best.id;
       teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
       assignedCount++;
@@ -388,12 +426,15 @@ export async function autoDistributeUnassignedOnly(classIds?: number[]) {
 
 // ─── Barcha fanlarni qayta biriktirish (yangi funksiya) ───────────────────────
 export async function autoDistributeAllForceReassign(classIds?: number[]) {
-  const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects] = await Promise.all([
+  const [allSubjects, allTeachers, allTeacherSubjects, allClassSubjects, allClasses] = await Promise.all([
     storage.getSubjects(),
     storage.getTeachers(),
     db.select().from(teacherSubjects),
     storage.getAllClassSubjects(),
+    storage.getClasses(),
   ]);
+
+  await syncPrimaryTeacherGradeLevels(allTeachers);
 
   const teacherSubjectMap = new Map<number, Set<number>>();
   for (const ts of allTeacherSubjects) {
@@ -401,10 +442,8 @@ export async function autoDistributeAllForceReassign(classIds?: number[]) {
     teacherSubjectMap.get(ts.teacherId)!.add(ts.subjectId);
   }
 
-  // teacherLoadMap holds hours of teachers who are NOT reassigned.
   const teacherLoadMap = new Map<number, number>();
-  
-  // Clear/reset assignments for target classes
+
   for (const cs of allClassSubjects) {
     const shouldReset = !classIds || classIds.length === 0 || classIds.includes(cs.classId);
     if (shouldReset) {
@@ -415,65 +454,21 @@ export async function autoDistributeAllForceReassign(classIds?: number[]) {
   }
 
   let assignedCount = 0;
-  
-  // We only assign class subjects of classes we want to reset
   let targetCS = allClassSubjects;
   if (classIds && classIds.length > 0) {
     targetCS = allClassSubjects.filter((cs) => classIds.includes(cs.classId));
   }
 
-  for (const cs of targetCS) {
-    const allClasses = await storage.getClasses();
-    const classInfo = allClasses.find(c => c.id === cs.classId);
-    const gradeNum = classInfo ? parseInt(classInfo.grade) : 5;
-    const isPrimaryClass = gradeNum >= 1 && gradeNum <= 4;
-    
-    const subject = allSubjects.find(s => s.id === cs.subjectId);
-    const subjectName = subject?.name || "";
-    
-    const candidates = allTeachers.filter((t) => {
-      const subjects = teacherSubjectMap.get(t.id) || new Set();
-      const currentLoad = teacherLoadMap.get(t.id) || 0;
-      
-      const teacherGradeLevels = ((t as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
-      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
-      
-      const requiredLevel = isPrimaryClass ? "primary" : "high";
-      const universalSubjects = [
-        "rus tili", "chet tili", "ingliz tili", "nemis tili", "fransuz tili",
-        "musiqa madaniyati", "musiqa", "tasviriy san'at", "jismoniy tarbiya",
-        "tarbiya", "chaqiruvga qadar boshlang'ich tayyorgarlik"
-      ];
-      const isUniversalSubject = universalSubjects.some(s => 
-        subjectName.toLowerCase().includes(s.toLowerCase())
-      );
-      const gradeLevelMatch = isUniversalSubject || teacherGradeLevels.includes(requiredLevel);
-      if (!gradeLevelMatch) return false;
-      
-      if (isPrimaryTeacher && isPrimaryClass && !isPrimaryTeacherAllowedSubject(subjectName)) {
-        return false;
-      }
-      
-      const grade = classInfo ? classInfo.grade : "5";
-      const language = classInfo ? (classInfo as any).language || "uz" : "uz";
-      
-      const teacherSpecialty = getSpecialty(t.specialization || "", "5", language);
-      const subjectSpecialty = getSpecialty(subjectName, grade, language);
-      const specialtyMatch = !!teacherSpecialty && !!subjectSpecialty && teacherSpecialty === subjectSpecialty;
-      
-      const subjectMatch = subjects.has(cs.subjectId) || 
-                           (isPrimaryTeacher && isPrimaryClass && isPrimaryTeacherAllowedSubject(subjectName)) ||
-                           specialtyMatch;
-      return subjectMatch && currentLoad + cs.weeklyHours <= (t.maxHoursPerWeek || 30);
-    });
+  const sortedTarget = sortAssignmentsForDistribution(
+    targetCS, allSubjects, allClasses, allTeachers, teacherSubjectMap, teacherLoadMap,
+  );
 
-    if (candidates.length > 0) {
-      candidates.sort((a, b) => (teacherLoadMap.get(a.id) || 0) - (teacherLoadMap.get(b.id) || 0));
-      const best = candidates[0];
-      cs.teacherId = best.id;
-      teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
-      assignedCount++;
-    }
+  for (let pass = 0; pass < 5; pass++) {
+    const passAssigned = assignTeachersToEntries(
+      sortedTarget, allSubjects, allClasses, allTeachers, teacherSubjectMap, teacherLoadMap,
+    );
+    assignedCount += passAssigned;
+    if (passAssigned === 0) break;
   }
 
   const assignmentsByClass = new Map<number, any[]>();
@@ -492,82 +487,24 @@ export async function autoDistributeAllForceReassign(classIds?: number[]) {
     await storage.setClassSubjects(classId, items);
   }
 
-  return {
-    message: classIds && classIds.length > 0 
-      ? `Tanlangan sinflar darslari qayta taqsimlandi. ${assignedCount} ta dars o'qituvchilarga biriktirildi.`
-      : `Barcha darslar qayta taqsimlandi. ${assignedCount} ta dars o'qituvchilarga biriktirildi.`,
-    assignedCount,
-  };
-}
+  const fillResult = await autoDistributeUnassignedOnly(classIds);
+  assignedCount += fillResult.assignedCount;
 
-function pickTeacherForSubjectBackend(
-  subject: Subject,
-  allTeachers: Teacher[],
-  teacherLoadMap: Map<number, number>,
-  teacherSubjectMap: Map<number, Set<number>>,
-  grade: string,
-  language: string = "uz"
-) {
-  const gradeNum = parseInt(grade);
-  const requiredLevel = gradeNum >= 1 && gradeNum <= 4 ? "primary" : "high";
-
-  const universalSubjects = [
-    "rus tili", "chet tili", "ingliz tili", "nemis tili", "fransuz tili",
-    "musiqa madaniyati", "musiqa", "tasviriy san'at", "jismoniy tarbiya",
-    "tarbiya", "chaqiruvga qadar boshlang'ich tayyorgarlik"
-  ];
-  const isUniversalSubject = universalSubjects.some(s => 
-    subject.name.toLowerCase().includes(s.toLowerCase())
+  const remaining = (await storage.getAllClassSubjects()).filter(cs =>
+    (!classIds || classIds.length === 0 || classIds.includes(cs.classId)) && !cs.teacherId,
   );
 
-  const scored = allTeachers
-    .map((teacher) => {
-      const specialization = (teacher.specialization || "").toLowerCase();
-      const subjectIds = teacherSubjectMap.get(teacher.id) || new Set<number>();
-      const currentHours = teacherLoadMap.get(teacher.id) || 0;
-      const maxHours = teacher.maxHoursPerWeek || 30;
-      const currentSubjects = subjectIds.size;
-      
-      const teacherGradeLevels = ((teacher as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
-      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
-      const isPrimaryClass = requiredLevel === "primary";
-      const isPrimarySubjectAllowed = isPrimaryTeacherAllowedSubject(subject.name);
+  const remainingNote = remaining.length > 0
+    ? ` ${remaining.length} ta fan hali o'qituvchisiz — mos o'qituvchi yetishmayapti.`
+    : " Barcha fanlar o'qituvchilarga biriktirildi.";
 
-      const teacherSpecialty = getSpecialty(teacher.specialization || "", "5", language);
-      const subjectSpecialty = getSpecialty(subject.name, grade, language);
-      const specialtyMatch = !!teacherSpecialty && !!subjectSpecialty && teacherSpecialty === subjectSpecialty;
-
-      const hasSlot = (isPrimaryTeacher || currentSubjects < 2) && currentHours < maxHours;
-      const subjectMatch = subjectIds.has(subject.id) || 
-                           (isPrimaryTeacher && isPrimaryClass && isPrimarySubjectAllowed) || 
-                           specialtyMatch;
-      const specializationMatch = specialization.length > 0 && specialization.includes(subject.name.toLowerCase());
-      
-      const gradeLevelMatch = isUniversalSubject || teacherGradeLevels.includes(requiredLevel);
-      
-      if (isPrimaryTeacher && isPrimaryClass && !isPrimarySubjectAllowed) {
-        return { teacher, score: -1, hasSlot: false, subjectMatch: false, specializationMatch: false, gradeLevelMatch: false };
-      }
-      
-      if (!gradeLevelMatch) return { teacher, score: -1, hasSlot: false, subjectMatch: false, specializationMatch: false, gradeLevelMatch: false };
-      
-      let score = 0;
-      if (subjectMatch) score += 100;
-      if (specializationMatch) score += 50;
-      if (!hasSlot) score = -1;
-      score -= currentHours;
-      score -= currentSubjects * 5;
-      
-      return { teacher, score, hasSlot, subjectMatch, specializationMatch, gradeLevelMatch };
-    })
-    .filter((item) => item.score >= 0 && item.subjectMatch && item.gradeLevelMatch);
-
-  if (scored.length === 0) return null;
-
-  return scored
-    .slice()
-    .sort((a, b) => b.score - a.score || (teacherLoadMap.get(a.teacher.id) || 0) - (teacherLoadMap.get(b.teacher.id) || 0))[0]
-    ?.teacher || null;
+  return {
+    message: classIds && classIds.length > 0
+      ? `Tanlangan sinflar darslari qayta taqsimlandi. ${assignedCount} ta dars o'qituvchilarga biriktirildi.${remainingNote}`
+      : `Barcha darslar qayta taqsimlandi. ${assignedCount} ta dars o'qituvchilarga biriktirildi.${remainingNote}`,
+    assignedCount,
+    remainingUnassigned: remaining.length,
+  };
 }
 
 export async function autoAssignDtsForClasses(classIds: number[]) {
@@ -578,6 +515,8 @@ export async function autoAssignDtsForClasses(classIds: number[]) {
     db.select().from(teacherSubjects),
     storage.getAllClassSubjects(),
   ]);
+
+  await syncPrimaryTeacherGradeLevels(allTeachers);
 
   const teacherSubjectMap = new Map<number, Set<number>>();
   for (const ts of allTeacherSubjects) {
@@ -593,40 +532,73 @@ export async function autoAssignDtsForClasses(classIds: number[]) {
   }
 
   let assignedCount = 0;
+  let preservedTeachers = 0;
 
   for (const classId of classIds) {
     const cls = allClasses.find(c => c.id === classId);
     if (!cls) continue;
 
-    const curriculum = (cls as any).language === "ru" ? RUSSIAN_CURRICULUM : UZBEK_CURRICULUM;
-    const gradeRequirements = curriculum[cls.grade];
-    if (!gradeRequirements) continue;
+    const language = (cls as any).language || "uz";
+    const grade = parseInt(cls.grade);
+    const existingForClass = allClassSubjects.filter(cs => cs.classId === classId);
+    const existingBySubjectId = new Map(existingForClass.map(cs => [cs.subjectId, cs]));
 
-    const newAssignments: { subjectId: number; teacherId: number | null; weeklyHours: number }[] = [];
+    const dtsResult = getAutoAssignments(grade, allSubjects, language);
+    const dtsSubjectIds = new Set(dtsResult.assignments.map(a => a.subjectId));
 
-    for (const [subjectName, hours] of Object.entries(gradeRequirements)) {
-      const subject = allSubjects.find(s => s.name.toLowerCase() === subjectName.toLowerCase());
-      if (!subject) continue;
+    const merged: { subjectId: number; teacherId: number | null; weeklyHours: number }[] = existingForClass
+      .filter(cs => !dtsSubjectIds.has(cs.subjectId))
+      .map(cs => ({
+        subjectId: cs.subjectId,
+        teacherId: cs.teacherId,
+        weeklyHours: cs.weeklyHours,
+      }));
 
-      const teacher = pickTeacherForSubjectBackend(subject, allTeachers, teacherLoadMap, teacherSubjectMap, cls.grade, (cls as any).language || "uz");
-      
-      newAssignments.push({
-        subjectId: subject.id,
-        teacherId: teacher?.id ?? null,
-        weeklyHours: hours,
-      });
+    for (const dtsEntry of dtsResult.assignments) {
+      const existing = existingBySubjectId.get(dtsEntry.subjectId);
+      let teacherId = existing?.teacherId ?? null;
 
-      if (teacher) {
-        teacherLoadMap.set(teacher.id, (teacherLoadMap.get(teacher.id) || 0) + hours);
-        assignedCount++;
+      if (teacherId) {
+        preservedTeachers++;
+      } else {
+        const subject = allSubjects.find(s => s.id === dtsEntry.subjectId);
+        if (subject) {
+          const teacher = findTeacherForClassSubject(
+            allTeachers, teacherSubjectMap, teacherLoadMap, subject, cls, dtsEntry.weeklyHours,
+          );
+          if (teacher) {
+            teacherId = teacher.id;
+            teacherLoadMap.set(teacher.id, (teacherLoadMap.get(teacher.id) || 0) + dtsEntry.weeklyHours);
+            assignedCount++;
+          }
+        }
       }
+
+      merged.push({
+        subjectId: dtsEntry.subjectId,
+        teacherId,
+        weeklyHours: dtsEntry.weeklyHours,
+      });
     }
 
-    await storage.setClassSubjects(classId, newAssignments);
+    await storage.setClassSubjects(classId, merged);
   }
 
+  // Qolgan bo'sh fanlarga ikkinchi bosqich — barcha qoidalarni qo'llab to'liq taqsimlash
+  const distributeResult = await autoDistributeUnassignedOnly(classIds);
+  assignedCount += distributeResult.assignedCount;
+
+  const remaining = (await storage.getAllClassSubjects())
+    .filter(cs => classIds.includes(cs.classId) && !cs.teacherId);
+
+  const unassignedNote = remaining.length > 0
+    ? ` ${remaining.length} ta fan hali o'qituvchisiz — mos o'qituvchi yetishmayapti.`
+    : " Barcha fanlar o'qituvchilarga biriktirildi.";
+
   return {
-    message: `${classIds.length} ta sinf uchun DTS fanlari avtomatik biriktirildi. ${assignedCount} ta darsga o'qituvchi tayinlandi.`,
+    message: `${classIds.length} ta sinf uchun DTS fanlari yangilandi. Jami ${assignedCount} ta yangi o'qituvchi tayinlandi, ${preservedTeachers} ta mavjud biriktirish saqlandi.${unassignedNote}`,
     assignedCount,
+    preservedTeachers,
+    remainingUnassigned: remaining.length,
   };
 }

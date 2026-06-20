@@ -384,13 +384,12 @@ export function getSpecialty(subjectName: string, grade: string, language: strin
   const name = subjectName.toLowerCase().trim();
   const g = parseInt(grade);
 
-  // Boshlang'ich sinflar (1-4)
+  // Boshlang'ich sinflarda faqat sinf rahbari (homeroom) fanlari
   if (g >= 1 && g <= 4) {
-    const primary = [
-      "ona tili", "o'qish savodxonligi", "matematika", "o'zbek tili", "rus tili",
-      "tarbiya", "tabiiy fanlar (science)", "tasviriy san'at", "texnologiya",
+    const homeroomSubjects = [
+      "ona tili", "o'qish savodxonligi", "matematika", "tarbiya", "sinf soati",
     ];
-    if (primary.includes(name)) return "Boshlang'ich sinf o'qituvchisi";
+    if (homeroomSubjects.includes(name)) return "Boshlang'ich sinf o'qituvchisi";
   }
 
   // Rus maktablarida "Ona tili" va "Adabiyot" aslida Rus tili va adabiyoti

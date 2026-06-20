@@ -28,6 +28,7 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const headers = await getAuthHeaders();
   const res = await fetch(url, {
@@ -37,6 +38,7 @@ export async function apiRequest(
       ...(data ? { "Content-Type": "application/json" } : {}),
     },
     body: data ? JSON.stringify(data) : undefined,
+    signal,
   });
 
   await throwIfResNotOk(res);

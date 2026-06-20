@@ -227,7 +227,9 @@ export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
 export const insertTimeSlotSchema = createInsertSchema(timeSlots).omit({ id: true });
 export const insertTeacherSubjectSchema = createInsertSchema(teacherSubjects).omit({ id: true });
 export const insertClassSubjectSchema = createInsertSchema(classSubjects).omit({ id: true });
-export const insertScheduleEntrySchema = createInsertSchema(scheduleEntries).omit({ id: true, createdAt: true });
+export const insertScheduleEntrySchema = createInsertSchema(scheduleEntries)
+  .omit({ id: true, createdAt: true })
+  .extend({ weekStartDate: z.coerce.date() });
 export const insertScheduleConflictSchema = createInsertSchema(scheduleConflicts).omit({ id: true, createdAt: true });
 export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });

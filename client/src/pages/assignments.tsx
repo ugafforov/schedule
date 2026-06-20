@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Class, Subject, Teacher, ClassSubject } from "@shared/schema";
 import { getAutoAssignments } from "@/lib/dts-curriculum";
-import { getSpecialty } from "@shared/curriculum";
 
 type TeacherWithSubjects = Teacher & { subjectIds?: number[] };
 
@@ -57,6 +56,14 @@ const GRADE_COLORS = [
   "bg-rose-100 text-rose-700",
 ];
 const gradeColor = (g: string) => GRADE_COLORS[(parseInt(g) - 1) % GRADE_COLORS.length] || GRADE_COLORS[0];
+
+function mapClassSubjectsToAssignments(data: ClassSubject[] | undefined): Assignment[] {
+  return (data || []).map((a) => ({
+    subjectId: a.subjectId,
+    teacherId: a.teacherId ?? null,
+    weeklyHours: a.weeklyHours,
+  }));
+}
 
 function loadColor(pct: number) {
   if (pct >= 100) return "bg-red-500";
@@ -118,7 +125,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
   const assignmentsWithTeachers = result.assignments.map((a) => {
     const subject = subjects.find((s) => s.id === a.subjectId);
     if (!subject) return a;
-    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap, selectedClass.grade, (selectedClass as any).language || "uz");
+    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap, selectedClass.grade, (selectedClass as any).language || "uz", a.weeklyHours);
     return { ...a, teacherId: teacher?.id ?? null };
   });
   return (
@@ -185,7 +192,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
           <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
             <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-blue-700">
-              O'qituvchilar <strong>avtomatik biriktirilmaydi</strong> — ularni "Yuk hisobi" tabidan bir tudma bilan biriktiring.
+              Mavjud o'qituvchi biriktirishlari saqlanadi. Faqat bo'sh fanlarga mos o'qituvchi avtomatik tanlanadi.
             </p>
           </div>
         </div>
@@ -202,86 +209,26 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
 }
 
 import { PRIMARY_TEACHER_ALLOWED_SUBJECTS, isPrimaryTeacherAllowedSubject } from "@shared/constants";
+import { pickBestTeacher } from "@shared/teacher-matching";
 
 function pickTeacherForSubject(
   subject: Subject,
   teachers: TeacherWithSubjects[],
   teacherLoadMap: Map<number, number>,
   teacherSubjectMap: Map<number, number[]>,
-  classGrade: string, // Sinf darajasi: "1", "2", ..., "11"
-  language: string = "uz"
+  classGrade: string,
+  language: string = "uz",
+  weeklyHours: number = 2,
 ) {
-  // Sinf darajasini aniqlash
-  const gradeNum = parseInt(classGrade);
-  let requiredLevel: string;
-  if (gradeNum >= 1 && gradeNum <= 4) {
-    requiredLevel = "primary";
-  } else {
-    requiredLevel = "high"; // 5-11 sinf = high
-  }
-
-  // Istisno fanlar - bu fanlar uchun o'qituvchi barcha sinflarda dars bera oladi
-  const universalSubjects = [
-    "rus tili", "chet tili", "ingliz tili", "nemis tili", "fransuz tili",
-    "musiqa madaniyati", "musiqa", "tasviriy san'at", "jismoniy tarbiya",
-    "tarbiya", "chaqiruvga qadar boshlang'ich tayyorgarlik"
-  ];
-  const isUniversalSubject = universalSubjects.some(s => 
-    subject.name.toLowerCase().includes(s.toLowerCase())
-  );
-
-  const scored = teachers
-    .map((teacher) => {
-      const specialization = (teacher.specialization || "").toLowerCase();
-      const subjectIds = teacherSubjectMap.get(teacher.id) || [];
-
-      // O'qituvchining sinf darajasini tekshirish
-      const teacherGradeLevels = ((teacher as any).gradeLevel || "high").split(",").map((s: string) => s.trim());
-      const isPrimaryTeacher = teacherGradeLevels.includes("primary");
-      const isPrimaryClass = requiredLevel === "primary";
-      const isPrimarySubjectAllowed = isPrimaryTeacherAllowedSubject(subject.name);
-
-      const teacherSpecialty = getSpecialty(teacher.specialization || "", "5", language);
-      const subjectSpecialty = getSpecialty(subject.name, classGrade, language);
-      const specialtyMatch = teacherSpecialty === subjectSpecialty;
-
-      const currentHours = teacherLoadMap.get(teacher.id) || 0;
-      const maxHours = teacher.maxHoursPerWeek || 30;
-      const currentSubjects = subjectIds.length;
-      const hasSlot = (isPrimaryTeacher || currentSubjects < 2) && currentHours < maxHours;
-      const subjectMatch = subjectIds.includes(subject.id) || 
-                           (isPrimaryTeacher && isPrimaryClass && isPrimarySubjectAllowed) ||
-                           specialtyMatch;
-      const specializationMatch = (specialization.length > 0 && specialization.includes(subject.name.toLowerCase())) || specialtyMatch;
-      
-      // Agar fan universal bo'lsa, o'qituvchi har qanday darajada dars bera oladi
-      const gradeLevelMatch = isUniversalSubject || teacherGradeLevels.includes(requiredLevel);
-      
-      if (isPrimaryTeacher && isPrimaryClass && !isPrimarySubjectAllowed) {
-        // Boshlang'ich sinf o'qituvchisi boshlang'ich sinfga ruxsat etilmagan fanga biriktirilmaydi
-        return { teacher, score: -1, hasSlot: false, subjectMatch: false, specializationMatch: false, gradeLevelMatch: false };
-      }
-      
-      let score = 0;
-      
-      // Agar o'qituvchi bu sinf darajasida dars bera olmasa, uni rad etish
-      if (!gradeLevelMatch) return { teacher, score: -1, hasSlot: false, subjectMatch: false, specializationMatch: false, gradeLevelMatch: false };
-      
-      if (subjectMatch) score += 100;
-      if (specializationMatch) score += 50;
-      if (!hasSlot) score = -1;
-      score -= currentHours;
-      score -= currentSubjects * 5;
-      return { teacher, score, hasSlot, subjectMatch, specializationMatch, gradeLevelMatch };
-    })
-    .filter((item) => item.score >= 0 && item.subjectMatch && item.gradeLevelMatch);
-
-  if (scored.length === 0) return null;
-
-  return scored
-    .slice()
-    .sort((a, b) => b.score - a.score || (teacherLoadMap.get(a.teacher.id) || 0) - (teacherLoadMap.get(b.teacher.id) || 0))[0]
-    ?.teacher || null;
+  const map = new Map<number, Set<number>>();
+  teacherSubjectMap.forEach((subs, id) => map.set(id, new Set(subs)));
+  return pickBestTeacher(teachers, map, teacherLoadMap, {
+    subjectId: subject.id,
+    subjectName: subject.name,
+    classGrade,
+    language,
+    weeklyHours,
+  });
 }
 
 // ─── Bulk assign dialog (Tab 2) ────────────────────────────────────────────────
@@ -413,46 +360,88 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   const isLoadingRef = useRef(false);
   const isSwitchingClassRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveGenerationRef = useRef(0);
+  const loadedClassIdRef = useRef<number | null>(null);
+  const saveAbortRef = useRef<AbortController | null>(null);
+  const isBulkOperationRef = useRef(false);
+
+  const cancelPendingSave = () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    saveAbortRef.current?.abort();
+    saveAbortRef.current = null;
+    saveGenerationRef.current += 1;
+    setIsDirty(false);
+    setSaveStatus("idle");
+  };
+
+  const beginBulkOperation = () => {
+    cancelPendingSave();
+    isBulkOperationRef.current = true;
+  };
+
+  const endBulkOperation = () => {
+    isBulkOperationRef.current = false;
+    loadedClassIdRef.current = null;
+  };
 
   // Barcha sinflarning biriktirishlarini yuklash (badge uchun)
-  const { data: allClassAssignments = {}, isLoading: allAssignmentsLoading } = useQuery<Record<number, ClassSubject[]>>({
+  const { data: allClassAssignments = {} } = useQuery<Record<number, ClassSubject[]>>({
     queryKey: ["/api/classes/all/subjects"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/classes/all/subjects");
-      if (!res.ok) {
-        console.error('Failed to load all class assignments');
-        return {};
-      }
-      const result = await res.json();
-      console.log('All class assignments loaded:', result);
-      return result;
+      if (!res.ok) return {};
+      return res.json();
     },
   });
 
-  const { isLoading: assignLoading } = useQuery<ClassSubject[]>({
+  const {
+    data: serverSubjects,
+    isLoading: assignQueryLoading,
+    isFetching: assignQueryFetching,
+  } = useQuery<ClassSubject[]>({
     queryKey: ["/api/classes", selectedClassId, "subjects"],
     enabled: selectedClassId !== null,
     queryFn: async () => {
-      isLoadingRef.current = true;
       const res = await apiRequest("GET", `/api/classes/${selectedClassId}/subjects`);
-      const data = await res.json();
-      const mapped = (data || []).map((a: any) => ({ subjectId: a.subjectId, teacherId: a.teacherId ?? null, weeklyHours: a.weeklyHours }));
-      setAssignments(mapped);
-      setIsDirty(false);
-      setSaveStatus("idle");
-      isLoadingRef.current = false;
-      isSwitchingClassRef.current = false;
-      return data;
+      return res.json();
     },
   });
 
+  const serverMapped = useMemo(
+    () => mapClassSubjectsToAssignments(serverSubjects),
+    [serverSubjects],
+  );
+
+  // Server ma'lumotini local state bilan sinxronlash (faqat tahrir qilinmagan holatda)
+  useEffect(() => {
+    if (selectedClassId === null || isDirty || assignQueryFetching) return;
+    setAssignments(serverMapped);
+    loadedClassIdRef.current = selectedClassId;
+    isSwitchingClassRef.current = false;
+    isLoadingRef.current = false;
+    setSaveStatus("idle");
+  }, [selectedClassId, serverMapped, isDirty, assignQueryFetching]);
+
+  const assignLoading =
+    selectedClassId !== null &&
+    (assignQueryLoading || assignQueryFetching || isSwitchingClassRef.current || loadedClassIdRef.current !== selectedClassId);
+
   const saveMutation = useMutation({
-    mutationFn: async (toSave: Assignment[]) => {
-      await apiRequest("POST", `/api/classes/${selectedClassId}/subjects`, { assignments: toSave });
+    mutationFn: async ({ toSave, classId, generation }: { toSave: Assignment[]; classId: number; generation: number }) => {
+      if (generation !== saveGenerationRef.current || isBulkOperationRef.current) return;
+      if (toSave.length === 0) return;
+      saveAbortRef.current?.abort();
+      const controller = new AbortController();
+      saveAbortRef.current = controller;
+      await apiRequest("POST", `/api/classes/${classId}/subjects`, { assignments: toSave }, controller.signal);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
       qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
+      qc.invalidateQueries({ queryKey: ["/api/classes", variables.classId, "subjects"] });
       setIsDirty(false);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 600);
@@ -467,11 +456,13 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     mutationFn: async () => {
       await apiRequest("DELETE", `/api/classes/${selectedClassId}/subjects`);
     },
+    onMutate: cancelPendingSave,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
       qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
       setAssignments([]);
+      loadedClassIdRef.current = selectedClassId;
       setIsDirty(false);
       setSaveStatus("idle");
       setClearOpen(false);
@@ -482,6 +473,15 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
     },
   });
 
+  const invalidateAfterBulk = () => {
+    endBulkOperation();
+    qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
+    qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
+    if (selectedClassId) {
+      qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
+    }
+  };
+
   const autoDistributeUnassignedMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/class-subjects/auto-distribute-unassigned", {
@@ -489,14 +489,14 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
       });
       return res.json();
     },
+    onMutate: beginBulkOperation,
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
-      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
-      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
+      invalidateAfterBulk();
       setAutoDistributeUnassignedOpen(false);
       toast({ title: "Muvaffaqiyat", description: data.message });
     },
     onError: (e: any) => {
+      endBulkOperation();
       toast({ title: "Xatolik", description: e.message, variant: "destructive" });
     },
   });
@@ -508,14 +508,14 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
       });
       return res.json();
     },
+    onMutate: beginBulkOperation,
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
-      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
-      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
+      invalidateAfterBulk();
       setAutoDistributeForceOpen(false);
       toast({ title: "Muvaffaqiyat", description: data.message });
     },
     onError: (e: any) => {
+      endBulkOperation();
       toast({ title: "Xatolik", description: e.message, variant: "destructive" });
     },
   });
@@ -525,17 +525,17 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
       const res = await apiRequest("POST", "/api/class-subjects/auto-assign-dts", { classIds: selectedClassIds });
       return res.json();
     },
+    onMutate: beginBulkOperation,
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
-      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
-      if (selectedClassId) {
-        qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
-      }
+      invalidateAfterBulk();
       setBulkDtsConfirmOpen(false);
       setSelectedClassIds([]);
       toast({ title: "Muvaffaqiyatli", description: data.message });
     },
-    onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      endBulkOperation();
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" });
+    },
   });
 
   const bulkDistributeUnassignedMutation = useMutation({
@@ -543,17 +543,17 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
       const res = await apiRequest("POST", "/api/class-subjects/auto-distribute-unassigned", { classIds: selectedClassIds });
       return res.json();
     },
+    onMutate: beginBulkOperation,
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
-      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
-      if (selectedClassId) {
-        qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
-      }
+      invalidateAfterBulk();
       setBulkUnassignedConfirmOpen(false);
       setSelectedClassIds([]);
       toast({ title: "Muvaffaqiyatli", description: data.message });
     },
-    onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      endBulkOperation();
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" });
+    },
   });
 
   const bulkDistributeForceMutation = useMutation({
@@ -561,17 +561,17 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
       const res = await apiRequest("POST", "/api/class-subjects/auto-distribute-force-reassign", { classIds: selectedClassIds });
       return res.json();
     },
+    onMutate: beginBulkOperation,
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
-      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
-      if (selectedClassId) {
-        qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
-      }
+      invalidateAfterBulk();
       setBulkForceConfirmOpen(false);
       setSelectedClassIds([]);
       toast({ title: "Muvaffaqiyatli", description: data.message });
     },
-    onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      endBulkOperation();
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" });
+    },
   });
 
   const bulkClearMutation = useMutation({
@@ -579,45 +579,52 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
       const res = await apiRequest("POST", "/api/class-subjects/clear-bulk", { classIds: selectedClassIds });
       return res.json();
     },
+    onMutate: beginBulkOperation,
     onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
-      qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
-      if (selectedClassId) {
-        qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
-      }
+      invalidateAfterBulk();
       setBulkClearConfirmOpen(false);
       setSelectedClassIds([]);
       toast({ title: "Muvaffaqiyatli", description: data.message });
     },
-    onError: (e: any) => toast({ title: "Xatolik", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      endBulkOperation();
+      toast({ title: "Xatolik", description: e.message, variant: "destructive" });
+    },
   });
 
   // Auto-save with debounce after any assignment change
   useEffect(() => {
-    if (!isDirty || isLoadingRef.current || isSwitchingClassRef.current || selectedClassId === null) return;
+    if (
+      !isDirty ||
+      isLoadingRef.current ||
+      isSwitchingClassRef.current ||
+      isBulkOperationRef.current ||
+      assignQueryFetching ||
+      selectedClassId === null ||
+      selectedClassIds.length > 0 ||
+      assignments.length === 0
+    ) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    const generation = saveGenerationRef.current;
+    const classId = selectedClassId;
+    const toSave = assignments;
     debounceRef.current = setTimeout(() => {
+      if (generation !== saveGenerationRef.current) return;
+      if (classId !== selectedClassId) return;
       setSaveStatus("saving");
-      saveMutation.mutate(assignments);
+      saveMutation.mutate({ toSave, classId, generation });
     }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [assignments, isDirty]);
+  }, [assignments, isDirty, selectedClassId, selectedClassIds.length, assignQueryFetching]);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
 
   const selectClass = (cls: Class) => {
-    // Avval debounced save'ni bekor qilish
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
+    cancelPendingSave();
     isSwitchingClassRef.current = true;
+    loadedClassIdRef.current = null;
     setSelectedClassId(cls.id);
-    setAssignments([]);
-    setIsDirty(false);
     setSaveStatus("idle");
-    // Keyingi tick'da isSwitchingClassRef'ni tozalash — query yuklangandan keyin
-    setTimeout(() => { isSwitchingClassRef.current = false; }, 100);
   };
 
   const addRow = () => {
@@ -661,10 +668,21 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   };
 
   const handleAutoAssign = (newA: Assignment[]) => {
-    setAssignments(newA);
+    setAssignments(prev => {
+      const dtsSubjectIds = new Set(newA.map(a => a.subjectId));
+      const kept = prev.filter(a => !dtsSubjectIds.has(a.subjectId));
+      const merged = newA.map(a => {
+        const existing = prev.find(p => p.subjectId === a.subjectId);
+        return {
+          ...a,
+          teacherId: existing?.teacherId ?? a.teacherId,
+        };
+      });
+      return [...kept, ...merged];
+    });
     setIsDirty(true);
     setAutoDialogOpen(false);
-    toast({ title: "Fanlar biriktirildi", description: `${newA.length} ta fan DTS bo'yicha avtomatik saqlanmoqda...` });
+    toast({ title: "Fanlar biriktirildi", description: `${newA.length} ta fan DTS bo'yicha qo'shildi/yangilandi` });
   };
 
   const totalHours = assignments.reduce((s, a) => s + (a.weeklyHours || 0), 0);
@@ -735,6 +753,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                           checked={selectedClassIds.includes(cls.id)}
                           onCheckedChange={(checked) => {
                             if (checked) {
+                              cancelPendingSave();
                               setSelectedClassIds(p => [...p, cls.id]);
                             } else {
                               setSelectedClassIds(p => p.filter(id => id !== cls.id));
@@ -808,7 +827,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                         DTS biriktirish
                       </div>
                       <p className="text-xs text-gray-500 leading-relaxed">
-                        Tanlangan sinflarga davlat ta'lim standartlari (DTS) bo'yicha fanlarni va mos o'qituvchilarni avtomatik biriktiradi.
+                        Tanlangan sinflarga DTS fanlarini qo'shadi va barcha o'qituvchilarni avtomatik biriktiradi.
                       </p>
                     </div>
                     <Button 

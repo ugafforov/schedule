@@ -9,7 +9,7 @@ Barcha UI o'zbek tilida. O'quv reja: DTS 2025-2026 (121-son buyruq, 10.04.2025).
 ## Buyruqlar
 
 ```bash
-npm run dev           # Server + Vite birgalikda port 5000 (bitta buyruq yetarli)
+npm run dev           # Server + Vite birgalikda port 5001 (bitta buyruq yetarli)
 npm run build && npm start  # Production build va start
 npm run check         # TypeScript tekshiruvi
 npm run db:push       # Dev: Schemani bazaga tezkor "surish" (migration yaratmaydi)
@@ -72,12 +72,11 @@ Yangi foydalanuvchi: Supabase Dashboard → Auth → Users → user_metadata:
 Boshqa fanlar (Rus tili, Ingliz tili, Musiqa, Jismoniy tarbiya va h.k.) uchun boshlang'ich sinf o'qituvchilari biriktirilmaydi.
 
 **Qo'llaniladigan joylar:**
-- `client/src/pages/biriktirishlar.tsx` — `pickTeacherForSubject()` funksiyasi (avtomatik biriktirish)
+- `client/src/pages/assignments.tsx` — `pickTeacherForSubject()` funksiyasi (avtomatik biriktirish)
 - `server/services/teacher.service.ts` — `autoDistributeAll()` funksiyasi (server-side avtomatik taqsimlash)
 
 **Qoidani o'zgartirish:**
-- `PRIMARY_TEACHER_ALLOWED_SUBJECTS` massivini yangilang (ikkala faylda ham)
-- `isPrimaryTeacherAllowedSubject()` funksiyasini tekshiring
+- `shared/constants.ts` — `PRIMARY_TEACHER_ALLOWED_SUBJECTS` va `isPrimaryTeacherAllowedSubject()`
 
 ### 2. API so'rovlar — DOIM `apiRequest()` ishlatish
 ```typescript

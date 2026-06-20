@@ -1,0 +1,44 @@
+---
+description: React frontend konventsiyalari
+globs: client/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Frontend
+
+## API so'rovlar
+
+```typescript
+import { apiRequest } from "@/lib/queryClient";
+
+// Oddiy GET — queryKey yetarli
+useQuery({ queryKey: ["/api/teachers"] });
+
+// Parametrli GET
+queryFn: async () => {
+  const res = await apiRequest("GET", `/api/schedule-entries?weekStart=${weekStart}`);
+  return res.json();
+}
+
+// Mutatsiya
+await apiRequest("POST", "/api/rooms", data);
+```
+
+## Routing (Wouter)
+
+```typescript
+import { useLocation } from "wouter";
+const [, setLocation] = useLocation();
+setLocation("/teachers");
+```
+
+## UI
+
+- shadcn/ui komponentlar: `@/components/ui/*`
+- Tailwind + `cn()` (`@/lib/utils`)
+- Sahifalar: `client/src/pages/`, layout: `components/layout/`
+- Import alias: `@/` → `client/src/`, `@shared/` → `shared/`
+
+## Til
+
+Foydalanuvchiga ko'rinadigan matnlar o'zbek tilida bo'lsin.
