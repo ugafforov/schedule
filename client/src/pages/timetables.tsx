@@ -10,7 +10,7 @@ import {
   Wand2, Trash2, ChevronLeft, ChevronRight,
   AlertTriangle, CheckCircle2, Printer, Clock, RefreshCw,
   BookOpen, Users, DoorOpen, GraduationCap, UserCheck, GripVertical, FileText, FileSpreadsheet,
-  Move
+  Move, Pencil
 } from "lucide-react";
 
 
@@ -170,7 +170,16 @@ function EntryCard({
       style={cardStyle}
       className={`rounded p-1 cursor-grab active:cursor-grabbing group/cell relative shadow-sm hover:shadow-md transition-[background-color,border-color,box-shadow,opacity] duration-150 ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-white border-gray-200/80 z-[1000]' : ''} ${isOptimistic ? 'animate-pulse' : ''}`}
       onClick={(e) => {
+        if (!isDragging && !isOptimistic && !isOverlay) {
+          e.stopPropagation();
+          if (onMoveSelect) {
+            onMoveSelect();
+          }
+        }
+      }}
+      onDoubleClick={(e) => {
         if (!isDragging && !isOptimistic && !isOverlay && onEdit) {
+          e.stopPropagation();
           onEdit();
         }
       }}
@@ -201,13 +210,13 @@ function EntryCard({
         </div>
         
         <div className="flex items-center gap-0.5 absolute right-0.5 top-0.5 opacity-0 group-hover/cell:opacity-100 transition-opacity bg-white/90 rounded border shadow-sm p-0.5">
-          {!isOverlay && !isOptimistic && onMoveSelect && (
+          {!isOverlay && !isOptimistic && onEdit && (
             <button
-              className="text-blue-500 hover:text-blue-700 p-0.5"
-              onClick={e => { e.stopPropagation(); onMoveSelect(); }}
-              title="Ko'chirish (Click-to-Move)"
+              className="text-gray-500 hover:text-gray-700 p-0.5"
+              onClick={e => { e.stopPropagation(); onEdit(); }}
+              title="Tahrirlash"
             >
-              <Move className="h-2.5 w-2.5" />
+              <Pencil className="h-2.5 w-2.5" />
             </button>
           )}
           {!isOverlay && !isOptimistic && onDelete && (
@@ -222,6 +231,7 @@ function EntryCard({
         </div>
       </div>
     </div>
+
   );
 }
 
@@ -375,13 +385,22 @@ export default function Timetables() {
 
     const handleDocumentClick = (e: MouseEvent) => {
       if (!selectedSubjectToPlace) return;
-      // If a click bubbles up to document, it means it was not intercepted by a valid cell
-      // or other interactive buttons (which use e.stopPropagation()). So we cancel.
+      const target = e.target as HTMLElement;
+
+      // 1. If clicked inside a valid timetable slot, allow it to place
+      const validCell = target.closest('td[data-status="valid"]');
+      if (validCell) return;
+
+      // 2. If clicked on a card to select it (in sidebar or grid), allow it
+      const isCardClick = target.closest('.cursor-pointer') || target.closest('.cursor-grab') || target.closest('[id="sidebar"]') || target.closest('[title="Tahrirlash"]');
+      if (isCardClick) return;
+
+      // Otherwise, cancel the selection and return it to the sidebar
       setSelectedSubjectToPlace(null);
     };
 
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("click", handleDocumentClick);
+    window.addEventListener("click", handleDocumentClick, true); // Use capture phase
     
     if (selectedSubjectToPlace) {
       window.addEventListener("mousemove", handleMouseMove);
@@ -389,10 +408,11 @@ export default function Timetables() {
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("click", handleDocumentClick);
+      window.removeEventListener("click", handleDocumentClick, true);
       window.removeEventListener("mousemove", handleMouseMove);
     };
   }, [selectedSubjectToPlace]);
+
 
 
 
