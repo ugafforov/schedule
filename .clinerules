@@ -1,0 +1,33 @@
+# Project MCP (Model Context Protocol) Configuration
+
+This project is configured with two main MCP servers to help AI agents automate testing and database management: **Playwright** and **Supabase**.
+
+## 1. Available MCP Servers
+
+Both servers are defined in `.mcp.json` and `mcp_config.json`:
+
+1. **Supabase MCP** (`supabase`)
+   - **Type**: HTTP/SSE Server
+   - **URL**: `https://mcp.supabase.com/mcp?project_ref=yfafnvypynldweuxsvdh`
+   - **Purpose**: Query database, inspect table structures, search documentation, and manage Supabase database objects.
+   - **Key Tools**: `list_tables`, `execute_sql`, `search_docs`, `get_project`.
+
+2. **Playwright MCP** (`playwright`)
+   - **Type**: Command-line Server (`npx -y @playwright/mcp`)
+   - **Purpose**: Browser automation, UI testing, clicking buttons, filling inputs, taking screenshots, and verifying UI responsiveness.
+   - **Key Tools**: `playwright_navigate`, `playwright_click`, `playwright_fill`, `playwright_screenshot`, `playwright_evaluate`.
+
+---
+
+## 2. Guidelines for AI Agents
+
+### When modifying Frontend (UI):
+- Always run the development server (`npm run dev`, running on `http://localhost:5001`).
+- Use **Playwright MCP** to navigate to `http://localhost:5001` (or relevant page) to verify the UI.
+- Use `playwright_screenshot` to confirm visual alignment and aesthetic quality. Store images in `.playwright-mcp/`.
+- Authenticate using the information from `auth_state.json` or by mimicking user login actions.
+
+### When modifying Database Schema or Server APIs:
+- Use **Supabase MCP** (`list_tables`, `execute_sql`) to inspect tables in the remote Database if needed.
+- Align schema changes with `shared/schema.ts` first, then run `npm run db:push` in development, or generate migrations using `npm run db:generate` & `npm run db:migrate`.
+- Use soft deletes (`isActive: false` column) rather than hard `DELETE` commands.

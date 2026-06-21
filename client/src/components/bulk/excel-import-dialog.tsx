@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, FileSpreadsheet, Loader2, AlertCircle } from "lucide-react";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { apiRequest } from "@/lib/queryClient";
 
 interface ExcelImportDialogProps {

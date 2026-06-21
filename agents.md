@@ -222,7 +222,20 @@ Dars jadvalini tuzishda quyidagi tartibni saqlash tavsiya etiladi:
 
 ---
 
+## MCP Serverlari (Playwright & Supabase)
+
+Loyiha AI agentlarining ishlashini osonlashtirish uchun ikkita MCP serveri bilan sozlangan:
+
+1. **Supabase MCP** (`https://mcp.supabase.com/mcp?project_ref=yfafnvypynldweuxsvdh`):
+   - Bazadagi ma'lumotlarni so'rash va jadvallarni tekshirish uchun `execute_sql` va `list_tables` asboblaridan foydalaniladi.
+2. **Playwright MCP** (`npx -y @playwright/mcp`):
+   - UI o'zgarishlarini brauzerda visual tekshirish va skrinshotlar olish uchun `playwright_navigate`, `playwright_screenshot` va boshqa asboblardan foydalaniladi.
+   - Dev port: `http://localhost:5001`.
+
+---
+
 ## Bu faylni yangilash
 
 Faqat agent o'zi topa OLMAYDIGAN yangilik bo'lganda yangilang:
 noodatiy texnologiya, yangi muhim qoida, auth o'zgarishi, buyruqlar o'zgarishi.
+

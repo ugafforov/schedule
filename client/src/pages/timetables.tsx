@@ -25,7 +25,7 @@ import {
 
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, Room, TimeSlot, ScheduleEntry } from "@shared/schema";
@@ -759,27 +759,336 @@ export default function Timetables() {
   };
 
   const handleExportExcel = () => {
-    const tableData: any[][] = [];
-    const headers = ["Dars vaqti", ...DAYS];
-    tableData.push(headers);
-    periods.forEach((period, pi) => {
-      const row = [`${pi + 1}-dars (${period.startTime?.slice(0, 5)}–${period.endTime?.slice(0, 5)})`];
-      DAYS.forEach((_, dayIdx) => {
-        const slot = slotMap.get(`${dayIdx + 1}_${period.periodNumber}`);
-        const slotEntries = slot ? entryBySlot.get(slot.id) || [] : [];
-        const cellText = slotEntries.map(e => {
-          const sub = getSubject(e.subjectId)?.name || "";
-          const teacherOrClass = viewMode === "class" ? teacherShortName(e.teacherId) : classNameById(e.classId);
-          return `${sub} / ${teacherOrClass}`;
-        }).join(" | ");
-        row.push(cellText);
+    if (allEntries.length === 0) {
+      toast({ title: "Eksport qilish uchun jadval yo'q", description: "Avval dars jadvalini yarating", variant: "destructive" });
+      return;
+    }
+
+    // --- Styling constants (shared by all sheets) ---
+
+    const HEADER_BG = "1E3A5F";       // deep navy
+    const HEADER_FG = "FFFFFF";       // white
+    const TITLE_BG = "2563EB";        // blue-600
+    const WEEK_BG = "EFF6FF";         // blue-50
+    const TIME_COL_BG = "F0F7FF";     // very light blue
+    const ROW_EVEN_BG = "FFFFFF";     // white
+    const ROW_ODD_BG = "F8FAFC";      // slate-50
+    const BORDER_COLOR = "CBD5E1";    // slate-300
+    const SUBJECT_PREFIX = "◆ ";       // subject bullet
+
+    const thinBorder = {
+      top:    { style: "thin" as const, color: { rgb: BORDER_COLOR } },
+      bottom: { style: "thin" as const, color: { rgb: BORDER_COLOR } },
+      left:   { style: "thin" as const, color: { rgb: BORDER_COLOR } },
+      right:  { style: "thin" as const, color: { rgb: BORDER_COLOR } },
+    };
+
+    const centerAlign: any = { horizontal: "center", vertical: "center", wrapText: true };
+    const leftAlign: any   = { horizontal: "left",   vertical: "center", wrapText: true };
+
+    // --- Workbook level: school name from classes metadata ---
+    const schoolName = classes.length > 0 ? "UMUMTA'LIM MAKTABI" : "MAKTAB";
+
+    // --- Helpers ---
+    const usedSheetNames = new Set<string>();
+    const getUniqueSheetName = (name: string): string => {
+      let base = (name || "Varaq").substring(0, 25).replace(/[\\/?*\[\]:]/g, "_");
+      let final = base;
+      let i = 2;
+      while (usedSheetNames.has(final)) {
+        final = `${base}_${i}`.substring(0, 31);
+        i++;
+      }
+      usedSheetNames.add(final);
+      return final;
+    };
+
+    type SheetSpec = {
+      title: string;
+      sheetName: string;
+      filterFn: (e: ScheduleEntry) => boolean;
+      cellLabelFn: (e: ScheduleEntry) => string;
+    };
+
+    // --- Single‑sheet builder ---
+    const buildSheet = (spec: SheetSpec) => {
+      const filtered = allEntries.filter(spec.filterFn);
+      const bySlot = new Map<number, ScheduleEntry[]>();
+      for (const e of filtered) {
+        const arr = bySlot.get(e.timeSlotId) || [];
+        arr.push(e);
+        bySlot.set(e.timeSlotId, arr);
+      }
+
+      const colCount = DAYS.length + 1;                     // 1 time-col + 5 days = 6
+      const totalRows = 4 + periods.length;                  // rows 0-3 are header blocks
+
+      // Build text grid (array of arrays)
+      const grid: string[][] = [];
+      grid.push([schoolName]);                                          // row 0
+      grid.push([spec.title]);                                          // row 1
+      grid.push([`Hafta: ${weekLabel(monday)}`]);                       // row 2
+      grid.push([]);                                                    // row 3 (spacer)
+      grid.push(["Dars vaqti", ...DAYS]);                               // row 4 (column headers)
+
+      periods.forEach((period, pi) => {
+        const row = [`${pi + 1}-dars\n${period.startTime?.slice(0, 5)}–${period.endTime?.slice(0, 5)}`];
+        DAYS.forEach((_, dayIdx) => {
+          const slot = slotMap.get(`${dayIdx + 1}_${period.periodNumber}`);
+          const slotEntries = slot ? bySlot.get(slot.id) || [] : [];
+          const parts: string[] = [];
+          slotEntries.forEach(e => {
+            const subName = getSubject(e.subjectId)?.name || "—";
+            const subColor = getSubject(e.subjectId)?.color || "#475569";
+            const label = spec.cellLabelFn(e);
+            const roomNum = getRoom(e.roomId)?.roomNumber || "";
+            const roomPart = roomNum ? `${roomNum}-xona` : "";
+            // Build per-entry block: subject (with prefix), teacher/class, room
+            const lines = [subName];
+            if (label) lines.push(label);
+            if (roomPart) lines.push(roomPart);
+            parts.push(lines.join("\n"));
+          });
+          row.push(parts.join("\n\n"));
+        });
+        grid.push(row);
       });
-      tableData.push(row);
-    });
-    const ws = XLSX.utils.aoa_to_sheet(tableData);
+
+      // Extend rows to colCount width for merged header rows
+      for (let r = 0; r <= 3; r++) {
+        while (grid[r].length < colCount) grid[r].push("");
+      }
+
+      // Create sheet
+      const ws = XLSX.utils.aoa_to_sheet(grid);
+
+      // --- Merges ---
+      ws["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: colCount - 1 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: colCount - 1 } },
+      ];
+
+      // --- Column widths & row heights ---
+      ws["!cols"] = [
+        { wch: 18 },             // time column
+        ...DAYS.map(() => ({ wch: 24 })),
+      ];
+      ws["!rows"] = Array.from({ length: totalRows }, (_, i) => {
+        if (i === 0) return { hpt: 32 };            // school name
+        if (i === 1) return { hpt: 26 };            // class title
+        if (i === 2) return { hpt: 20 };            // week
+        if (i === 3) return { hpt: 6 };             // spacer
+        if (i === 4) return { hpx: 30 };            // header
+        return { hpt: 56 };                          // data rows
+      });
+
+      // --- Freeze panes (header row always visible) ---
+      ws["!freeze"] = { xSplit: 0, ySplit: 5, topLeftCell: "A6" };
+
+      // --- Print settings ---
+      ws["!pageSetup"] = {
+        orientation: "landscape",
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        paperSize: 9,          // A4
+        margins: {
+          left: 0.5, right: 0.5,
+          top: 0.6, bottom: 0.6,
+          header: 0.3, footer: 0.3,
+        },
+      };
+
+      // --- Cell‑by‑cell styling ---
+      for (let row = 0; row < totalRows; row++) {
+        const isDataRow = row >= 5;
+        const dataRowIdx = row - 5;          // 0-based period index
+        const isOddDataRow = dataRowIdx % 2 === 1;
+        const colorRowBg = isOddDataRow ? ROW_ODD_BG : ROW_EVEN_BG;
+
+        for (let col = 0; col < colCount; col++) {
+          const addr = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!ws[addr]) continue;
+          const s: any = (ws[addr].s = {});
+
+          // ---------- ROW 0: school name ----------
+          if (row === 0) {
+            s.font = { name: "Calibri", sz: 16, bold: true, color: { rgb: HEADER_FG } };
+            s.fill = { patternType: "solid", fgColor: { rgb: HEADER_BG } };
+            s.alignment = { ...centerAlign };
+            s.border = { ...thinBorder };
+            continue;
+          }
+          // ---------- ROW 1: class / teacher title ----------
+          if (row === 1) {
+            s.font = { name: "Calibri", sz: 13, bold: true, color: { rgb: HEADER_FG } };
+            s.fill = { patternType: "solid", fgColor: { rgb: TITLE_BG } };
+            s.alignment = { ...centerAlign };
+            s.border = { ...thinBorder };
+            continue;
+          }
+          // ---------- ROW 2: week label ----------
+          if (row === 2) {
+            s.font = { name: "Calibri", sz: 10, italic: true, color: { rgb: "334155" } };
+            s.fill = { patternType: "solid", fgColor: { rgb: WEEK_BG } };
+            s.alignment = { ...centerAlign };
+            s.border = { ...thinBorder };
+            continue;
+          }
+          // ---------- ROW 3: spacer ----------
+          if (row === 3) {
+            s.font = { name: "Calibri", sz: 4, color: { rgb: "FFFFFF" } };
+            s.fill = { patternType: "solid", fgColor: { rgb: "FFFFFF" } };
+            continue;
+          }
+          // ---------- ROW 4: column headers ----------
+          if (row === 4) {
+            s.font = { name: "Calibri", sz: 11, bold: true, color: { rgb: HEADER_FG } };
+            s.fill = { patternType: "solid", fgColor: { rgb: HEADER_BG } };
+            s.alignment = { ...centerAlign };
+            s.border = {
+              top:    { style: "medium" as const, color: { rgb: "0F172A" } },
+              bottom: { style: "medium" as const, color: { rgb: "0F172A" } },
+              left:   { style: "thin" as const,   color: { rgb: BORDER_COLOR } },
+              right:  { style: "thin" as const,   color: { rgb: BORDER_COLOR } },
+            };
+            continue;
+          }
+
+          // ---------- DATA ROWS (row >= 5) ----------
+          s.border = { ...thinBorder };
+          s.alignment = { ...(col === 0 ? centerAlign : leftAlign) };
+
+          if (col === 0) {
+            // Time column
+            s.font = { name: "Calibri", sz: 9, bold: true, color: { rgb: "1E3A5F" } };
+            s.fill = { patternType: "solid", fgColor: { rgb: TIME_COL_BG } };
+            s.alignment = { ...centerAlign };
+          } else {
+            // Subject cells
+            s.font = { name: "Calibri", sz: 10, color: { rgb: "1E293B" } };
+            s.fill = { patternType: "solid", fgColor: { rgb: colorRowBg } };
+
+            // Try to color the subject name line using the subject's color
+            const cellText = grid[row]?.[col] || "";
+            if (cellText && cellText !== "") {
+              const subjectLine = cellText.split("\n")[0];
+              if (subjectLine && subjectLine !== "—") {
+                const subjectName = subjectLine;
+                // Make subject name bold if there's content
+                s.font.bold = true;
+                // Find subject color and use it as cell left border accent
+                for (const entry of Array.from(bySlot.values()).flat()) {
+                  const subColor = getSubject(entry.subjectId)?.color;
+                  if (subColor && cellText.includes(getSubject(entry.subjectId)?.name || "")) {
+                    const hexClean = subColor.replace("#", "");
+                    s.border = {
+                      ...thinBorder,
+                      left: { style: "medium" as const, color: { rgb: hexClean } },
+                    };
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      return ws;
+    };
+
+    // --- Build sheet list based on view mode ---
+    const sheets: SheetSpec[] = [];
+
+    if (viewMode === "class") {
+      if (selectedClassId === "all") {
+        const sorted = [...classes].sort((a, b) => a.name.localeCompare(b.name, "uz"));
+        for (const cls of sorted) {
+          sheets.push({
+            title: `${cls.name} sinfi — Dars jadvali`,
+            sheetName: getUniqueSheetName(cls.name),
+            filterFn: (e) => e.classId === cls.id,
+            cellLabelFn: (e) => teacherShortName(e.teacherId),
+          });
+        }
+      } else {
+        const cls = classes.find(c => c.id === selectedClassId);
+        const name = cls?.name || "Sinf";
+        sheets.push({
+          title: `${name} sinfi — Dars jadvali`,
+          sheetName: getUniqueSheetName("Jadval"),
+          filterFn: (e) => e.classId === selectedClassId,
+          cellLabelFn: (e) => teacherShortName(e.teacherId),
+        });
+      }
+    } else {
+      if (selectedTeacherId) {
+        const t = getTeacher(selectedTeacherId);
+        const name = t ? `${t.lastName} ${t.firstName}`.trim() : "O'qituvchi";
+        sheets.push({
+          title: `${name} — Dars jadvali`,
+          sheetName: getUniqueSheetName("Jadval"),
+          filterFn: (e) => e.teacherId === selectedTeacherId,
+          cellLabelFn: (e) => classNameById(e.classId),
+        });
+      } else {
+        const teachersWithEntries = teachers
+          .filter(t => allEntries.some(e => e.teacherId === t.id))
+          .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`, "uz"));
+        for (const t of teachersWithEntries) {
+          const name = `${t.lastName} ${t.firstName}`.trim();
+          sheets.push({
+            title: `${name} — Dars jadvali`,
+            sheetName: getUniqueSheetName(t.lastName || t.firstName || `O'qituvchi_${t.id}`),
+            filterFn: (e) => e.teacherId === t.id,
+            cellLabelFn: (e) => classNameById(e.classId),
+          });
+        }
+      }
+    }
+
+    if (sheets.length === 0) {
+      toast({ title: "Eksport uchun ma'lumot yo'q", variant: "destructive" });
+      return;
+    }
+
+    // --- Build workbook ---
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Jadval");
-    XLSX.writeFile(wb, `jadval_${Date.now()}.xlsx`);
+    wb.Props = {
+      Title:  viewMode === "class" ? "Sinf dars jadvali" : "O'qituvchi dars jadvali",
+      Subject: `${weekLabel(monday)}`,
+      CreatedDate: new Date(),
+    };
+
+    for (const spec of sheets) {
+      const ws = buildSheet(spec);
+      XLSX.utils.book_append_sheet(wb, ws, spec.sheetName);
+    }
+
+    // --- Filename ---
+    const dateStr = monday.toISOString().slice(0, 10);
+    const fileName = viewMode === "class"
+      ? (selectedClassId === "all"
+        ? `barcha_sinflar_dars_jadvali_${dateStr}.xlsx`
+        : `${(classes.find(c => c.id === selectedClassId)?.name || "sinf").replace(/[^a-zA-Z0-9-]/g, "_")}_dars_jadvali_${dateStr}.xlsx`)
+      : (selectedTeacherId
+        ? `${(getTeacher(selectedTeacherId)?.lastName || "oqituvchi").replace(/[^a-zA-Z0-9]/g, "_")}_dars_jadvali_${dateStr}.xlsx`
+        : `barcha_oqituvchilar_dars_jadvali_${dateStr}.xlsx`);
+
+    XLSX.writeFile(wb, fileName);
+
+    const label = viewMode === "class"
+      ? "sinf"
+      : "o'qituvchi";
+    toast({
+      title: "Excel fayl yuklandi",
+      description: sheets.length === 1
+        ? `1 ta ${label} jadvali eksport qilindi`
+        : `${sheets.length} ta ${label} jadvali alohida varaqlarda eksport qilindi`,
+    });
   };
 
   return (

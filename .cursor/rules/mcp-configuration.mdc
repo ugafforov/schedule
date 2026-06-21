@@ -1,0 +1,57 @@
+---
+description: Loyihadagi MCP serverlarini (Supabase va Playwright) ishlatish qoidalari va yo'riqnomasi
+alwaysApply: true
+---
+
+# Loyihada MCP (Model Context Protocol) ishlatish
+
+Loyiha AI agentlariga yordam berish va avtomatlashtirish uchun **Playwright** va **Supabase** MCP serverlari bilan jihozlangan. Ushbu MCP serverlarining sozlamalari `.mcp.json` va `mcp_config.json` fayllarida belgilangan.
+
+---
+
+## 1. Supabase MCP
+
+Supabase MCP serveridan bazani tekshirish, jadval strukturasini o'rganish va ma'lumotlarni so'rash uchun foydalaniladi.
+
+### Asosiy buyruqlar va asboblar (Tools):
+* `list_tables` - Baza ichidagi jadvallar ro'yxatini ko'rish (masalan: `teachers`, `subjects`, `classes`, `rooms`, `schedule_entries`).
+* `execute_sql` - Istalgan SQL so'rovini bajarish (masalan, test ma'lumotlarini tekshirish yoki qo'lda to'g'rilash).
+* `search_docs` - Supabase hujjatlaridan qidirish.
+* `get_project` - `yfafnvypynldweuxsvdh` loyiha statusini va sozlamalarini olish.
+
+### Foydalanish namunasi:
+```sql
+-- Dars jadvali ziddiyatlarini tekshirish uchun SQL
+SELECT * FROM schedule_conflicts WHERE is_active = true;
+```
+
+---
+
+## 2. Playwright MCP
+
+Playwright MCP serveridan brauzerni avtomatlashtirish, interfeyslarni (UI) testdan o'tkazish, tugmalarni bosish va skrinshotlar olish orqali xatolarni vizual tuzatish uchun foydalaniladi.
+
+### Ishlash muhiti:
+* Mahalliy rivojlantirish (dev) serveri: `http://localhost:5001` da ishlaydi.
+* Playwright bilan ishlashdan oldin loyiha dev serveri (`npm run dev`) ishga tushirilgan bo'lishi shart.
+* Skrinshotlar va loglar `.playwright-mcp/` papkasiga saqlanadi.
+
+### Asosiy asboblar (Tools):
+* `playwright_navigate` - URL'ga o'tish (odatda `http://localhost:5001`).
+* `playwright_click` - Elementlarni bosish (selector orqali).
+* `playwright_fill` - Input maydonlarini to'ldirish.
+* `playwright_screenshot` - Sahifaning vizual holatini tekshirish uchun skrinshot olish.
+* `playwright_evaluate` - Sahifa ichida JS kodini bajarish.
+
+### Foydalanish namunasi:
+1. `http://localhost:5001/` ga o'ting.
+2. Login formani to'ldiring:
+   * Email: test login / parol orqali tizimga kiring (`auth_state.json` faylidan token va login ma'lumotlarini ko'ring).
+3. Test qilish jarayonida har bir muhim interfeys o'zgarishidan so'ng skrinshot oling va uning sifatini tekshiring.
+
+---
+
+## Agentlar uchun Muhim Eslatmalar
+
+1. Loyiha kodini o'zgartirgandan so'ng, UI buzilmaganligiga ishonch hosil qilish uchun Playwright MCP yordamida brauzerda tekshiring.
+2. Ma'lumotlar bazasi yoki migratsiya bilan bog'liq ishlarni bajarishdan oldin Supabase MCP orqali bazadagi real jadvallarni va ularning turlarini ko'zdan kechiring.
