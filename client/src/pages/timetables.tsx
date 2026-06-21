@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import {
   Wand2, Trash2, ChevronLeft, ChevronRight,
@@ -376,6 +378,7 @@ function DroppableSidebar({
 // --- Main Component ---
 
 export default function Timetables() {
+  const [, setLocation] = useLocation();
   const [weekOffset, setWeekOffset] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("class");
   const [selectedClassId, setSelectedClassId] = useState<number | "all">("all");
@@ -1520,9 +1523,40 @@ export default function Timetables() {
             {/* Conflicts + Count */}
             <div className="flex items-center space-x-2">
               {conflicts.length > 0 ? (
-                <Badge variant="destructive" className="text-[10px] h-5 px-1.5">
-                  <AlertTriangle className="mr-0.5 h-2.5 w-2.5" />{conflicts.length} ta ziddiyat
-                </Badge>
+                <TooltipProvider>
+                  <Tooltip delayDuration={150}>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant="destructive" 
+                        className="text-[10px] h-5 px-1.5 cursor-pointer hover:bg-red-600 transition-colors shadow-sm select-none"
+                        onClick={() => setLocation("/")}
+                      >
+                        <AlertTriangle className="mr-0.5 h-2.5 w-2.5 animate-bounce" />{conflicts.length} ta ziddiyat
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end" className="w-80 p-3 max-h-60 overflow-y-auto bg-white border border-gray-100 shadow-lg rounded-lg z-50">
+                      <div className="space-y-2">
+                        <p className="font-bold text-xs text-gray-900 border-b pb-1 mb-1.5 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3 text-red-500" />
+                          Mavjud ziddiyatlar:
+                        </p>
+                        {conflicts.map((c: any, idx: number) => (
+                          <div key={c.id || idx} className="p-2 rounded bg-red-50/50 border border-red-100/50 text-[10px] text-gray-700">
+                            <p className="font-bold text-red-800 mb-0.5">
+                              {c.conflictType === "room" ? "Xona ziddiyati" : 
+                               c.conflictType === "teacher" ? "O'qituvchi ziddiyati" : 
+                               c.conflictType === "unavailability" ? "Bandlik ziddiyati" : "Sinf ziddiyati"}
+                            </p>
+                            <p className="leading-relaxed">{c.description}</p>
+                          </div>
+                        ))}
+                        <p className="text-[9px] text-blue-500 text-center pt-1 border-t mt-1.5 font-medium cursor-pointer">
+                          Bosh sahifaga o'tish va to'liq ko'rish uchun bosing
+                        </p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ) : (
                 <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-green-50 text-green-700">
                   <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />Ziddiyatsiz
