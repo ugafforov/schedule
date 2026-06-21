@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Wand2, Trash2, ChevronLeft, ChevronRight,
   AlertTriangle, CheckCircle2, Printer, Clock, RefreshCw,
-  BookOpen, Users, DoorOpen, GraduationCap, UserCheck, GripVertical, FileText, FileSpreadsheet
+  BookOpen, Users, DoorOpen, GraduationCap, UserCheck, GripVertical, FileText, FileSpreadsheet,
+  Move
 } from "lucide-react";
+
 
 import {
   DndContext,
@@ -57,13 +59,17 @@ function DraggableSubjectCard({
   missingHours,
   teacherId,
   teacherId2,
-  classId
+  classId,
+  isSelected,
+  onClick
 }: {
   subject: Subject;
   missingHours: number;
   teacherId?: number;
   teacherId2?: number;
   classId: number;
+  isSelected?: boolean;
+  onClick?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `new-subject-${subject.id}`,
@@ -73,14 +79,22 @@ function DraggableSubjectCard({
   const style = {
     opacity: isDragging ? 0.3 : 1,
     borderColor: subject.color,
-    backgroundColor: `${subject.color}15`,
+    backgroundColor: isSelected ? `${subject.color}35` : `${subject.color}15`,
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="p-1.5 rounded border-2 cursor-grab active:cursor-grabbing hover:shadow-sm transition-[background-color,border-color,box-shadow,opacity] duration-150"
+      className={`p-1.5 rounded border-2 hover:shadow-sm transition-[background-color,border-color,box-shadow,opacity] duration-150 cursor-pointer ${
+        isSelected ? "ring-2 ring-blue-500 ring-offset-1 font-bold" : ""
+      }`}
+      onClick={(e) => {
+        if (onClick) {
+          e.stopPropagation();
+          onClick();
+        }
+      }}
       {...attributes}
       {...listeners}
     >
@@ -101,6 +115,7 @@ function DraggableSubjectCard({
   );
 }
 
+
 function EntryCard({
   entry,
   subject,
@@ -111,6 +126,7 @@ function EntryCard({
   showAllClasses,
   onEdit,
   onDelete,
+  onMoveSelect,
   isOverlay = false,
   isOptimistic = false,
   isDragging = false,
@@ -128,6 +144,7 @@ function EntryCard({
   showAllClasses: boolean;
   onEdit?: () => void;
   onDelete?: () => void;
+  onMoveSelect?: () => void;
   isOverlay?: boolean;
   isOptimistic?: boolean;
   isDragging?: boolean;
@@ -182,14 +199,27 @@ function EntryCard({
             <span className="text-[9px] truncate">{room?.roomNumber || "Xona yo'q"}</span>
           </div>
         </div>
-        {!isOverlay && !isOptimistic && onDelete && (
-          <button
-            className="opacity-0 group-hover/cell:opacity-100 text-red-400 hover:text-red-600 transition-opacity p-0.5 absolute right-0.5 top-0.5 bg-white/80 rounded"
-            onClick={e => { e.stopPropagation(); onDelete(); }}
-          >
-            <Trash2 className="h-2.5 w-2.5" />
-          </button>
-        )}
+        
+        <div className="flex items-center gap-0.5 absolute right-0.5 top-0.5 opacity-0 group-hover/cell:opacity-100 transition-opacity bg-white/90 rounded border shadow-sm p-0.5">
+          {!isOverlay && !isOptimistic && onMoveSelect && (
+            <button
+              className="text-blue-500 hover:text-blue-700 p-0.5"
+              onClick={e => { e.stopPropagation(); onMoveSelect(); }}
+              title="Ko'chirish (Click-to-Move)"
+            >
+              <Move className="h-2.5 w-2.5" />
+            </button>
+          )}
+          {!isOverlay && !isOptimistic && onDelete && (
+            <button
+              className="text-red-400 hover:text-red-600 p-0.5"
+              onClick={e => { e.stopPropagation(); onDelete(); }}
+              title="O'chirish"
+            >
+              <Trash2 className="h-2.5 w-2.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -205,6 +235,8 @@ function DraggableEntry({
   showAllClasses,
   onEdit,
   onDelete,
+  onMoveSelect,
+  isSelected = false,
   isOptimistic = false
 }: { 
   entry: ScheduleEntry; 
@@ -216,6 +248,8 @@ function DraggableEntry({
   showAllClasses: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onMoveSelect?: () => void;
+  isSelected?: boolean;
   isOptimistic?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -234,6 +268,8 @@ function DraggableEntry({
       showAllClasses={showAllClasses}
       onEdit={onEdit}
       onDelete={onDelete}
+      onMoveSelect={onMoveSelect}
+      style={isSelected ? { outline: "2px solid #2563EB", outlineOffset: "1px", fontWeight: "bold" } : undefined}
       isOptimistic={isOptimistic}
       isDragging={isDragging}
       dragListeners={listeners}
@@ -246,17 +282,19 @@ function DraggableEntry({
 function DroppableCell({ 
   id, 
   children,
-  status = "idle" 
+  status = "idle",
+  onClick
 }: { 
   id: string; 
   children: React.ReactNode;
   status?: "idle" | "valid" | "invalid";
+  onClick?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
   const statusClasses = {
     idle: "",
-    valid: "bg-emerald-50 ring-1 ring-emerald-300 ring-inset",
+    valid: "bg-emerald-50 ring-1 ring-emerald-300 ring-inset cursor-pointer hover:bg-emerald-100/85",
     invalid: "bg-red-50 ring-1 ring-red-200 ring-inset opacity-50 cursor-not-allowed"
   };
 
@@ -264,6 +302,12 @@ function DroppableCell({
     <td 
       ref={setNodeRef} 
       className={`py-0.5 px-0.5 align-top transition-colors duration-100 ${statusClasses[status]} ${isOver && status !== "invalid" ? "bg-emerald-100 ring-2 ring-emerald-400 ring-inset" : ""}`}
+      onClick={(e) => {
+        if (status === "valid" && onClick) {
+          e.stopPropagation();
+          onClick();
+        }
+      }}
     >
       <div className="space-y-0.5 min-h-[32px]">
         {children}
@@ -271,6 +315,7 @@ function DroppableCell({
     </td>
   );
 }
+
 
 function DroppableSidebar({ id, children }: { id: string; children: React.ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -308,6 +353,48 @@ export default function Timetables() {
     conflictingEntryId: number;
     conflictingClassName: string;
   } | null>(null);
+  const [selectedSubjectToPlace, setSelectedSubjectToPlace] = useState<{
+    subjectId: number;
+    teacherId?: number;
+    teacherId2?: number;
+    classId: number;
+    sourceEntryId?: number;
+  } | null>(null);
+  const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedSubjectToPlace(null);
+      }
+    };
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      setMouseCoords({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (!selectedSubjectToPlace) return;
+      // If a click bubbles up to document, it means it was not intercepted by a valid cell
+      // or other interactive buttons (which use e.stopPropagation()). So we cancel.
+      setSelectedSubjectToPlace(null);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("click", handleDocumentClick);
+    
+    if (selectedSubjectToPlace) {
+      window.addEventListener("mousemove", handleMouseMove);
+    }
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("click", handleDocumentClick);
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, [selectedSubjectToPlace]);
+
+
 
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -447,24 +534,31 @@ export default function Timetables() {
     const slot = timeSlots.find(s => s.id === slotId);
     if (!slot) return "idle";
 
-    if (activeDragNewSubject) {
-      const { subjectId, teacherId, classId } = activeDragNewSubject;
-      const isClassBusy = allEntries.some(e => e.timeSlotId === slotId && e.classId === classId);
-      const isTeacherBusy = teacherId ? allEntries.some(e => e.timeSlotId === slotId && e.teacherId === teacherId) : false;
+    // Support both active drag-and-drop and click-to-place selections
+    const activeSubject = activeDragNewSubject || (selectedSubjectToPlace && !selectedSubjectToPlace.sourceEntryId ? selectedSubjectToPlace : null);
+    const activeEntry = activeDragEntry || (selectedSubjectToPlace && selectedSubjectToPlace.sourceEntryId ? allEntries.find(e => e.id === selectedSubjectToPlace.sourceEntryId) : null);
+
+    if (activeSubject) {
+      const { subjectId, teacherId, classId } = activeSubject;
+      const isClassBusy = allEntries.some(e => e.timeSlotId === slotId && e.classId === classId && (!activeEntry || e.id !== activeEntry.id));
+      const isTeacherBusy = teacherId ? allEntries.some(e => e.timeSlotId === slotId && e.teacherId === teacherId && (!activeEntry || e.id !== activeEntry.id)) : false;
       const isTeacherUnavail = teacherId ? unavailSet.has(`${teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`) : false;
       if (isClassBusy || isTeacherBusy || isTeacherUnavail) return "invalid";
       return "valid";
     }
 
-    if (!activeDragEntry) return "idle";
+    if (activeEntry) {
+      const isTeacherBusy = allEntries.some(e => e.id !== activeEntry.id && e.timeSlotId === slotId && e.teacherId === activeEntry.teacherId);
+      const isTeacherUnavail = unavailSet.has(`${activeEntry.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
+      const isClassBusy = allEntries.some(e => e.id !== activeEntry.id && e.timeSlotId === slotId && e.classId === activeEntry.classId);
+      
+      if (isTeacherBusy || isTeacherUnavail || isClassBusy) return "invalid";
+      return "valid";
+    }
 
-    const isTeacherBusy = allEntries.some(e => e.id !== activeDragEntry.id && e.timeSlotId === slotId && e.teacherId === activeDragEntry.teacherId);
-    const isTeacherUnavail = unavailSet.has(`${activeDragEntry.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
-    const isClassBusy = allEntries.some(e => e.id !== activeDragEntry.id && e.timeSlotId === slotId && e.classId === activeDragEntry.classId);
-    
-    if (isTeacherBusy || isTeacherUnavail || isClassBusy) return "invalid";
-    return "valid";
+    return "idle";
   };
+
 
   const handleDragStart = (event: any) => {
     const { active } = event;
@@ -602,6 +696,108 @@ export default function Timetables() {
       }
     }
   };
+
+  const handleCellClick = (slotId: number) => {
+    if (!selectedSubjectToPlace) return;
+
+    const { subjectId, teacherId, teacherId2, classId, sourceEntryId } = selectedSubjectToPlace;
+
+    const slot = timeSlots.find(s => s.id === slotId);
+    if (!slot) return;
+
+    if (sourceEntryId) {
+      // Move existing entry
+      const draggedEntry = allEntries.find(e => e.id === sourceEntryId);
+      if (!draggedEntry) return;
+
+      const teacherConflict = allEntries.find(e => 
+        e.timeSlotId === slotId && 
+        e.teacherId === draggedEntry.teacherId && 
+        e.classId !== draggedEntry.classId &&
+        e.id !== sourceEntryId
+      );
+
+      if (teacherConflict) {
+        setConflictWarning({
+          draggedEntryId: sourceEntryId,
+          targetSlotId: slotId,
+          conflictingEntryId: teacherConflict.id,
+          conflictingClassName: classes.find(c => c.id === teacherConflict.classId)?.name || "Boshqa sinf"
+        });
+        setSelectedSubjectToPlace(null);
+        return;
+      }
+
+      const existingEntriesInSlot = allEntries.filter(e => e.timeSlotId === slotId && e.classId === draggedEntry.classId && e.id !== sourceEntryId);
+
+      let shouldReplace = false;
+      let entryToReplaceId: number | null = null;
+
+      if (existingEntriesInSlot.length > 0) {
+        const target = existingEntriesInSlot[0];
+        const isValidSplit = target.subjectId === draggedEntry.subjectId && target.teacherId !== draggedEntry.teacherId;
+        
+        if (!isValidSplit) {
+          shouldReplace = true;
+          entryToReplaceId = target.id;
+        }
+      }
+
+      if (shouldReplace && entryToReplaceId) {
+        deleteEntryMutation.mutate(entryToReplaceId);
+        moveEntryMutation.mutate({ id: sourceEntryId, timeSlotId: slotId });
+        toast({ title: "Dars siqib chiqarildi", description: "Avvalgi dars yetishmayotgan soatlar ro'yxatiga o'tdi." });
+      } else {
+        moveEntryMutation.mutate({ id: sourceEntryId, timeSlotId: slotId });
+      }
+    } else {
+      // Place new subject
+      const existingInSlot = allEntries.filter(e => e.timeSlotId === slotId && e.classId === classId);
+      
+      if (existingInSlot.length > 0) {
+        const target = existingInSlot[0];
+        const isValidSplit = target.subjectId === subjectId && teacherId2 && target.teacherId !== teacherId && target.teacherId !== teacherId2;
+        
+        if (!isValidSplit) {
+          toast({ title: "Bu uyada allaqachon dars bor", variant: "destructive" });
+          return;
+        }
+      }
+
+      if (teacherId) {
+        const teacherConflict = allEntries.find(e => e.timeSlotId === slotId && e.teacherId === teacherId && e.classId !== classId);
+        if (teacherConflict) {
+          toast({ title: "O'qituvchi bu vaqtda boshqa sinfda", variant: "destructive" });
+          return;
+        }
+        const isUnavail = unavailSet.has(`${teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
+        if (isUnavail) {
+          toast({ title: "O'qituvchi bu vaqtda mavjud emas", variant: "destructive" });
+          return;
+        }
+      }
+
+      const roomsInUse = allEntries.filter(e => e.timeSlotId === slotId).map(e => e.roomId);
+      const availableRoom = rooms.find(r => !roomsInUse.includes(r.id));
+      
+      if (!availableRoom) {
+        toast({ title: "Bu vaqtda bo'sh xona yo'q", variant: "destructive" });
+        return;
+      }
+
+      createEntryMutation.mutate({
+        classId,
+        subjectId,
+        teacherId: teacherId || 0,
+        roomId: availableRoom.id,
+        timeSlotId: slotId,
+        weekStartDate: new Date(weekStart)
+      });
+    }
+
+    setSelectedSubjectToPlace(null);
+  };
+
 
   const getSubject = (id: number) => subjects.find(s => s.id === id);
   const getTeacher = (id: number) => teachers.find(t => t.id === id);
@@ -1400,6 +1596,8 @@ export default function Timetables() {
                       {missingLessons.map((ml, idx) => {
                         const sub = subjects.find(s => s.name === ml.subjectName);
                         const cs = classSubjects.find(c => c.classId === selectedClassId && c.subjectId === sub?.id);
+                        const isCardSelected = selectedSubjectToPlace?.subjectId === sub?.id && !selectedSubjectToPlace?.sourceEntryId;
+                        
                         return (
                           <DraggableSubjectCard
                             key={idx}
@@ -1408,6 +1606,19 @@ export default function Timetables() {
                             teacherId={cs?.teacherId}
                             teacherId2={cs?.teacherId2}
                             classId={selectedClassId as number}
+                            isSelected={isCardSelected}
+                            onClick={() => {
+                              if (isCardSelected) {
+                                setSelectedSubjectToPlace(null);
+                              } else {
+                                setSelectedSubjectToPlace({
+                                  subjectId: sub!.id,
+                                  teacherId: cs?.teacherId,
+                                  teacherId2: cs?.teacherId2,
+                                  classId: selectedClassId as number
+                                });
+                              }
+                            }}
                           />
                         );
                       })}
@@ -1418,6 +1629,26 @@ export default function Timetables() {
               
               {/* Right: Schedule table */}
               <div className="w-full lg:w-1/2 lg:ml-auto -mx-2 shadow-sm border border-gray-100 rounded-lg p-2 bg-white">
+                {selectedSubjectToPlace && (
+                  <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-md flex items-center justify-between text-[11px] text-blue-700 animate-pulse">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold">Tanlandi:</span>
+                      <Badge style={{ backgroundColor: getSubject(selectedSubjectToPlace.subjectId)?.color }} className="text-white text-[9px] px-1.5 py-0">
+                        {getSubject(selectedSubjectToPlace.subjectId)?.name}
+                      </Badge>
+                      <span>— Joylashtirish uchun yashil katakchani bosing.</span>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      className="h-6 text-[10px] text-blue-700 hover:bg-blue-100 px-1.5 py-0 ml-2" 
+                      onClick={() => setSelectedSubjectToPlace(null)}
+                    >
+                      Bekor qilish (ESC)
+                    </Button>
+                  </div>
+                )}
+                
                 <table className="w-full table-fixed">
                   <thead>
                     <tr>
@@ -1454,6 +1685,7 @@ export default function Timetables() {
                               key={dayIdx} 
                               id={`slot-${slot.id}`}
                               status={getSlotStatus(slot.id)}
+                              onClick={() => handleCellClick(slot.id)}
                             >
                               {slotEntries.map(entry => {
                                 const sub = getSubject(entry.subjectId);
@@ -1470,6 +1702,19 @@ export default function Timetables() {
                                     viewMode={viewMode}
                                     showAllClasses={showAllClasses}
                                     isOptimistic={(entry as any).isOptimistic}
+                                    isSelected={selectedSubjectToPlace?.sourceEntryId === entry.id}
+                                    onMoveSelect={() => {
+                                      if (selectedSubjectToPlace?.sourceEntryId === entry.id) {
+                                        setSelectedSubjectToPlace(null);
+                                      } else {
+                                        setSelectedSubjectToPlace({
+                                          subjectId: entry.subjectId,
+                                          teacherId: entry.teacherId,
+                                          classId: entry.classId,
+                                          sourceEntryId: entry.id
+                                        });
+                                      }
+                                    }}
                                     onEdit={() => {
                                       setEditEntry(entry);
                                       setEditForm({ subjectId: entry.subjectId, teacherId: entry.teacherId, roomId: entry.roomId });
@@ -1620,6 +1865,37 @@ export default function Timetables() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Floating preview for select-to-place */}
+      {selectedSubjectToPlace && (
+        <div
+          style={{
+            position: "fixed",
+            left: mouseCoords.x + 15,
+            top: mouseCoords.y + 15,
+            pointerEvents: "none",
+            zIndex: 9999,
+            borderColor: getSubject(selectedSubjectToPlace.subjectId)?.color || "#3B82F6",
+            backgroundColor: `${getSubject(selectedSubjectToPlace.subjectId)?.color || "#3B82F6"}15`,
+            borderWidth: '2px',
+            borderRadius: '0.375rem',
+            padding: '0.375rem',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+          }}
+          className="bg-white min-w-[100px] max-w-[150px] animate-pulse"
+        >
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-semibold truncate" style={{ color: getSubject(selectedSubjectToPlace.subjectId)?.color }}>
+                {getSubject(selectedSubjectToPlace.subjectId)?.name}
+              </p>
+              <p className="text-[8px] text-gray-500">
+                {selectedSubjectToPlace.sourceEntryId ? "Ko'chirilmoqda" : "Joylashtirilmoqda"}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
