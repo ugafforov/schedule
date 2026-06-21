@@ -346,7 +346,7 @@ function DroppableSidebar({
         isOver
           ? "border-red-400 bg-red-50/50 scale-[1.02] shadow-sm"
           : isHighlighted
-            ? "border-red-300 bg-red-50/25 cursor-pointer hover:bg-red-50/45 animate-pulse"
+            ? "border-red-400 bg-red-50/10 cursor-pointer hover:bg-red-50/20 shadow-sm"
             : "border-transparent bg-gray-50/10"
       }`}
     >
