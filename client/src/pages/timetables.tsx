@@ -159,8 +159,7 @@ function EntryCard({
     border: isNoRoom ? `1.5px dashed #EF4444` : `1.5px solid transparent`,
     borderLeft: `3px solid ${subject?.color || "#3B82F6"}`,
     backgroundColor: isOverlay ? `${subject?.color || "#3B82F6"}25` : `${subject?.color || "#3B82F6"}20`,
-    filter: isOptimistic ? "grayscale(50%)" : undefined,
-    opacity: (isDragging && !isOverlay) || isOptimistic ? 0.3 : 1,
+    opacity: isDragging && !isOverlay ? 0.3 : 1,
     ...style
   };
 
@@ -168,7 +167,7 @@ function EntryCard({
     <div
       ref={innerRef}
       style={cardStyle}
-      className={`rounded p-1 cursor-grab active:cursor-grabbing group/cell relative shadow-sm hover:shadow-md transition-[background-color,border-color,box-shadow,opacity] duration-150 ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-white border-gray-200/80 z-[1000]' : ''} ${isOptimistic ? 'animate-pulse' : ''}`}
+      className={`rounded p-1 cursor-grab active:cursor-grabbing group/cell relative shadow-sm hover:shadow-md transition-[background-color,border-color,box-shadow] duration-75 ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-white border-gray-200/80 z-[1000]' : ''}`}
       onClick={(e) => {
         if (!isDragging && !isOptimistic && !isOverlay) {
           e.stopPropagation();
@@ -384,7 +383,6 @@ export default function Timetables() {
     classId: number;
     sourceEntryId?: number;
   } | null>(null);
-  const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -393,8 +391,15 @@ export default function Timetables() {
       }
     };
     
+    let rafId: number;
     const handleMouseMove = (e: MouseEvent) => {
-      setMouseCoords({ x: e.clientX, y: e.clientY });
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const previewEl = document.getElementById("floating-cursor-preview");
+        if (previewEl) {
+          previewEl.style.transform = `translate3d(${e.clientX + 15}px, ${e.clientY + 15}px, 0)`;
+        }
+      });
     };
 
     const handleDocumentClick = (e: MouseEvent) => {
@@ -424,8 +429,10 @@ export default function Timetables() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("click", handleDocumentClick, true);
       window.removeEventListener("mousemove", handleMouseMove);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   }, [selectedSubjectToPlace]);
+
 
 
 
@@ -1915,10 +1922,12 @@ export default function Timetables() {
       {/* Floating preview for select-to-place */}
       {selectedSubjectToPlace && (
         <div
+          id="floating-cursor-preview"
           style={{
             position: "fixed",
-            left: mouseCoords.x + 15,
-            top: mouseCoords.y + 15,
+            left: 0,
+            top: 0,
+            transform: "translate3d(-9999px, -9999px, 0)",
             pointerEvents: "none",
             zIndex: 9999,
             borderColor: getSubject(selectedSubjectToPlace.subjectId)?.color || "#3B82F6",
@@ -1927,8 +1936,10 @@ export default function Timetables() {
             borderRadius: '0.375rem',
             padding: '0.375rem',
             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            willChange: 'transform',
+            transition: 'none'
           }}
-          className="bg-white min-w-[100px] max-w-[150px] animate-pulse"
+          className="bg-white min-w-[100px] max-w-[150px] border border-solid border-gray-200"
         >
           <div className="flex items-center justify-between gap-1">
             <div className="flex-1 min-w-0">
