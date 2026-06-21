@@ -327,21 +327,35 @@ function DroppableCell({
 }
 
 
-function DroppableSidebar({ id, children }: { id: string; children: React.ReactNode }) {
+function DroppableSidebar({ 
+  id, 
+  children,
+  onClick,
+  isHighlighted = false
+}: { 
+  id: string; 
+  children: React.ReactNode;
+  onClick?: (e: React.MouseEvent) => void;
+  isHighlighted?: boolean;
+}) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
     <div
       ref={setNodeRef}
+      onClick={onClick}
       className={`w-48 flex-shrink-0 space-y-2 p-2 rounded-lg border-2 border-dashed transition-all duration-200 ${
         isOver
           ? "border-red-400 bg-red-50/50 scale-[1.02] shadow-sm"
-          : "border-transparent bg-gray-50/10"
+          : isHighlighted
+            ? "border-red-300 bg-red-50/25 cursor-pointer hover:bg-red-50/45 animate-pulse"
+            : "border-transparent bg-gray-50/10"
       }`}
     >
       {children}
     </div>
   );
 }
+
 
 // --- Main Component ---
 
@@ -1607,7 +1621,18 @@ export default function Timetables() {
             <div className="flex gap-3 justify-between">
               {/* Left sidebar: Available subjects to drag */}
               {viewMode === "class" && selectedClassId !== "all" && (
-                <DroppableSidebar id="sidebar">
+                <DroppableSidebar 
+                  id="sidebar"
+                  isHighlighted={!!selectedSubjectToPlace?.sourceEntryId}
+                  onClick={(e) => {
+                    if (selectedSubjectToPlace?.sourceEntryId) {
+                      e.stopPropagation();
+                      deleteEntryMutation.mutate(selectedSubjectToPlace.sourceEntryId);
+                      setSelectedSubjectToPlace(null);
+                      toast({ title: "Dars olib tashlandi" });
+                    }
+                  }}
+                >
                   <div className="text-[10px] font-semibold text-gray-500 mb-1.5">Mavjud fanlar</div>
                   {missingLessons.length === 0 ? (
                     <div className="text-[9px] text-gray-400 italic py-2">Barcha fanlar biriktirilgan</div>
