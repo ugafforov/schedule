@@ -61,7 +61,8 @@ function DraggableSubjectCard({
   teacherId2,
   classId,
   isSelected,
-  onClick
+  onClick,
+  isHoldingSubject = false
 }: {
   subject: Subject;
   missingHours: number;
@@ -70,6 +71,7 @@ function DraggableSubjectCard({
   classId: number;
   isSelected?: boolean;
   onClick?: () => void;
+  isHoldingSubject?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `new-subject-${subject.id}`,
@@ -90,6 +92,10 @@ function DraggableSubjectCard({
         isSelected ? "ring-2 ring-blue-500 ring-offset-1 font-bold" : ""
       }`}
       onClick={(e) => {
+        if (isHoldingSubject) {
+          // Let the click bubble to DroppableSidebar
+          return;
+        }
         if (onClick) {
           e.stopPropagation();
           onClick();
@@ -133,7 +139,8 @@ function EntryCard({
   dragListeners,
   dragAttributes,
   innerRef,
-  style
+  style,
+  isHoldingSubject = false
 }: {
   entry: ScheduleEntry;
   subject?: Subject;
@@ -152,6 +159,7 @@ function EntryCard({
   dragAttributes?: any;
   innerRef?: (element: HTMLElement | null) => void;
   style?: React.CSSProperties;
+  isHoldingSubject?: boolean;
 }) {
   const isNoRoom = !room;
   const textColor = subject?.color || "#3B82F6";
@@ -169,6 +177,10 @@ function EntryCard({
       style={cardStyle}
       className={`rounded p-1 cursor-grab active:cursor-grabbing group/cell relative shadow-sm hover:shadow-md transition-[background-color,border-color,box-shadow] duration-75 ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-white border-gray-200/80 z-[1000]' : ''}`}
       onClick={(e) => {
+        if (isHoldingSubject) {
+          // Let click bubble to DroppableCell or DroppableSidebar
+          return;
+        }
         if (!isDragging && !isOptimistic && !isOverlay) {
           e.stopPropagation();
           if (onMoveSelect) {
@@ -177,6 +189,7 @@ function EntryCard({
         }
       }}
       onDoubleClick={(e) => {
+        if (isHoldingSubject) return;
         if (!isDragging && !isOptimistic && !isOverlay && onEdit) {
           e.stopPropagation();
           onEdit();
@@ -208,29 +221,30 @@ function EntryCard({
           </div>
         </div>
         
-        <div className="flex items-center gap-0.5 absolute right-0.5 top-0.5 opacity-0 group-hover/cell:opacity-100 transition-opacity bg-white/90 rounded border shadow-sm p-0.5">
-          {!isOverlay && !isOptimistic && onEdit && (
-            <button
-              className="text-gray-500 hover:text-gray-700 p-0.5"
-              onClick={e => { e.stopPropagation(); onEdit(); }}
-              title="Tahrirlash"
-            >
-              <Pencil className="h-2.5 w-2.5" />
-            </button>
-          )}
-          {!isOverlay && !isOptimistic && onDelete && (
-            <button
-              className="text-red-400 hover:text-red-600 p-0.5"
-              onClick={e => { e.stopPropagation(); onDelete(); }}
-              title="O'chirish"
-            >
-              <Trash2 className="h-2.5 w-2.5" />
-            </button>
-          )}
-        </div>
+        {!isHoldingSubject && (
+          <div className="flex items-center gap-0.5 absolute right-0.5 top-0.5 opacity-0 group-hover/cell:opacity-100 transition-opacity bg-white/90 rounded border shadow-sm p-0.5">
+            {!isOverlay && !isOptimistic && onEdit && (
+              <button
+                className="text-gray-500 hover:text-gray-700 p-0.5"
+                onClick={e => { e.stopPropagation(); onEdit(); }}
+                title="Tahrirlash"
+              >
+                <Pencil className="h-2.5 w-2.5" />
+              </button>
+            )}
+            {!isOverlay && !isOptimistic && onDelete && (
+              <button
+                className="text-red-400 hover:text-red-600 p-0.5"
+                onClick={e => { e.stopPropagation(); onDelete(); }}
+                title="O'chirish"
+              >
+                <Trash2 className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
-
   );
 }
 
@@ -246,7 +260,8 @@ function DraggableEntry({
   onDelete,
   onMoveSelect,
   isSelected = false,
-  isOptimistic = false
+  isOptimistic = false,
+  isHoldingSubject = false
 }: { 
   entry: ScheduleEntry; 
   subject?: Subject; 
@@ -260,6 +275,7 @@ function DraggableEntry({
   onMoveSelect?: () => void;
   isSelected?: boolean;
   isOptimistic?: boolean;
+  isHoldingSubject?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `entry-${entry.id}`,
@@ -284,6 +300,7 @@ function DraggableEntry({
       dragListeners={listeners}
       dragAttributes={attributes}
       innerRef={setNodeRef}
+      isHoldingSubject={isHoldingSubject}
     />
   );
 }
@@ -1659,6 +1676,7 @@ export default function Timetables() {
                             teacherId2={cs?.teacherId2}
                             classId={selectedClassId as number}
                             isSelected={isCardSelected}
+                            isHoldingSubject={!!selectedSubjectToPlace}
                             onClick={() => {
                               if (isCardSelected) {
                                 setSelectedSubjectToPlace(null);
@@ -1755,6 +1773,7 @@ export default function Timetables() {
                                     showAllClasses={showAllClasses}
                                     isOptimistic={(entry as any).isOptimistic}
                                     isSelected={selectedSubjectToPlace?.sourceEntryId === entry.id}
+                                    isHoldingSubject={!!selectedSubjectToPlace}
                                     onMoveSelect={() => {
                                       if (selectedSubjectToPlace?.sourceEntryId === entry.id) {
                                         setSelectedSubjectToPlace(null);
