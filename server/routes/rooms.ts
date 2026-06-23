@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { insertRoomSchema, rooms } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware } from "../middleware/auth";
+import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 
 export const roomRoutes = new Hono()
@@ -38,7 +39,7 @@ export const roomRoutes = new Hono()
   })
 
   // Bulk create
-  .post("/bulk", async (c) => {
+  .post("/bulk", strictRateLimit, async (c) => {
     const { rooms: items } = await c.req.json();
     if (!Array.isArray(items) || items.length === 0) {
       return c.json({ message: "Xonalar ro'yxati bo'sh" }, 400);
@@ -56,7 +57,7 @@ export const roomRoutes = new Hono()
   })
 
   // Clear all
-  .post("/clear-all", async (c) => {
+  .post("/clear-all", strictRateLimit, async (c) => {
     await db.update(rooms).set({ isActive: false });
     return c.json({ message: "Barcha xonalar muvaffaqiyatli tozalandi" });
   });

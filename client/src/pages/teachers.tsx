@@ -1,4 +1,4 @@
-import { useState, Fragment, useEffect, useCallback } from "react";
+import { useState, Fragment, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,6 +93,15 @@ function UnavailabilityDialog({
   const [isDragging, setIsDragging] = useState(false);
   const [dragAction, setDragAction] = useState<"block" | "unblock" | null>(null);
 
+  const daysToRender = useMemo(() => {
+    const defaultDays = ["Du", "Se", "Ch", "Pa", "Ju"];
+    const hasSaturdaySlots = timeSlots.some(s => Number(s.dayOfWeek) === 6);
+    if (hasSaturdaySlots) {
+      return [...defaultDays, "Sh"];
+    }
+    return defaultDays;
+  }, [timeSlots]);
+
   // Sync local state when teacher changes or dialog opens
   useEffect(() => {
     if (open && teacher) {
@@ -140,9 +149,10 @@ function UnavailabilityDialog({
   };
 
   const handleBulkToggle = (type: "day" | "period", index: number) => {
+    const daysArray = daysToRender.map((_, i) => i + 1);
     let slotsToToggle = type === "day" 
       ? PERIODS.map(p => ({ dayOfWeek: index, periodNumber: p }))
-      : [1, 2, 3, 4, 5].map(d => ({ dayOfWeek: d, periodNumber: index }));
+      : daysArray.map(d => ({ dayOfWeek: d, periodNumber: index }));
 
     const allBlocked = slotsToToggle.every(s => isSlotBlocked(s.dayOfWeek, s.periodNumber));
     const action = allBlocked ? "unblock" : "block";
@@ -181,9 +191,9 @@ function UnavailabilityDialog({
         </DialogHeader>
         
         <div className="py-6">
-          <div className="grid grid-cols-[95px_repeat(5,1fr)] gap-2">
+          <div className="grid gap-2" style={{ gridTemplateColumns: `95px repeat(${daysToRender.length}, 1fr)` }}>
             <div />
-            {DAYS.map((day, dIdx) => (
+            {daysToRender.map((day, dIdx) => (
               <button 
                 key={day} 
                 type="button"
@@ -208,7 +218,7 @@ function UnavailabilityDialog({
                     {getPeriodTime(period)}
                   </span>
                 </button>
-                {DAYS.map((_, dIdx) => {
+                {daysToRender.map((_, dIdx) => {
                   const dayNum = dIdx + 1;
                   const blocked = isSlotBlocked(dayNum, period);
                   return (

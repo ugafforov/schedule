@@ -11,6 +11,8 @@ import {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
 
+  const today = new Date();
+
   const { data: stats, isLoading: statsLoading } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
   });
@@ -19,7 +21,6 @@ export default function Dashboard() {
     queryKey: ["/api/schedule-conflicts"],
   });
 
-  const today = new Date();
   const days = ["Yakshanba", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
   const months = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
   const dateStr = `${today.getDate()} ${months[today.getMonth()]}, ${today.getFullYear()}`;
@@ -86,7 +87,7 @@ export default function Dashboard() {
             </div>
             <div>
               <p className="text-white font-bold text-xl">{stats.totalScheduled} ta dars</p>
-              <p className="text-blue-200 text-sm">Joriy hafta jadvallashtirildi</p>
+              <p className="text-blue-200 text-sm">Dars jadvali yaratildi</p>
             </div>
           </div>
           <Button variant="secondary" size="sm" onClick={() => setLocation("/timetables")} className="bg-white/20 text-white border-0 hover:bg-white/30">

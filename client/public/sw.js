@@ -1,4 +1,7 @@
-const CACHE_NAME = "maktab-jadval-v3";
+// Service Worker Cache Version. Kesh versiyasini yangilash uchun ushbu konstantani o'zgartiring.
+// Bu foydalanuvchilar brauzerida keshni tozalashni va yangi fayllarni yuklashni ta'minlaydi.
+const CACHE_VERSION = "v3";
+const CACHE_NAME = `maktab-jadval-${CACHE_VERSION}`;
 
 // Install: skip waiting immediately to activate new SW right away
 self.addEventListener("install", () => {
@@ -16,6 +19,12 @@ self.addEventListener("activate", (event) => {
 // Fetch strategy
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+
+  // Faqat http/https so'rovlarini qayta ishlash (chrome-extension va ws-larni chetlab o'tish)
+  if (!url.protocol.startsWith("http")) return;
+
+  // Faqat o'z originimizga bo'lgan so'rovlarni boshqarish (Vite HMR porti 24678 va boshqalarni chetlab o'tish)
+  if (url.origin !== self.location.origin) return;
 
   // API requests: network-only
   if (url.pathname.startsWith("/api/")) {
@@ -41,10 +50,19 @@ self.addEventListener("fetch", (event) => {
           res.type === "basic" // Faqat o'z domenimizdagi fayllar uchun
         ) {
           const clone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE_NAME)
+            .then((cache) => cache.put(event.request, clone))
+            .catch((err) => console.warn("Cache put error:", err));
         }
         return res;
       })
-      .catch(() => caches.match(event.request))
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        return new Response("Keshda mavjud emas va internet aloqasi yo'q", {
+          status: 504,
+          statusText: "Gateway Timeout"
+        });
+      })
   );
 });

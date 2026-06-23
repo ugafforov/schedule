@@ -2,8 +2,9 @@ import { Hono } from "hono";
 import { insertScheduleEntrySchema, scheduleEntries } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware } from "../middleware/auth";
+import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { generateSchedule } from "../services/schedule.service";
 import { autoDistributeAll, autoDistributeUnassignedOnly, autoDistributeAllForceReassign, autoAssignDtsForClasses } from "../services/teacher.service";
 
@@ -11,14 +12,12 @@ export const scheduleRoutes = new Hono().use(authMiddleware)
 
   // ─── /api/schedule-entries ─────────────────────────────────────────────────
   .get("/", async (c) => {
-    const { classId, weekStart, teacherId } = c.req.query();
+    const { classId, teacherId } = c.req.query();
     let entries: any[];
-    if (teacherId && weekStart) {
-      entries = await storage.getScheduleEntriesByTeacher(parseInt(teacherId), new Date(weekStart));
+    if (teacherId) {
+      entries = await storage.getScheduleEntriesByTeacher(parseInt(teacherId));
     } else if (classId) {
       entries = await storage.getScheduleEntriesByClass(parseInt(classId));
-    } else if (weekStart) {
-      entries = await storage.getScheduleEntriesForWeek(new Date(weekStart));
     } else {
       entries = await storage.getScheduleEntries();
     }
@@ -39,10 +38,10 @@ export const scheduleRoutes = new Hono().use(authMiddleware)
     await storage.deleteScheduleEntry(parseInt(c.req.param("id")));
     return c.body(null, 204);
   })
-  .delete("/", async (c) => {
-    const { weekStart } = c.req.query();
-    if (weekStart) {
-      await storage.clearScheduleForWeek(new Date(weekStart));
+  .delete("/", strictRateLimit, async (c) => {
+    const { classId } = c.req.query();
+    if (classId) {
+      await storage.clearScheduleForClass(parseInt(classId));
     } else {
       await db.update(scheduleEntries).set({ isActive: false });
     }
@@ -51,10 +50,9 @@ export const scheduleRoutes = new Hono().use(authMiddleware)
 
 // ─── Alohida routelar (index.ts da to'g'ri URL bilan bog'lanadi) ──────────────
 
-export const generateScheduleRoute = new Hono().use(authMiddleware)
+export const generateScheduleRoute = new Hono().use(authMiddleware).use(strictRateLimit)
   .post("/", async (c) => {
     const body = await c.req.json();
-    if (!body.weekStart) return c.json({ message: "weekStart kiritilishi kerak" }, 400);
     const result = await generateSchedule(body);
     return c.json(result);
   });
@@ -62,10 +60,17 @@ export const generateScheduleRoute = new Hono().use(authMiddleware)
 export const scheduleConflictsRoute = new Hono().use(authMiddleware)
   .get("/", async (c) => {
     try {
-      const result = await db.execute(sql`SELECT * FROM check_schedule_conflicts()`);
-      return c.json(result.rows);
-    } catch {
-      return c.json(await storage.getUnresolvedConflicts());
+      await db.execute(sql`SELECT * FROM check_schedule_conflicts()`);
+    } catch (err) {
+      console.error("check_schedule_conflicts error:", err);
+    }
+
+    try {
+      const allConflicts = await storage.getUnresolvedConflicts();
+      return c.json(allConflicts);
+    } catch (err) {
+      console.error("Fetch conflicts error:", err);
+      return c.json([]);
     }
   })
   .post("/:id/resolve", async (c) => {
@@ -74,7 +79,7 @@ export const scheduleConflictsRoute = new Hono().use(authMiddleware)
     return c.body(null, 204);
   });
 
-export const classSubjectsRoute = new Hono().use(authMiddleware)
+export const classSubjectsRoute = new Hono().use(authMiddleware).use(strictRateLimit)
   .get("/", async (c) => {
     return c.json(await storage.getAllClassSubjects());
   })

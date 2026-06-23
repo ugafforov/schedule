@@ -63,6 +63,7 @@ export const classes = pgTable("classes", {
   language: text("language").notNull().default("uz"), // 'uz', 'ru'
   classTeacherId: integer("class_teacher_id").references(() => teachers.id),
   totalStudents: integer("total_students").default(30),
+  studyDays: text("study_days").notNull().default("1,2,3,4,5"), // "1,2,3,4,5" or "1,2,3,4,5,6"
   isActive: boolean("is_active").notNull().default(true),
 });
 
@@ -119,14 +120,13 @@ export const scheduleEntries = pgTable("schedule_entries", {
   teacherId: integer("teacher_id").references(() => teachers.id).notNull(),
   roomId: integer("room_id").references(() => rooms.id).notNull(),
   timeSlotId: integer("time_slot_id").references(() => timeSlots.id).notNull(),
-  weekStartDate: timestamp("week_start_date").notNull(),
+  weekType: text("week_type").default("always").notNull(), // 'always' | 'surat' | 'mahraj'
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   classIdIdx: index("schedule_entries_class_id_idx").on(table.classId),
   teacherIdIdx: index("schedule_entries_teacher_id_idx").on(table.teacherId),
   timeSlotIdIdx: index("schedule_entries_time_slot_id_idx").on(table.timeSlotId),
-  weekStartIdx: index("schedule_entries_week_start_idx").on(table.weekStartDate),
   activeIdx: index("schedule_entries_active_idx").on(table.isActive),
 }));
 
@@ -228,8 +228,7 @@ export const insertTimeSlotSchema = createInsertSchema(timeSlots).omit({ id: tru
 export const insertTeacherSubjectSchema = createInsertSchema(teacherSubjects).omit({ id: true });
 export const insertClassSubjectSchema = createInsertSchema(classSubjects).omit({ id: true });
 export const insertScheduleEntrySchema = createInsertSchema(scheduleEntries)
-  .omit({ id: true, createdAt: true })
-  .extend({ weekStartDate: z.coerce.date() });
+  .omit({ id: true, createdAt: true });
 export const insertScheduleConflictSchema = createInsertSchema(scheduleConflicts).omit({ id: true, createdAt: true });
 export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });

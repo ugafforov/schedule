@@ -8,17 +8,18 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square, LayoutGrid, List, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square, LayoutGrid, List, FileSpreadsheet, Calendar } from "lucide-react";
 
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher } from "@shared/schema";
 import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
 import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 interface SubjectAssignment { subjectId: number; teacherId: number | null; teacherId2: number | null; weeklyHours: number; }
-interface ClassFormData { name: string; grade: string; section: string; language: string; totalStudents: number; subjects: SubjectAssignment[]; }
+interface ClassFormData { name: string; grade: string; section: string; language: string; totalStudents: number; studyDays: string; subjects: SubjectAssignment[]; }
 
-const EMPTY_FORM: ClassFormData = { name: "", grade: "", section: "", language: "uz", totalStudents: 25, subjects: [] };
+const EMPTY_FORM: ClassFormData = { name: "", grade: "", section: "", language: "uz", totalStudents: 25, studyDays: "1,2,3,4,5", subjects: [] };
 const GRADE_COLORS = [
   "bg-blue-100 text-blue-700", "bg-green-100 text-green-700", "bg-purple-100 text-purple-700",
   "bg-orange-100 text-orange-700", "bg-pink-100 text-pink-700", "bg-cyan-100 text-cyan-700",
@@ -250,6 +251,34 @@ export default function Classes() {
     onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Saqlanmadi", variant: "destructive" }),
   });
 
+  const bulkUpdateStudyDaysMutation = useMutation({
+    mutationFn: async ({ classIds, studyDays }: { classIds: number[]; studyDays: string }) => {
+      await apiRequest("POST", "/api/classes/bulk-update-study-days", { classIds, studyDays });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/classes"] });
+      toast({ title: "Muvaffaqiyat", description: "Sinflarning dars kunlari yangilandi" });
+    },
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Saqlanmadi", variant: "destructive" }),
+  });
+
+  const handleBulkStudyDaysUpdate = (filter: "primary" | "high" | "all", studyDays: string) => {
+    let targetIds: number[] = [];
+    if (filter === "primary") {
+      targetIds = classes.filter(c => parseInt(c.grade) >= 1 && parseInt(c.grade) <= 4).map(c => c.id);
+    } else if (filter === "high") {
+      targetIds = classes.filter(c => parseInt(c.grade) >= 5 && parseInt(c.grade) <= 11).map(c => c.id);
+    } else {
+      targetIds = classes.map(c => c.id);
+    }
+
+    if (targetIds.length === 0) {
+      toast({ title: "Ma'lumot", description: "Tegishli sinflar topilmadi" });
+      return;
+    }
+    bulkUpdateStudyDaysMutation.mutate({ classIds: targetIds, studyDays });
+  };
+
   // Grade options for inline select
   const gradeOptions = ALL_GRADES.map(grade => ({
     value: grade,
@@ -269,7 +298,7 @@ export default function Classes() {
     } catch (e) {
       console.error("Error fetching class subjects:", e);
     }
-    setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", language: (cls as any).language || "uz", totalStudents: cls.totalStudents || 25, subjects: subs });
+    setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", language: (cls as any).language || "uz", totalStudents: cls.totalStudents || 25, studyDays: (cls as any).studyDays || "1,2,3,4,5", subjects: subs });
     setActiveTab("info"); setOpen(true);
   };
 
@@ -310,6 +339,27 @@ export default function Classes() {
             <Zap className="mr-2 h-4 w-4 text-amber-500" />
             Tez yaratish
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="border-indigo-100 text-indigo-700 hover:bg-indigo-50">
+                <Calendar className="mr-2 h-4 w-4 text-indigo-500" /> O'quv kunlari (Tezkor)
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 bg-white border border-gray-100 shadow-md rounded-lg p-1">
+              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("primary", "1,2,3,4,5")} className="text-xs py-2 cursor-pointer hover:bg-gray-50 rounded-md">
+                Boshlang'ich (1-4) sinflarni 5 kunlik qilish
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("high", "1,2,3,4,5,6")} className="text-xs py-2 cursor-pointer hover:bg-gray-50 rounded-md">
+                Yuqori (5-11) sinflarni 6 kunlik qilish
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("all", "1,2,3,4,5,6")} className="text-xs py-2 cursor-pointer hover:bg-gray-50 rounded-md">
+                Barcha sinflarni 6 kunlik qilish
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("all", "1,2,3,4,5")} className="text-xs py-2 cursor-pointer hover:bg-gray-50 rounded-md">
+                Barcha sinflarni 5 kunlik qilish
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700">
             <Plus className="mr-2 h-4 w-4" />
             Sinf qo'shish
@@ -372,8 +422,26 @@ export default function Classes() {
                         {(cls as any).language || "uz"}
                       </Badge>
                     </div>
-                    <div className="flex items-center space-x-1 mt-1 text-gray-400">
-                      <Users className="h-3 w-3" /><span className="text-xs">{cls.totalStudents} o'quvchi</span>
+                    <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-gray-50">
+                      <div className="flex items-center space-x-1 text-gray-400">
+                        <Users className="h-3.5 w-3.5" /><span className="text-xs">{cls.totalStudents} o'quvchi</span>
+                      </div>
+                      <Badge 
+                        variant="outline" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const is6 = (cls as any).studyDays?.includes("6");
+                          inlineUpdateMutation.mutate({ id: cls.id, data: { studyDays: is6 ? "1,2,3,4,5" : "1,2,3,4,5,6" } });
+                        }}
+                        className={`text-[9px] px-1.5 py-0 h-4.5 cursor-pointer font-semibold transition-all select-none ${
+                          (cls as any).studyDays?.includes("6") 
+                            ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100" 
+                            : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                        }`}
+                        title="Dars kunlarini o'zgartirish uchun bosing"
+                      >
+                        {(cls as any).studyDays?.includes("6") ? "6 kunlik" : "5 kunlik"}
+                      </Badge>
                     </div>
                   </div>
                 );
@@ -381,9 +449,10 @@ export default function Classes() {
             </div>
             ) : (
               <div className="space-y-3">
-                <div className="grid grid-cols-[minmax(0,1.6fr)_120px_120px_110px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="grid grid-cols-[minmax(0,1.6fr)_90px_110px_100px_80px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
                   <div>Sinf</div>
                   <div>Raqam</div>
+                  <div>Kunlar</div>
                   <div>O'quvchi</div>
                   <div className="text-right">Amal</div>
                 </div>
@@ -391,7 +460,7 @@ export default function Classes() {
                   const [bg, text] = GRADE_COLORS[idx % GRADE_COLORS.length].split(" ");
                   const isUpdating = inlineUpdateMutation.isPending;
                   return (
-                    <div key={cls.id} className="grid grid-cols-[minmax(0,1.6fr)_120px_120px_110px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
+                    <div key={cls.id} className="grid grid-cols-[minmax(0,1.6fr)_90px_110px_100px_80px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
                           <span className={`font-bold text-lg ${text}`}>{cls.grade || cls.name?.[0] || "?"}</span>
@@ -425,6 +494,24 @@ export default function Classes() {
                         className="text-sm text-gray-600"
                         disabled={isUpdating}
                       />
+                      <div className="text-sm">
+                        <Badge 
+                          variant="outline" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const is6 = (cls as any).studyDays?.includes("6");
+                            inlineUpdateMutation.mutate({ id: cls.id, data: { studyDays: is6 ? "1,2,3,4,5" : "1,2,3,4,5,6" } });
+                          }}
+                          className={`text-[9px] px-1.5 py-0.5 h-5 cursor-pointer font-semibold transition-all select-none ${
+                            (cls as any).studyDays?.includes("6") 
+                              ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100" 
+                              : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                          }`}
+                          title="Dars kunlarini o'zgartirish uchun bosing"
+                        >
+                          {(cls as any).studyDays?.includes("6") ? "6 kun (Du-Sh)" : "5 kun (Du-Ju)"}
+                        </Badge>
+                      </div>
                       <div className="text-sm text-gray-600 whitespace-nowrap">
                         <InlineEdit
                           value={cls.totalStudents || 25}
@@ -511,6 +598,16 @@ export default function Classes() {
               <div className="space-y-1.5">
                 <Label className="text-sm">O'quvchilar soni</Label>
                 <Input type="number" min={1} max={50} value={form.totalStudents} onChange={e => setForm(p => ({ ...p, totalStudents: parseInt(e.target.value) || 25 }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">O'quv kunlari</Label>
+                <Select value={form.studyDays} onValueChange={v => setForm(p => ({ ...p, studyDays: v }))}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="O'quv kunlarini tanlang" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1,2,3,4,5">5 kunlik (Dushanba - Juma)</SelectItem>
+                    <SelectItem value="1,2,3,4,5,6">6 kunlik (Dushanba - Shanba)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <Button variant="outline" size="sm" onClick={() => setActiveTab("subjects")} className="w-full">
                 Fanlarni belgilash <ChevronRight className="ml-1 h-3.5 w-3.5" />

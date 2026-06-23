@@ -12,7 +12,7 @@ import {
   classSubjectsRoute,
 } from "./schedule";
 import { dashboardRoutes } from "./dashboard";
-import { rateLimitMiddleware } from "../middleware/rateLimit";
+import { rateLimitMiddleware, strictRateLimit } from "../middleware/rateLimit";
 import { auditLogMiddleware } from "../middleware/auditLog";
 
 export function registerRoutes(app: Hono) {
@@ -34,7 +34,7 @@ export function registerRoutes(app: Hono) {
   // Har bir frontend URL → to'g'ri backend route
   // /api/schedule-entries → GET/POST/PATCH/DELETE /
   app.route("/api/schedule-entries", scheduleRoutes);
-  // /api/generate-schedule → POST /
+  // /api/generate-schedule → POST /  (eng qimmat operatsiya — qat'iy limit)
   app.route("/api/generate-schedule", generateScheduleRoute);
   // /api/schedule-conflicts → GET /
   app.route("/api/schedule-conflicts", scheduleConflictsRoute);

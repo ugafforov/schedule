@@ -71,16 +71,15 @@ export function validateScheduleEntry(
     return { isValid: false, conflicts: [] };
   }
 
-  // Check for same week conflicts
-  const sameWeekEntries = existingEntries.filter(e => 
-    e.weekStartDate.getTime() === entry.weekStartDate?.getTime()
-  );
+  // Check for conflicts
+  const sameWeekEntries = existingEntries;
 
   // Check for room conflicts
   const roomConflicts = sameWeekEntries.filter(e => 
     e.roomId === entry.roomId && 
     e.timeSlotId === entry.timeSlotId &&
-    e.id !== entry.id
+    e.id !== entry.id &&
+    (e.weekType === "always" || entry.weekType === "always" || e.weekType === entry.weekType)
   );
 
   if (roomConflicts.length > 0) {
@@ -96,7 +95,8 @@ export function validateScheduleEntry(
   const teacherConflicts = sameWeekEntries.filter(e => 
     e.teacherId === entry.teacherId && 
     e.timeSlotId === entry.timeSlotId &&
-    e.id !== entry.id
+    e.id !== entry.id &&
+    (e.weekType === "always" || entry.weekType === "always" || e.weekType === entry.weekType)
   );
 
   if (teacherConflicts.length > 0) {
@@ -112,7 +112,8 @@ export function validateScheduleEntry(
   const classConflicts = sameWeekEntries.filter(e => 
     e.classId === entry.classId && 
     e.timeSlotId === entry.timeSlotId &&
-    e.id !== entry.id
+    e.id !== entry.id &&
+    (e.weekType === "always" || entry.weekType === "always" || e.weekType === entry.weekType)
   );
 
   if (classConflicts.length > 0) {

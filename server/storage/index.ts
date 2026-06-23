@@ -56,14 +56,13 @@ class DatabaseStorage implements IStorage {
   // Schedule
   getScheduleEntries = this.schedule.getScheduleEntries.bind(this.schedule);
   getScheduleEntriesByClass = this.schedule.getScheduleEntriesByClass.bind(this.schedule);
-  getScheduleEntriesForWeek = this.schedule.getScheduleEntriesForWeek.bind(this.schedule);
   getScheduleEntriesByTeacher = this.schedule.getScheduleEntriesByTeacher.bind(this.schedule);
   createScheduleEntry = this.schedule.createScheduleEntry.bind(this.schedule);
   createScheduleEntriesBulk = this.schedule.createScheduleEntriesBulk.bind(this.schedule);
   updateScheduleEntry = this.schedule.updateScheduleEntry.bind(this.schedule);
   deleteScheduleEntry = this.schedule.deleteScheduleEntry.bind(this.schedule);
   deleteAllScheduleEntries = this.schedule.deleteAllScheduleEntries.bind(this.schedule);
-  clearScheduleForWeek = this.schedule.clearScheduleForWeek.bind(this.schedule);
+  clearScheduleForClass = this.schedule.clearScheduleForClass.bind(this.schedule);
 
   // Conflicts
   getUnresolvedConflicts = this.schedule.getUnresolvedConflicts.bind(this.schedule);

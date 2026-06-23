@@ -32,12 +32,14 @@ export interface TeacherMatchContext {
   classGrade: string;
   language?: string;
   weeklyHours: number;
+  classId?: number;
 }
 
 export interface TeacherMatchInput {
   teacher: Teacher;
   teacherSubjectIds: Set<number> | number[];
   currentHours: number;
+  assignedClassIds?: Set<number> | number[];
 }
 
 export function scoreTeacherForSubject(
@@ -58,6 +60,16 @@ export function scoreTeacherForSubject(
 
   const teacherGradeLevels = resolveTeacherGradeLevels(teacher, language);
   const isPrimaryTeacher = teacherGradeLevels.includes("primary");
+
+  // Primary o'qituvchi faqat bitta sinfda dars bera oladi cheklovi
+  if (isPrimaryTeacher && input.assignedClassIds && ctx.classId) {
+    const classIds = input.assignedClassIds instanceof Set
+      ? input.assignedClassIds
+      : new Set(input.assignedClassIds);
+    if (classIds.size > 0 && !classIds.has(ctx.classId)) {
+      return -1;
+    }
+  }
 
   const specialization = (teacher.specialization || "").toLowerCase();
   const teacherSpecialty = getSpecialty(teacher.specialization || "", "5", language);
@@ -103,6 +115,7 @@ export function pickBestTeacher(
   teacherSubjectMap: Map<number, Set<number>>,
   teacherLoadMap: Map<number, number>,
   ctx: TeacherMatchContext,
+  teacherClassMap?: Map<number, Set<number>>,
 ): Teacher | null {
   const scored = teachers
     .map(teacher => ({
@@ -112,6 +125,7 @@ export function pickBestTeacher(
           teacher,
           teacherSubjectIds: teacherSubjectMap.get(teacher.id) || new Set(),
           currentHours: teacherLoadMap.get(teacher.id) || 0,
+          assignedClassIds: teacherClassMap?.get(teacher.id) || new Set(),
         },
         ctx,
       ),

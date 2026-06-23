@@ -8,8 +8,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { weekStart, classIds, clearExisting } = await req.json();
-    const weekStartDate = new Date(weekStart);
+    const { classIds, clearExisting } = await req.json();
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -17,7 +16,13 @@ Deno.serve(async (req: Request) => {
     );
 
     if (clearExisting) {
-      await supabase.from("schedule_entries").delete().eq("week_start_date", weekStartDate.toISOString());
+      if (classIds?.length) {
+        for (const cid of classIds) {
+          await supabase.from("schedule_entries").delete().eq("class_id", cid);
+        }
+      } else {
+        await supabase.from("schedule_entries").delete().neq("id", 0);
+      }
     }
 
     const { data: allClasses } = await supabase.from("classes").select("*").eq("is_active", true);
@@ -109,7 +114,7 @@ Deno.serve(async (req: Request) => {
                 teacher_id: cs.teacher_id,
                 room_id: selectedRoom.id,
                 time_slot_id: slot.id,
-                week_start_date: weekStartDate.toISOString(),
+                week_type: "always",
                 is_active: true
               });
               scheduled++;

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Children } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,22 +35,6 @@ import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, Room, TimeSlot, ScheduleEntry } from "@shared/schema";
 
 const DAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma"];
-const MONTHS = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
-
-function getMonday(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function weekLabel(monday: Date): string {
-  const friday = new Date(monday);
-  friday.setDate(monday.getDate() + 4);
-  return `${monday.getDate()}–${friday.getDate()} ${MONTHS[friday.getMonth()]} ${friday.getFullYear()}`;
-}
 
 type ViewMode = "class" | "teacher";
 
@@ -142,7 +126,9 @@ function EntryCard({
   dragAttributes,
   innerRef,
   style,
-  isHoldingSubject = false
+  isHoldingSubject = false,
+  isCompact = false,
+  onToggleWeekType
 }: {
   entry: ScheduleEntry;
   subject?: Subject;
@@ -162,6 +148,8 @@ function EntryCard({
   innerRef?: (element: HTMLElement | null) => void;
   style?: React.CSSProperties;
   isHoldingSubject?: boolean;
+  isCompact?: boolean;
+  onToggleWeekType?: () => void;
 }) {
   const isNoRoom = !room;
   const textColor = subject?.color || "#3B82F6";
@@ -177,7 +165,9 @@ function EntryCard({
     <div
       ref={innerRef}
       style={cardStyle}
-      className={`rounded p-1 cursor-grab active:cursor-grabbing group/cell relative shadow-sm hover:shadow-md transition-[background-color,border-color,box-shadow] duration-75 ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-white border-gray-200/80 z-[1000]' : ''}`}
+      className={`rounded cursor-grab active:cursor-grabbing group/cell relative shadow-sm hover:shadow-md transition-[background-color,border-color,box-shadow] duration-75 flex-1 flex flex-col justify-center ${
+        isCompact ? "p-1 py-0.5" : "p-1"
+      } ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-white border-gray-200/80 z-[1000]' : ''}`}
       onClick={(e) => {
         if (isHoldingSubject) {
           // Let click bubble to DroppableCell or DroppableSidebar
@@ -200,27 +190,58 @@ function EntryCard({
     >
       <div className="flex items-start justify-between gap-0.5">
         <div className="flex-1 min-w-0 flex flex-col gap-0.5" {...dragAttributes} {...dragListeners}>
-          <div className="flex items-center gap-1 mb-0.5">
+          <div className={`flex items-center gap-1 w-full ${isCompact ? "" : "mb-0.5"}`}>
             <GripVertical className="h-3 w-3 text-gray-400 opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 -ml-1" />
-            <span className="text-[10.5px] font-bold leading-tight truncate" style={{ color: textColor }}>
+            <span className={`${isCompact ? "text-[9px]" : "text-[10.5px]"} font-bold leading-tight truncate max-w-[70%]`} style={{ color: textColor }}>
               {subject?.name || "?"}
             </span>
-          </div>
-          
-          <div className="flex items-center gap-1 text-gray-700">
-            {viewMode === "class" && showAllClasses ? (
-              <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] font-medium truncate">{className}</span></>
-            ) : viewMode === "class" ? (
-              <><UserCheck className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] truncate">{teacherName}</span></>
-            ) : (
-              <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] font-medium truncate">{className}</span></>
+            {entry.weekType && entry.weekType !== "always" && (
+              <span 
+                title={entry.weekType === "surat" ? "Surat (Toq hafta). Mahrajga o'tkazish uchun bosing." : "Mahraj (Juft hafta). Suratga o'tkazish uchun bosing."}
+                className={`text-[6.5px] leading-none px-0.5 py-0.5 rounded font-bold ml-auto flex-shrink-0 text-white cursor-pointer hover:opacity-80 active:scale-95 transition-all ${entry.weekType === "surat" ? "bg-emerald-600" : "bg-purple-600"}`}
+                onClick={(e) => {
+                  if (onToggleWeekType) {
+                    e.stopPropagation();
+                    onToggleWeekType();
+                  }
+                }}
+              >
+                {entry.weekType === "surat" ? "Surat" : "Mahraj"}
+              </span>
             )}
           </div>
+          
+          {isCompact ? (
+            <div className="text-[7.5px] text-gray-600 truncate flex items-center justify-between gap-1 mt-0.5 leading-none">
+              <span className="truncate">
+                {viewMode === "class" && showAllClasses 
+                  ? className 
+                  : viewMode === "class" 
+                    ? teacherName 
+                    : className}
+              </span>
+              <span className={`flex-shrink-0 ${isNoRoom ? "text-red-600 font-bold" : "text-gray-500"}`}>
+                ({room?.roomNumber || "Xona yo'q"})
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1 text-gray-700">
+                {viewMode === "class" && showAllClasses ? (
+                  <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] font-medium truncate">{className}</span></>
+                ) : viewMode === "class" ? (
+                  <><UserCheck className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] truncate">{teacherName}</span></>
+                ) : (
+                  <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] font-medium truncate">{className}</span></>
+                )}
+              </div>
 
-          <div className={`flex items-center gap-1 ${isNoRoom ? "text-red-600 font-semibold" : "text-gray-500"}`}>
-            {isNoRoom ? <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0" /> : <DoorOpen className="h-2.5 w-2.5 flex-shrink-0" />}
-            <span className="text-[9px] truncate">{room?.roomNumber || "Xona yo'q"}</span>
-          </div>
+              <div className={`flex items-center gap-1 ${isNoRoom ? "text-red-600 font-semibold" : "text-gray-500"}`}>
+                {isNoRoom ? <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0" /> : <DoorOpen className="h-2.5 w-2.5 flex-shrink-0" />}
+                <span className="text-[9px] truncate">{room?.roomNumber || "Xona yo'q"}</span>
+              </div>
+            </>
+          )}
         </div>
         
         {!isHoldingSubject && (
@@ -249,7 +270,6 @@ function EntryCard({
     </div>
   );
 }
-
 function DraggableEntry({ 
   entry, 
   subject, 
@@ -263,7 +283,9 @@ function DraggableEntry({
   onMoveSelect,
   isSelected = false,
   isOptimistic = false,
-  isHoldingSubject = false
+  isHoldingSubject = false,
+  isCompact = false,
+  onToggleWeekType
 }: { 
   entry: ScheduleEntry; 
   subject?: Subject; 
@@ -278,6 +300,8 @@ function DraggableEntry({
   isSelected?: boolean;
   isOptimistic?: boolean;
   isHoldingSubject?: boolean;
+  isCompact?: boolean;
+  onToggleWeekType?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `entry-${entry.id}`,
@@ -303,6 +327,8 @@ function DraggableEntry({
       dragAttributes={attributes}
       innerRef={setNodeRef}
       isHoldingSubject={isHoldingSubject}
+      isCompact={isCompact}
+      onToggleWeekType={onToggleWeekType}
     />
   );
 }
@@ -329,7 +355,8 @@ function DroppableCell({
   return (
     <td 
       ref={setNodeRef} 
-      className={`py-0.5 px-0.5 align-top transition-colors duration-100 ${statusClasses[status]} ${isOver && status !== "invalid" ? "bg-emerald-100 ring-2 ring-emerald-400 ring-inset" : ""}`}
+      style={{ height: "58px" }}
+      className={`py-0.5 px-0.5 align-top h-[58px] transition-colors duration-100 ${statusClasses[status]} ${isOver && status !== "invalid" ? "bg-emerald-100 ring-2 ring-emerald-400 ring-inset" : ""}`}
       onClick={(e) => {
         if (status === "valid" && onClick) {
           e.stopPropagation();
@@ -337,7 +364,7 @@ function DroppableCell({
         }
       }}
     >
-      <div className="space-y-0.5 min-h-[32px]">
+      <div className="space-y-0.5 h-full flex flex-col justify-center">
         {children}
       </div>
     </td>
@@ -379,14 +406,13 @@ function DroppableSidebar({
 
 export default function Timetables() {
   const [, setLocation] = useLocation();
-  const [weekOffset, setWeekOffset] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>("class");
   const [selectedClassId, setSelectedClassId] = useState<number | "all">("all");
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
   const [showGenerator, setShowGenerator] = useState(false);
   const [clearExisting, setClearExisting] = useState(true);
   const [editEntry, setEditEntry] = useState<ScheduleEntry | null>(null);
-  const [editForm, setEditForm] = useState<{ subjectId: number; teacherId: number; roomId: number } | null>(null);
+  const [editForm, setEditForm] = useState<{ subjectId: number; teacherId: number; roomId: number; weekType: string } | null>(null);
   const [generatorResult, setGeneratorResult] = useState<any>(null);
   const [activeDragEntry, setActiveDragEntry] = useState<ScheduleEntry | null>(null);
   const [activeDragNewSubject, setActiveDragNewSubject] = useState<{ subjectId: number; teacherId?: number; classId: number } | null>(null);
@@ -468,29 +494,51 @@ export default function Timetables() {
     })
   );
 
-  const monday = useMemo(() => {
-    const m = getMonday(new Date());
-    m.setDate(m.getDate() + weekOffset * 7);
-    return m;
-  }, [weekOffset]);
-
-  const weekStart = monday.toISOString();
 
   const { data: classes = [] } = useQuery<Class[]>({ queryKey: ["/api/classes"] });
   const { data: subjects = [] } = useQuery<Subject[]>({ queryKey: ["/api/subjects"] });
   const { data: teachers = [] } = useQuery<Teacher[]>({ queryKey: ["/api/teachers"] });
   const { data: rooms = [] } = useQuery<Room[]>({ queryKey: ["/api/rooms"] });
   const { data: timeSlots = [] } = useQuery<TimeSlot[]>({ queryKey: ["/api/time-slots"] });
-  const { data: conflicts = [] } = useQuery<any[]>({ queryKey: ["/api/schedule-conflicts"] });
+  const { data: conflicts = [] } = useQuery<any[]>({
+    queryKey: ["/api/schedule-conflicts"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/schedule-conflicts");
+      return res.json();
+    }
+  });
   const { data: unavail = [] } = useQuery<any[]>({ queryKey: ["/api/teachers/unavailability"] });
   const { data: classSubjects = [] } = useQuery<any[]>({ queryKey: ["/api/class-subjects"] });
 
   const unavailSet = useMemo(() => new Set(unavail.map(u => `${u.teacherId}_${u.dayOfWeek}_${u.periodNumber}`)), [unavail]);
 
+  const daysToRender = useMemo(() => {
+    const defaultDays = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma"];
+    
+    // If viewing a specific class
+    if (selectedClassId && selectedClassId !== "all") {
+      const cls = classes.find(c => c.id === selectedClassId);
+      if (cls && cls.studyDays) {
+        const days = cls.studyDays.split(",").map(Number);
+        if (days.includes(6)) {
+          return [...defaultDays, "Shanba"];
+        }
+      }
+      return defaultDays;
+    }
+    
+    // If viewing "All" classes or "By Teacher", show Saturday if ANY class has Saturday enabled
+    const anyClassHasSaturday = classes.some(c => c.studyDays && c.studyDays.includes("6"));
+    if (anyClassHasSaturday) {
+      return [...defaultDays, "Shanba"];
+    }
+    return defaultDays;
+  }, [selectedClassId, classes]);
+
   const { data: allEntries = [], isLoading: loadingEntries } = useQuery<ScheduleEntry[]>({
-    queryKey: ["/api/schedule-entries", weekStart],
+    queryKey: ["/api/schedule-entries"],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/schedule-entries?weekStart=${encodeURIComponent(weekStart)}`);
+      const res = await apiRequest("GET", "/api/schedule-entries");
       return res.json();
     },
   });
@@ -501,8 +549,8 @@ export default function Timetables() {
       return res.json();
     },
     onMutate: async (data: any) => {
-      await qc.cancelQueries({ queryKey: ["/api/schedule-entries", weekStart] });
-      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries", weekStart]);
+      await qc.cancelQueries({ queryKey: ["/api/schedule-entries"] });
+      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries"]);
       // Optimistic: create a fake entry with a negative temp ID
       const tempEntry: any = {
         id: -Date.now(),
@@ -511,13 +559,13 @@ export default function Timetables() {
         teacherId: data.teacherId,
         roomId: data.roomId,
         timeSlotId: data.timeSlotId,
-        weekStartDate: data.weekStartDate,
+        weekType: data.weekType || "always",
         isActive: true,
         createdAt: new Date(),
         isOptimistic: true,
       };
       if (previousEntries) {
-        qc.setQueryData(["/api/schedule-entries", weekStart], [...previousEntries, tempEntry]);
+        qc.setQueryData(["/api/schedule-entries"], [...previousEntries, tempEntry]);
       }
       return { previousEntries };
     },
@@ -526,12 +574,12 @@ export default function Timetables() {
     },
     onError: (err, variables, context) => {
       if (context?.previousEntries) {
-        qc.setQueryData(["/api/schedule-entries", weekStart], context.previousEntries);
+        qc.setQueryData(["/api/schedule-entries"], context.previousEntries);
       }
       toast({ title: "Xatolik", description: "Darsni qo'shib bo'lmadi", variant: "destructive" });
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["/api/schedule-entries", weekStart] });
+      qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
     },
   });
 
@@ -544,7 +592,8 @@ export default function Timetables() {
     const missing: { subjectName: string; missingHours: number; color: string }[] = [];
     
     for (const req of required) {
-      const scheduledCount = scheduled.filter(e => e.subjectId === req.subjectId).length;
+      const scheduledInSlot = scheduled.filter(e => e.subjectId === req.subjectId);
+      const scheduledCount = scheduledInSlot.reduce((sum, e) => sum + (e.weekType === "surat" || e.weekType === "mahraj" ? 0.5 : 1), 0);
       // Agar subject 2 ta o'qituvchiga bo'lingan bo'lsa, bitta dars 2 ta entry beradi. Shuning uchun teacherId2 borligini hisobga olamiz.
       const isSplit = !!req.teacherId2;
       const actualScheduledCount = isSplit ? Math.floor(scheduledCount / 2) : scheduledCount;
@@ -562,6 +611,31 @@ export default function Timetables() {
     return missing.sort((a, b) => b.missingHours - a.missingHours);
   }, [viewMode, selectedClassId, classSubjects, allEntries, subjects]);
 
+  const classMissingHoursMap = useMemo(() => {
+    const map: Record<number, number> = {};
+    for (const cls of classes) {
+      const required = classSubjects.filter(cs => cs.classId === cls.id);
+      const scheduled = allEntries.filter(e => e.classId === cls.id);
+      let missingHoursSum = 0;
+      
+      for (const req of required) {
+        const scheduledInSlot = scheduled.filter(e => e.subjectId === req.subjectId);
+        const scheduledCount = scheduledInSlot.reduce((sum, e) => sum + (e.weekType === "surat" || e.weekType === "mahraj" ? 0.5 : 1), 0);
+        const isSplit = !!req.teacherId2;
+        const actualScheduledCount = isSplit ? Math.floor(scheduledCount / 2) : scheduledCount;
+        
+        const missing = req.weeklyHours - actualScheduledCount;
+        if (missing > 0) {
+          missingHoursSum += missing;
+        }
+      }
+      if (missingHoursSum > 0) {
+        map[cls.id] = missingHoursSum;
+      }
+    }
+    return map;
+  }, [classes, classSubjects, allEntries]);
+
 
   // moveEntryMutation with Optimistic UI
   const moveEntryMutation = useMutation({
@@ -570,10 +644,10 @@ export default function Timetables() {
       return res.json();
     },
     onMutate: async ({ id, timeSlotId }) => {
-      await qc.cancelQueries({ queryKey: ["/api/schedule-entries", weekStart] });
-      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries", weekStart]);
+      await qc.cancelQueries({ queryKey: ["/api/schedule-entries"] });
+      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries"]);
       if (previousEntries) {
-        qc.setQueryData(["/api/schedule-entries", weekStart], 
+        qc.setQueryData(["/api/schedule-entries"],
           previousEntries.map(e => e.id === id ? { ...e, timeSlotId, isOptimistic: true } : e)
         );
       }
@@ -581,12 +655,12 @@ export default function Timetables() {
     },
     onError: (err, variables, context) => {
       if (context?.previousEntries) {
-        qc.setQueryData(["/api/schedule-entries", weekStart], context.previousEntries);
+        qc.setQueryData(["/api/schedule-entries"], context.previousEntries);
       }
       toast({ title: "Xatolik", description: "Darsni ko'chirib bo'lmadi", variant: "destructive" });
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["/api/schedule-entries", weekStart] });
+      qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
       qc.invalidateQueries({ queryKey: ["/api/schedule-conflicts"] });
     },
   });
@@ -662,12 +736,23 @@ export default function Timetables() {
         // Check conflicts
         const existingInSlot = allEntries.filter(e => e.timeSlotId === slotId && e.classId === classId);
         
+        let targetWeekType = "always";
+
         if (existingInSlot.length > 0) {
-          const target = existingInSlot[0];
-          // Valid split: same subject, different teacher
-          const isValidSplit = target.subjectId === subjectId && teacherId2 && target.teacherId !== teacherId && target.teacherId !== teacherId2;
+          const hasAlways = existingInSlot.some(e => e.weekType === "always");
+          const isFullAlternate = existingInSlot.length >= 2;
           
-          if (!isValidSplit) {
+          if (hasAlways || isFullAlternate) {
+            toast({ title: "Bu uyada allaqachon dars bor", variant: "destructive" });
+            return;
+          }
+
+          const target = existingInSlot[0];
+          if (target.weekType === "surat") {
+            targetWeekType = "mahraj";
+          } else if (target.weekType === "mahraj") {
+            targetWeekType = "surat";
+          } else {
             toast({ title: "Bu uyada allaqachon dars bor", variant: "destructive" });
             return;
           }
@@ -675,7 +760,12 @@ export default function Timetables() {
 
         // Teacher conflict check
         if (teacherId) {
-          const teacherConflict = allEntries.find(e => e.timeSlotId === slotId && e.teacherId === teacherId && e.classId !== classId);
+          const teacherConflict = allEntries.find(e => 
+            e.timeSlotId === slotId && 
+            e.teacherId === teacherId && 
+            e.classId !== classId &&
+            (e.weekType === "always" || targetWeekType === "always" || e.weekType === targetWeekType)
+          );
           if (teacherConflict) {
             toast({ title: "O'qituvchi bu vaqtda boshqa sinfda", variant: "destructive" });
             return;
@@ -688,7 +778,9 @@ export default function Timetables() {
         }
 
         // Find available room
-        const roomsInUse = allEntries.filter(e => e.timeSlotId === slotId).map(e => e.roomId);
+        const roomsInUse = allEntries
+          .filter(e => e.timeSlotId === slotId && (e.weekType === "always" || targetWeekType === "always" || e.weekType === targetWeekType))
+          .map(e => e.roomId);
         const availableRoom = rooms.find(r => !roomsInUse.includes(r.id));
         
         if (!availableRoom) {
@@ -703,7 +795,7 @@ export default function Timetables() {
           teacherId: teacherId || 0,
           roomId: availableRoom.id,
           timeSlotId: slotId,
-          weekStartDate: new Date(weekStart)
+          weekType: targetWeekType,
         });
         return;
       }
@@ -715,11 +807,29 @@ export default function Timetables() {
       if (!isNaN(entryId) && !isNaN(slotId)) {
         const draggedEntry = allEntries.find(e => e.id === entryId);
 
+        // If dropping onto the SAME slot and it is an alternating week entry, toggle its weekType!
+        if (draggedEntry && draggedEntry.timeSlotId === slotId && draggedEntry.weekType !== "always") {
+          const newWeekType = draggedEntry.weekType === "surat" ? "mahraj" : "surat";
+          updateEntryMutation.mutate({
+            id: entryId,
+            data: {
+              subjectId: draggedEntry.subjectId,
+              teacherId: draggedEntry.teacherId,
+              roomId: draggedEntry.roomId,
+              weekType: newWeekType
+            }
+          });
+          toast({ title: newWeekType === "surat" ? "Dars Suratga o'tkazildi" : "Dars Mahrajga o'tkazildi" });
+          return;
+        }
+
         const teacherConflict = allEntries.find(e => 
           e.timeSlotId === slotId && 
           e.teacherId === draggedEntry?.teacherId && 
           e.classId !== draggedEntry?.classId &&
-          e.id !== entryId
+          e.id !== entryId &&
+          draggedEntry &&
+          (e.weekType === "always" || draggedEntry.weekType === "always" || e.weekType === draggedEntry.weekType)
         );
 
         if (teacherConflict) {
@@ -739,11 +849,14 @@ export default function Timetables() {
 
         if (existingEntriesInSlot.length > 0 && draggedEntry) {
           const target = existingEntriesInSlot[0];
-          const isValidSplit = target.subjectId === draggedEntry.subjectId && target.teacherId !== draggedEntry.teacherId;
+          const isOverlap = target.weekType === "always" || draggedEntry.weekType === "always" || target.weekType === draggedEntry.weekType;
           
-          if (!isValidSplit) {
-            shouldReplace = true;
-            entryToReplaceId = target.id;
+          if (isOverlap) {
+            const isValidSplit = target.subjectId === draggedEntry.subjectId && target.teacherId !== draggedEntry.teacherId;
+            if (!isValidSplit) {
+              shouldReplace = true;
+              entryToReplaceId = target.id;
+            }
           }
         }
 
@@ -815,18 +928,35 @@ export default function Timetables() {
       // Place new subject
       const existingInSlot = allEntries.filter(e => e.timeSlotId === slotId && e.classId === classId);
       
+      let targetWeekType = "always";
+
       if (existingInSlot.length > 0) {
-        const target = existingInSlot[0];
-        const isValidSplit = target.subjectId === subjectId && teacherId2 && target.teacherId !== teacherId && target.teacherId !== teacherId2;
+        const hasAlways = existingInSlot.some(e => e.weekType === "always");
+        const isFullAlternate = existingInSlot.length >= 2;
         
-        if (!isValidSplit) {
+        if (hasAlways || isFullAlternate) {
+          toast({ title: "Bu uyada allaqachon dars bor", variant: "destructive" });
+          return;
+        }
+
+        const target = existingInSlot[0];
+        if (target.weekType === "surat") {
+          targetWeekType = "mahraj";
+        } else if (target.weekType === "mahraj") {
+          targetWeekType = "surat";
+        } else {
           toast({ title: "Bu uyada allaqachon dars bor", variant: "destructive" });
           return;
         }
       }
 
       if (teacherId) {
-        const teacherConflict = allEntries.find(e => e.timeSlotId === slotId && e.teacherId === teacherId && e.classId !== classId);
+        const teacherConflict = allEntries.find(e => 
+          e.timeSlotId === slotId && 
+          e.teacherId === teacherId && 
+          e.classId !== classId &&
+          (e.weekType === "always" || targetWeekType === "always" || e.weekType === targetWeekType)
+        );
         if (teacherConflict) {
           toast({ title: "O'qituvchi bu vaqtda boshqa sinfda", variant: "destructive" });
           return;
@@ -838,7 +968,9 @@ export default function Timetables() {
         }
       }
 
-      const roomsInUse = allEntries.filter(e => e.timeSlotId === slotId).map(e => e.roomId);
+      const roomsInUse = allEntries
+        .filter(e => e.timeSlotId === slotId && (e.weekType === "always" || targetWeekType === "always" || e.weekType === targetWeekType))
+        .map(e => e.roomId);
       const availableRoom = rooms.find(r => !roomsInUse.includes(r.id));
       
       if (!availableRoom) {
@@ -852,7 +984,7 @@ export default function Timetables() {
         teacherId: teacherId || 0,
         roomId: availableRoom.id,
         timeSlotId: slotId,
-        weekStartDate: new Date(weekStart)
+        weekType: targetWeekType,
       });
     }
 
@@ -917,7 +1049,7 @@ export default function Timetables() {
   const generateMutation = useMutation({
     mutationFn: async ({ classIds }: { classIds?: number[] }) => {
       const res = await apiRequest("POST", "/api/generate-schedule", {
-        weekStart, classIds: classIds || [], clearExisting
+        classIds: classIds || [], clearExisting
       });
       return res.json();
     },
@@ -934,7 +1066,7 @@ export default function Timetables() {
 
   const clearMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("DELETE", `/api/schedule-entries?weekStart=${weekStart}`);
+      await apiRequest("DELETE", "/api/schedule-entries");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
@@ -949,31 +1081,51 @@ export default function Timetables() {
       await apiRequest("DELETE", `/api/schedule-entries/${id}`);
     },
     onMutate: async (id: number) => {
-      await qc.cancelQueries({ queryKey: ["/api/schedule-entries", weekStart] });
-      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries", weekStart]);
+      await qc.cancelQueries({ queryKey: ["/api/schedule-entries"] });
+      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries"]);
       if (previousEntries) {
-        qc.setQueryData(["/api/schedule-entries", weekStart], previousEntries.filter(e => e.id !== id));
+        qc.setQueryData(["/api/schedule-entries"], previousEntries.filter(e => e.id !== id));
       }
       return { previousEntries };
     },
     onError: (err, id, context) => {
       if (context?.previousEntries) {
-        qc.setQueryData(["/api/schedule-entries", weekStart], context.previousEntries);
+        qc.setQueryData(["/api/schedule-entries"], context.previousEntries);
       }
       toast({ title: "Xatolik", description: "Darsni o'chirib bo'lmadi", variant: "destructive" });
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["/api/schedule-entries", weekStart] });
+      qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
       qc.invalidateQueries({ queryKey: ["/api/schedule-conflicts"] });
     },
   });
 
   const updateEntryMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      await apiRequest("PATCH", `/api/schedule-entries/${id}`, data);
+      const res = await apiRequest("PATCH", `/api/schedule-entries/${id}`, data);
+      return res.json();
+    },
+    onMutate: async ({ id, data }) => {
+      await qc.cancelQueries({ queryKey: ["/api/schedule-entries"] });
+      const previousEntries = qc.getQueryData<ScheduleEntry[]>(["/api/schedule-entries"]);
+      if (previousEntries) {
+        qc.setQueryData(["/api/schedule-entries"],
+          previousEntries.map(e => e.id === id ? { ...e, ...data, isOptimistic: true } : e)
+        );
+      }
+      return { previousEntries };
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousEntries) {
+        qc.setQueryData(["/api/schedule-entries"], context.previousEntries);
+      }
+      toast({ title: "Xatolik", description: "Darsni yangilab bo'lmadi", variant: "destructive" });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
+      qc.invalidateQueries({ queryKey: ["/api/schedule-conflicts"] });
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
       setEditEntry(null);
       toast({ title: "Dars yangilandi" });
     },
@@ -982,10 +1134,10 @@ export default function Timetables() {
   const handleExportPDF = () => {
     const doc = new jsPDF({ orientation: "landscape" });
     const tableData: any[][] = [];
-    const headers = ["Dars", ...DAYS];
+    const headers = ["Dars", ...daysToRender];
     periods.forEach((period, pi) => {
       const row = [`${pi + 1}-dars\n${period.startTime?.slice(0, 5)}–${period.endTime?.slice(0, 5)}`];
-      DAYS.forEach((_, dayIdx) => {
+      daysToRender.forEach((_, dayIdx) => {
         const slot = slotMap.get(`${dayIdx + 1}_${period.periodNumber}`);
         const slotEntries = slot ? entryBySlot.get(slot.id) || [] : [];
         const cellText = slotEntries.map(e => {
@@ -1004,7 +1156,7 @@ export default function Timetables() {
     doc.setFontSize(16);
     doc.text(title, 14, 15);
     doc.setFontSize(10);
-    doc.text(`Hafta: ${weekLabel(monday)}`, 14, 22);
+    doc.text("Haftalik dars jadvali", 14, 22);
     autoTable(doc, {
       head: [headers],
       body: tableData,
@@ -1077,20 +1229,20 @@ export default function Timetables() {
         bySlot.set(e.timeSlotId, arr);
       }
 
-      const colCount = DAYS.length + 1;                     // 1 time-col + 5 days = 6
+      const colCount = daysToRender.length + 1;                     // 1 time-col + days count
       const totalRows = 4 + periods.length;                  // rows 0-3 are header blocks
 
       // Build text grid (array of arrays)
       const grid: string[][] = [];
       grid.push([schoolName]);                                          // row 0
       grid.push([spec.title]);                                          // row 1
-      grid.push([`Hafta: ${weekLabel(monday)}`]);                       // row 2
+      grid.push(["Haftalik dars jadvali"]);                       // row 2
       grid.push([]);                                                    // row 3 (spacer)
-      grid.push(["Dars vaqti", ...DAYS]);                               // row 4 (column headers)
+      grid.push(["Dars vaqti", ...daysToRender]);                               // row 4 (column headers)
 
       periods.forEach((period, pi) => {
         const row = [`${pi + 1}-dars\n${period.startTime?.slice(0, 5)}–${period.endTime?.slice(0, 5)}`];
-        DAYS.forEach((_, dayIdx) => {
+        daysToRender.forEach((_, dayIdx) => {
           const slot = slotMap.get(`${dayIdx + 1}_${period.periodNumber}`);
           const slotEntries = slot ? bySlot.get(slot.id) || [] : [];
           const parts: string[] = [];
@@ -1130,7 +1282,7 @@ export default function Timetables() {
       // --- Column widths & row heights ---
       ws["!cols"] = [
         { wch: 18 },             // time column
-        ...DAYS.map(() => ({ wch: 24 })),
+        ...daysToRender.map(() => ({ wch: 24 })),
       ];
       ws["!rows"] = Array.from({ length: totalRows }, (_, i) => {
         if (i === 0) return { hpt: 32 };            // school name
@@ -1316,7 +1468,7 @@ export default function Timetables() {
     const wb = XLSX.utils.book_new();
     wb.Props = {
       Title:  viewMode === "class" ? "Sinf dars jadvali" : "O'qituvchi dars jadvali",
-      Subject: `${weekLabel(monday)}`,
+      Subject: "Haftalik dars jadvali",
       CreatedDate: new Date(),
     };
 
@@ -1326,7 +1478,7 @@ export default function Timetables() {
     }
 
     // --- Filename ---
-    const dateStr = monday.toISOString().slice(0, 10);
+    const dateStr = new Date().toISOString().slice(0, 10);
     const fileName = viewMode === "class"
       ? (selectedClassId === "all"
         ? `barcha_sinflar_dars_jadvali_${dateStr}.xlsx`
@@ -1483,23 +1635,10 @@ export default function Timetables() {
         <CardHeader className="pb-2 pt-3">
           {/* Row 1: Week nav + View toggle + Conflicts */}
           <div className="flex items-center justify-between gap-2">
-            {/* Week nav */}
-            <div className="flex items-center space-x-1">
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setWeekOffset(w => w - 1)}>
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-              <div className="flex items-center space-x-1.5 px-1.5">
-                <Clock className="h-3.5 w-3.5 text-blue-600" />
-                <span className="text-xs font-semibold text-gray-900">{weekLabel(monday)}</span>
-              </div>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setWeekOffset(w => w + 1)}>
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
-              {weekOffset !== 0 && (
-                <Button variant="ghost" size="sm" className="text-[10px] h-6 px-2 text-blue-600" onClick={() => setWeekOffset(0)}>
-                  Bugun
-                </Button>
-              )}
+            {/* Title */}
+            <div className="flex items-center space-x-2">
+              <Clock className="h-4 w-4 text-blue-600 animate-pulse" />
+              <span className="text-sm font-semibold text-gray-900">Maktab haftalik dars jadvali</span>
             </div>
 
             {/* View mode toggle */}
@@ -1576,15 +1715,31 @@ export default function Timetables() {
                 >
                   Barchasi
                 </button>
-                {classes.map(cls => (
-                  <button
-                    key={cls.id}
-                    onClick={() => setSelectedClassId(cls.id)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${selectedClassId === cls.id ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
-                  >
-                    {cls.name}
-                  </button>
-                ))}
+                {classes.map(cls => {
+                  const missingHours = classMissingHoursMap[cls.id] || 0;
+                  return (
+                    <button
+                      key={cls.id}
+                      onClick={() => setSelectedClassId(cls.id)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors whitespace-nowrap flex-shrink-0 flex items-center gap-1.5 ${
+                        selectedClassId === cls.id 
+                          ? "bg-blue-600 text-white" 
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      <span>{cls.name}</span>
+                      {missingHours > 0 && (
+                        <span className={`inline-flex items-center justify-center px-1 text-[8px] font-bold rounded-full min-w-[14px] h-3.5 ${
+                          selectedClassId === cls.id 
+                            ? "bg-white text-blue-600" 
+                            : "bg-red-500 text-white shadow-sm"
+                        }`}>
+                          {missingHours}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="flex items-center space-x-2 flex-1">
@@ -1757,14 +1912,9 @@ export default function Timetables() {
                   <thead>
                     <tr>
                       <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-gray-500 w-20">Dars</th>
-                      {DAYS.map((day, i) => (
-                        <th key={day} className="text-center py-1.5 px-1 text-[10px] font-semibold text-gray-700 w-1/5">
+                      {daysToRender.map((day, i) => (
+                        <th key={day} style={{ width: `${100 / daysToRender.length}%` }} className="text-center py-1.5 px-1 text-[10px] font-semibold text-gray-700">
                           <div>{day}</div>
-                          <div className="text-gray-400 font-normal text-[9px]">{(() => {
-                            const d = new Date(monday);
-                            d.setDate(monday.getDate() + i);
-                            return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
-                          })()}</div>
                         </th>
                       ))}
                     </tr>
@@ -1772,16 +1922,18 @@ export default function Timetables() {
                   <tbody>
                     {periods.map((period, pi) => (
                       <tr key={period.id} className={pi % 2 === 0 ? "bg-gray-50/50" : "bg-white"}>
-                        <td className="py-1 px-2">
-                          <div className="text-[10px] font-semibold text-gray-700">{pi + 1}-dars</div>
-                          <div className="text-[9px] text-gray-400 font-mono">
-                            {period.startTime?.slice(0, 5)}–{period.endTime?.slice(0, 5)}
+                        <td className="py-1 px-2 align-middle" style={{ height: "58px" }}>
+                          <div className="flex flex-col justify-center h-full">
+                            <div className="text-[10px] font-semibold text-gray-700">{pi + 1}-dars</div>
+                            <div className="text-[9px] text-gray-400 font-mono">
+                              {period.startTime?.slice(0, 5)}–{period.endTime?.slice(0, 5)}
+                            </div>
                           </div>
                         </td>
-                        {DAYS.map((_, dayIdx) => {
+                        {daysToRender.map((_, dayIdx) => {
                           const dayNum = dayIdx + 1;
                           const slot = slotMap.get(`${dayNum}_${period.periodNumber}`);
-                          if (!slot) return <td key={dayIdx} className="py-1 px-1" />;
+                          if (!slot) return <td key={dayIdx} className="py-1 px-1" style={{ height: "58px" }} />;
                           const slotEntries = entryBySlot.get(slot.id) || [];
 
                           return (
@@ -1791,43 +1943,130 @@ export default function Timetables() {
                               status={getSlotStatus(slot.id)}
                               onClick={() => handleCellClick(slot.id)}
                             >
-                              {slotEntries.map(entry => {
-                                const sub = getSubject(entry.subjectId);
-                                const room = getRoom(entry.roomId);
-                                
-                                return (
-                                  <DraggableEntry
-                                    key={entry.id}
-                                    entry={entry}
-                                    subject={sub}
-                                    room={room}
-                                    teacherName={teacherShortName(entry.teacherId)}
-                                    className={classNameById(entry.classId)}
-                                    viewMode={viewMode}
-                                    showAllClasses={showAllClasses}
-                                    isOptimistic={(entry as any).isOptimistic}
-                                    isSelected={selectedSubjectToPlace?.sourceEntryId === entry.id}
-                                    isHoldingSubject={!!selectedSubjectToPlace}
-                                    onMoveSelect={() => {
-                                      if (selectedSubjectToPlace?.sourceEntryId === entry.id) {
-                                        setSelectedSubjectToPlace(null);
-                                      } else {
-                                        setSelectedSubjectToPlace({
-                                          subjectId: entry.subjectId,
-                                          teacherId: entry.teacherId,
-                                          classId: entry.classId,
-                                          sourceEntryId: entry.id
+                              {(() => {
+                                // Sort entries so "surat" is first (on top) and "mahraj" is second (on bottom)
+                                const sortedEntries = [...slotEntries].sort((a, b) => {
+                                  if (a.weekType === "surat" && b.weekType === "mahraj") return -1;
+                                  if (a.weekType === "mahraj" && b.weekType === "surat") return 1;
+                                  return 0;
+                                });
+
+                                // Check if we have alternating week entries
+                                const hasSurat = sortedEntries.some(e => e.weekType === "surat");
+                                const hasMahraj = sortedEntries.some(e => e.weekType === "mahraj");
+
+                                if (sortedEntries.length === 1 && (hasSurat || hasMahraj)) {
+                                  // Only one alternating week entry exists
+                                  const entry = sortedEntries[0];
+                                  const sub = getSubject(entry.subjectId);
+                                  const room = getRoom(entry.roomId);
+                                  const card = (
+                                    <DraggableEntry
+                                      key={entry.id}
+                                      entry={entry}
+                                      subject={sub}
+                                      room={room}
+                                      teacherName={teacherShortName(entry.teacherId)}
+                                      className={classNameById(entry.classId)}
+                                      viewMode={viewMode}
+                                      showAllClasses={showAllClasses}
+                                      isOptimistic={(entry as any).isOptimistic}
+                                      isSelected={selectedSubjectToPlace?.sourceEntryId === entry.id}
+                                      isHoldingSubject={!!selectedSubjectToPlace}
+                                      isCompact={true}
+                                      onToggleWeekType={() => {
+                                        const newWeekType = entry.weekType === "surat" ? "mahraj" : "surat";
+                                        updateEntryMutation.mutate({
+                                          id: entry.id,
+                                          data: {
+                                            subjectId: entry.subjectId,
+                                            teacherId: entry.teacherId,
+                                            roomId: entry.roomId,
+                                            weekType: newWeekType
+                                          }
                                         });
-                                      }
-                                    }}
-                                    onEdit={() => {
-                                      setEditEntry(entry);
-                                      setEditForm({ subjectId: entry.subjectId, teacherId: entry.teacherId, roomId: entry.roomId });
-                                    }}
-                                    onDelete={() => deleteEntryMutation.mutate(entry.id)}
-                                  />
-                                );
-                              })}
+                                      }}
+                                      onMoveSelect={() => {
+                                        if (selectedSubjectToPlace?.sourceEntryId === entry.id) {
+                                          setSelectedSubjectToPlace(null);
+                                        } else {
+                                          setSelectedSubjectToPlace({
+                                            subjectId: entry.subjectId,
+                                            teacherId: entry.teacherId,
+                                            classId: entry.classId,
+                                            sourceEntryId: entry.id
+                                          });
+                                        }
+                                      }}
+                                      onEdit={() => {
+                                        setEditEntry(entry);
+                                        setEditForm({ subjectId: entry.subjectId, teacherId: entry.teacherId, roomId: entry.roomId, weekType: entry.weekType });
+                                      }}
+                                      onDelete={() => deleteEntryMutation.mutate(entry.id)}
+                                    />
+                                  );
+
+                                  const spacer = <div key="spacer" className="flex-1" />;
+
+                                  if (entry.weekType === "surat") {
+                                    return [card, spacer];
+                                  } else {
+                                    return [spacer, card];
+                                  }
+                                }
+
+                                return sortedEntries.map(entry => {
+                                  const sub = getSubject(entry.subjectId);
+                                  const room = getRoom(entry.roomId);
+                                  
+                                  return (
+                                    <DraggableEntry
+                                      key={entry.id}
+                                      entry={entry}
+                                      subject={sub}
+                                      room={room}
+                                      teacherName={teacherShortName(entry.teacherId)}
+                                      className={classNameById(entry.classId)}
+                                      viewMode={viewMode}
+                                      showAllClasses={showAllClasses}
+                                      isOptimistic={(entry as any).isOptimistic}
+                                      isSelected={selectedSubjectToPlace?.sourceEntryId === entry.id}
+                                      isHoldingSubject={!!selectedSubjectToPlace}
+                                      isCompact={true}
+                                      onToggleWeekType={() => {
+                                        if (entry.weekType === "always") return;
+                                        const newWeekType = entry.weekType === "surat" ? "mahraj" : "surat";
+                                        updateEntryMutation.mutate({
+                                          id: entry.id,
+                                          data: {
+                                            subjectId: entry.subjectId,
+                                            teacherId: entry.teacherId,
+                                            roomId: entry.roomId,
+                                            weekType: newWeekType
+                                          }
+                                        });
+                                      }}
+                                      onMoveSelect={() => {
+                                        if (selectedSubjectToPlace?.sourceEntryId === entry.id) {
+                                          setSelectedSubjectToPlace(null);
+                                        } else {
+                                          setSelectedSubjectToPlace({
+                                            subjectId: entry.subjectId,
+                                            teacherId: entry.teacherId,
+                                            classId: entry.classId,
+                                            sourceEntryId: entry.id
+                                          });
+                                        }
+                                      }}
+                                      onEdit={() => {
+                                        setEditEntry(entry);
+                                        setEditForm({ subjectId: entry.subjectId, teacherId: entry.teacherId, roomId: entry.roomId, weekType: entry.weekType });
+                                      }}
+                                      onDelete={() => deleteEntryMutation.mutate(entry.id)}
+                                    />
+                                  );
+                                });
+                              })()}
                             </DroppableCell>
                           );
                         })}
@@ -1847,6 +2086,7 @@ export default function Timetables() {
                       viewMode={viewMode}
                       showAllClasses={showAllClasses}
                       isOverlay
+                      isCompact={true}
                     />
                   ) : activeDragNewSubject ? (
                     <div
@@ -1912,6 +2152,17 @@ export default function Timetables() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {rooms.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name} ({r.roomNumber})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Dars turi</label>
+                <Select value={editForm.weekType} onValueChange={v => setEditForm(p => p ? { ...p, weekType: v } : p)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="always">Doimiy (Har hafta)</SelectItem>
+                    <SelectItem value="surat">Surat (Toq hafta)</SelectItem>
+                    <SelectItem value="mahraj">Mahraj (Juft hafta)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

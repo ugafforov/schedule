@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { insertSubjectSchema, subjects } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware } from "../middleware/auth";
+import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 
 export const subjectRoutes = new Hono()
@@ -37,7 +38,7 @@ export const subjectRoutes = new Hono()
   })
 
   // Bulk create
-  .post("/bulk", async (c) => {
+  .post("/bulk", strictRateLimit, async (c) => {
     const { subjects: items } = await c.req.json();
     if (!Array.isArray(items) || items.length === 0) {
       return c.json({ message: "Fanlar ro'yxati bo'sh" }, 400);
@@ -53,7 +54,7 @@ export const subjectRoutes = new Hono()
   })
 
   // Clear all (soft delete)
-  .post("/clear-all", async (c) => {
+  .post("/clear-all", strictRateLimit, async (c) => {
     await db.update(subjects).set({ isActive: false });
     return c.json({ message: "Barcha fanlar muvaffaqiyatli tozalandi" });
   });

@@ -9,15 +9,20 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+// SSL sozlamalari — environment orqali boshqarish.
+// Supabase pooler uchun "rejectUnauthorized: false" kerak (CA cert muammosi).
+// Productionda (o'z serveringizda) "true" ishlatilsin — MITM ximoyasi.
+const dbSsl = process.env.DB_SSL === "disable"
+  ? false
+  : { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false" };
+
 // Pool sozlamalari - retry va timeout bilan
 export const pool = new Pool({ 
   connectionString: process.env.DATABASE_URL,
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
-  ssl: {
-    rejectUnauthorized: false // Supabase uchun ko'pincha kerak
-  }
+  ssl: dbSsl,
 });
 
 // Connection error handling

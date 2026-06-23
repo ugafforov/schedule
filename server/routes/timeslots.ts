@@ -4,8 +4,8 @@ import { storage } from "../storage/index";
 import { authMiddleware } from "../middleware/auth";
 import { ensureTimeSlots, saveTimeSlotsFromRows } from "../services/schedule.service";
 
-const DAYS = [1, 2, 3, 4, 5];
-const DAY_NAMES = ["", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma"];
+const DAYS = [1, 2, 3, 4, 5, 6];
+const DAY_NAMES = ["", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
 
 export const timeslotRoutes = new Hono()
   .use(authMiddleware)

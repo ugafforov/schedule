@@ -3,11 +3,12 @@ import { z } from "zod";
 import { insertTeacherSchema, teacherSubjects, classSubjects, teachers } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware } from "../middleware/auth";
+import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 import { eq, and, sql } from "drizzle-orm";
 import { autoGenerateTeachers, autoDistributeAll } from "../services/teacher.service";
 import { getSpecialty } from "../services/curriculum.service";
-import { UZBEK_CURRICULUM } from "@shared/curriculum";
+import { UZBEK_CURRICULUM, RUSSIAN_CURRICULUM } from "@shared/curriculum";
 
 // Bulk teacher validation schema
 const bulkTeacherSchema = z.object({
@@ -111,7 +112,9 @@ const getTeacherRecommendationLogic = async () => {
   }>();
 
   for (const cls of allClasses) {
-    const gradeRequirements = UZBEK_CURRICULUM[String(cls.grade)] || {};
+    const classLang = (cls as any).language || "uz";
+    const curriculum = classLang === "ru" ? RUSSIAN_CURRICULUM : UZBEK_CURRICULUM;
+    const gradeRequirements = curriculum[String(cls.grade)] || {};
     const dtsSubjects = Object.keys(gradeRequirements);
     const subjectsToAnalyze = new Set([
       ...dtsSubjects,
@@ -123,7 +126,7 @@ const getTeacherRecommendationLogic = async () => {
 
     for (const subName of Array.from(subjectsToAnalyze)) {
       const subject = allSubjects.find((s) => s.name.toLowerCase() === subName.toLowerCase());
-      const specialty = getSpecialty(subName, String(cls.grade));
+      const specialty = getSpecialty(subName, String(cls.grade), classLang);
       const hours =
         (gradeRequirements as any)[subName] ||
         allClassSubjects.find((cs) => cs.classId === cls.id && cs.subjectId === subject?.id)?.weeklyHours ||
@@ -279,7 +282,7 @@ export const teacherRoutes = new Hono()
   })
 
   // Clear all (soft delete)
-  .post("/clear-all", async (c) => {
+  .post("/clear-all", strictRateLimit, async (c) => {
     await db.update(teachers).set({ isActive: false });
     return c.json({ message: "Barcha o'qituvchilar muvaffaqiyatli tozalandi" });
   })
@@ -323,7 +326,7 @@ export const teacherRoutes = new Hono()
   })
 
   // Bulk save
-  .post("/bulk-save", async (c) => {
+  .post("/bulk-save", strictRateLimit, async (c) => {
     const body = await c.req.json();
     const validation = bulkTeacherSchema.safeParse(body);
     if (!validation.success) {
@@ -364,7 +367,7 @@ export const teacherRoutes = new Hono()
   })
 
   // Auto generate
-  .post("/auto-generate", async (c) => {
+  .post("/auto-generate", strictRateLimit, async (c) => {
     const result = await autoGenerateTeachers();
     return c.json(result, 201);
   })

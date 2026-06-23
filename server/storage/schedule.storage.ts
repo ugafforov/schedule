@@ -11,16 +11,11 @@ export class ScheduleStorage {
     return db.select().from(scheduleEntries)
       .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.classId, classId)));
   }
-  async getScheduleEntriesForWeek(weekStart: Date): Promise<ScheduleEntry[]> {
-    return db.select().from(scheduleEntries)
-      .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.weekStartDate, weekStart)));
-  }
-  async getScheduleEntriesByTeacher(teacherId: number, weekStart: Date): Promise<ScheduleEntry[]> {
+  async getScheduleEntriesByTeacher(teacherId: number): Promise<ScheduleEntry[]> {
     return db.select().from(scheduleEntries)
       .where(and(
         eq(scheduleEntries.isActive, true),
-        eq(scheduleEntries.teacherId, teacherId),
-        eq(scheduleEntries.weekStartDate, weekStart)
+        eq(scheduleEntries.teacherId, teacherId)
       ));
   }
   async createScheduleEntry(data: InsertScheduleEntry): Promise<ScheduleEntry> {
@@ -42,10 +37,10 @@ export class ScheduleStorage {
   async deleteAllScheduleEntries(): Promise<void> {
     await db.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.isActive, true));
   }
-  async clearScheduleForWeek(weekStart: Date): Promise<void> {
+  async clearScheduleForClass(classId: number): Promise<void> {
     await db.update(scheduleEntries)
       .set({ isActive: false })
-      .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.weekStartDate, weekStart)));
+      .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.classId, classId)));
   }
 
   // Conflicts
@@ -70,8 +65,10 @@ export class ScheduleStorage {
     const [tch] = await db.select({ count: count() }).from(teachers).where(eq(teachers.isActive, true));
     const [sub] = await db.select({ count: count() }).from(subjects).where(eq(subjects.isActive, true));
     const [rm] = await db.select({ count: count() }).from(rooms).where(eq(rooms.isActive, true));
+
     const [sch] = await db.select({ count: count() }).from(scheduleEntries).where(eq(scheduleEntries.isActive, true));
     const [cf] = await db.select({ count: count() }).from(scheduleConflicts).where(eq(scheduleConflicts.isResolved, false));
+
     return {
       totalClasses: Number(cls?.count || 0),
       totalTeachers: Number(tch?.count || 0),

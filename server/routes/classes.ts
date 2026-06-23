@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { insertClassSchema, classes } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware } from "../middleware/auth";
+import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 import { autoDistributeAll } from "../services/teacher.service";
 
@@ -19,6 +20,7 @@ export const classRoutes = new Hono()
       section: body.section || null,
       language: body.language || "uz",
       totalStudents: body.totalStudents || 25,
+      studyDays: body.studyDays || "1,2,3,4,5",
       isActive: true,
     });
     const cls = await storage.createClass(data);
@@ -46,7 +48,7 @@ export const classRoutes = new Hono()
   })
 
   // Bulk create
-  .post("/bulk", async (c) => {
+  .post("/bulk", strictRateLimit, async (c) => {
     const { classes: items } = await c.req.json();
     if (!Array.isArray(items) || items.length === 0) {
       return c.json({ message: "Sinflar ro'yxati bo'sh" }, 400);
@@ -60,6 +62,7 @@ export const classRoutes = new Hono()
         section: item.section || null,
         language: item.language || "uz",
         totalStudents: item.totalStudents || 25, 
+        studyDays: item.studyDays || "1,2,3,4,5",
         isActive: true,
       });
       created.push(await storage.createClass(data));
@@ -67,8 +70,22 @@ export const classRoutes = new Hono()
     return c.json(created, 201);
   })
 
+  // Bulk update study days
+  .post("/bulk-update-study-days", strictRateLimit, async (c) => {
+    const { classIds, studyDays } = await c.req.json();
+    if (!Array.isArray(classIds) || classIds.length === 0) {
+      return c.json({ message: "Sinflar ro'yxati bo'sh" }, 400);
+    }
+    const updated = [];
+    for (const id of classIds) {
+      const result = await storage.updateClass(id, { studyDays });
+      if (result) updated.push(result);
+    }
+    return c.json(updated);
+  })
+
   // Clear all
-  .post("/clear-all", async (c) => {
+  .post("/clear-all", strictRateLimit, async (c) => {
     await db.update(classes).set({ isActive: false });
     return c.json({ message: "Barcha sinflar muvaffaqiyatli tozalandi" });
   })

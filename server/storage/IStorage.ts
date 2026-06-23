@@ -60,14 +60,13 @@ export interface IStorage {
 
   getScheduleEntries(): Promise<ScheduleEntry[]>;
   getScheduleEntriesByClass(classId: number): Promise<ScheduleEntry[]>;
-  getScheduleEntriesForWeek(weekStart: Date): Promise<ScheduleEntry[]>;
-  getScheduleEntriesByTeacher(teacherId: number, weekStart: Date): Promise<ScheduleEntry[]>;
+  getScheduleEntriesByTeacher(teacherId: number): Promise<ScheduleEntry[]>;
   createScheduleEntry(data: InsertScheduleEntry): Promise<ScheduleEntry>;
   createScheduleEntriesBulk(data: InsertScheduleEntry[]): Promise<ScheduleEntry[]>;
   updateScheduleEntry(id: number, data: Partial<InsertScheduleEntry>): Promise<ScheduleEntry | undefined>;
   deleteScheduleEntry(id: number): Promise<boolean>;
   deleteAllScheduleEntries(): Promise<void>;
-  clearScheduleForWeek(weekStart: Date): Promise<void>;
+  clearScheduleForClass(classId: number): Promise<void>;
 
   getUnresolvedConflicts(): Promise<ScheduleConflict[]>;
   createConflict(data: InsertScheduleConflict): Promise<ScheduleConflict>;

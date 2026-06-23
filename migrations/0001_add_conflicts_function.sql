@@ -13,7 +13,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   -- Clear all unresolved conflicts first
-  DELETE FROM schedule_conflicts WHERE is_resolved = false;
+  DELETE FROM schedule_conflicts WHERE schedule_conflicts.is_resolved = false;
 
   -- 1. Detect Teacher Conflicts
   INSERT INTO schedule_conflicts (conflict_type, description, schedule_entry_1_id, schedule_entry_2_id, severity, is_resolved)
@@ -25,10 +25,10 @@ BEGIN
     'high' AS severity,
     false AS is_resolved
   FROM schedule_entries se1
-  JOIN schedule_entries se2 ON se1.teacher_id = se2.teacher_id 
-    AND se1.time_slot_id = se2.time_slot_id 
-    AND se1.week_start_date = se2.week_start_date
+  JOIN schedule_entries se2 ON se1.teacher_id = se2.teacher_id
+    AND se1.time_slot_id = se2.time_slot_id
     AND se1.id < se2.id
+    AND (se1.week_type = 'always' OR se2.week_type = 'always' OR se1.week_type = se2.week_type)
   JOIN teachers t ON se1.teacher_id = t.id
   JOIN classes c1 ON se1.class_id = c1.id
   JOIN classes c2 ON se2.class_id = c2.id
@@ -44,10 +44,10 @@ BEGIN
     'medium' AS severity,
     false AS is_resolved
   FROM schedule_entries se1
-  JOIN schedule_entries se2 ON se1.room_id = se2.room_id 
-    AND se1.time_slot_id = se2.time_slot_id 
-    AND se1.week_start_date = se2.week_start_date
+  JOIN schedule_entries se2 ON se1.room_id = se2.room_id
+    AND se1.time_slot_id = se2.time_slot_id
     AND se1.id < se2.id
+    AND (se1.week_type = 'always' OR se2.week_type = 'always' OR se1.week_type = se2.week_type)
   JOIN rooms r ON se1.room_id = r.id
   JOIN classes c1 ON se1.class_id = c1.id
   JOIN classes c2 ON se2.class_id = c2.id
@@ -63,10 +63,10 @@ BEGIN
     'high' AS severity,
     false AS is_resolved
   FROM schedule_entries se1
-  JOIN schedule_entries se2 ON se1.class_id = se2.class_id 
-    AND se1.time_slot_id = se2.time_slot_id 
-    AND se1.week_start_date = se2.week_start_date
+  JOIN schedule_entries se2 ON se1.class_id = se2.class_id
+    AND se1.time_slot_id = se2.time_slot_id
     AND se1.id < se2.id
+    AND (se1.week_type = 'always' OR se2.week_type = 'always' OR se1.week_type = se2.week_type)
   JOIN classes c ON se1.class_id = c.id
   JOIN subjects s1 ON se1.subject_id = s1.id
   JOIN subjects s2 ON se2.subject_id = s2.id
