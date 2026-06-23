@@ -12,7 +12,7 @@ import {
   Wand2, Trash2, ChevronLeft, ChevronRight,
   AlertTriangle, CheckCircle2, Printer, Clock, RefreshCw,
   BookOpen, Users, DoorOpen, GraduationCap, UserCheck, GripVertical, FileText, FileSpreadsheet,
-  Move, Pencil
+  Move, Pencil, Link2
 } from "lucide-react";
 
 
@@ -195,6 +195,11 @@ function EntryCard({
             <span className={`${isCompact ? "text-[9px]" : "text-[10.5px]"} font-bold leading-tight truncate max-w-[70%]`} style={{ color: textColor }}>
               {subject?.name || "?"}
             </span>
+            {entry.jointLessonId && (
+              <span title="Birlashtirilgan dars">
+                <Link2 className="h-3 w-3 text-gray-500 flex-shrink-0 ml-0.5" />
+              </span>
+            )}
             {entry.weekType && entry.weekType !== "always" && (
               <span 
                 title={entry.weekType === "surat" ? "Surat (Toq hafta). Mahrajga o'tkazish uchun bosing." : "Mahraj (Juft hafta). Suratga o'tkazish uchun bosing."}
@@ -683,9 +688,20 @@ export default function Timetables() {
     }
 
     if (activeEntry) {
-      const isTeacherBusy = allEntries.some(e => e.id !== activeEntry.id && e.timeSlotId === slotId && e.teacherId === activeEntry.teacherId);
+      const isJoint = !!activeEntry.jointLessonId;
+      const isTeacherBusy = allEntries.some(e => 
+        e.id !== activeEntry.id && 
+        (!isJoint || e.jointLessonId !== activeEntry.jointLessonId) &&
+        e.timeSlotId === slotId && 
+        e.teacherId === activeEntry.teacherId
+      );
       const isTeacherUnavail = unavailSet.has(`${activeEntry.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
-      const isClassBusy = allEntries.some(e => e.id !== activeEntry.id && e.timeSlotId === slotId && e.classId === activeEntry.classId);
+      const isClassBusy = allEntries.some(e => 
+        e.id !== activeEntry.id && 
+        (!isJoint || e.jointLessonId !== activeEntry.jointLessonId) &&
+        e.timeSlotId === slotId && 
+        e.classId === activeEntry.classId
+      );
       
       if (isTeacherBusy || isTeacherUnavail || isClassBusy) return "invalid";
       return "valid";

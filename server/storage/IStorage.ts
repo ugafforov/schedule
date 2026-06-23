@@ -12,6 +12,9 @@ import {
   type AccessCode, type InsertAccessCode,
   type TeacherSubject, type InsertTeacherSubject,
   type ClassSubject, type InsertClassSubject,
+  type JointLesson, type InsertJointLesson,
+  type JointLessonClass, type InsertJointLessonClass,
+  type JointLessonGroup, type InsertJointLessonGroup,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -72,6 +75,12 @@ export interface IStorage {
   createConflict(data: InsertScheduleConflict): Promise<ScheduleConflict>;
   resolveConflict(id: number): Promise<boolean>;
   clearConflicts(): Promise<void>;
+
+  getJointLessons(): Promise<any[]>;
+  getJointLessonById(id: number): Promise<any>;
+  createJointLesson(data: { subjectId: number; weeklyHours: number; classIds: number[]; groups: Array<{ groupName: string; teacherId: number; roomId?: number | null }> }): Promise<any>;
+  updateJointLesson(id: number, data: { subjectId: number; weeklyHours: number; classIds: number[]; groups: Array<{ groupName: string; teacherId: number; roomId?: number | null }> }): Promise<any>;
+  deleteJointLesson(id: number): Promise<boolean>;
 
   getDashboardStats(): Promise<{
     totalClasses: number;

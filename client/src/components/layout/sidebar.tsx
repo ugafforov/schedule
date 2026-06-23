@@ -15,6 +15,7 @@ const navItems = [
   { href: "/darslar",        label: "Dars soatlari",  icon: Clock },
   { href: "/classes",        label: "Sinflar",        icon: GraduationCap },
   { href: "/biriktirishlar", label: "Biriktirishlar", icon: Link2 },
+  { href: "/joint-lessons",  label: "Birlashtirilgan darslar", icon: Link2 },
 ];
 
 interface SidebarProps {

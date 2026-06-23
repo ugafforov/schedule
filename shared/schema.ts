@@ -112,6 +112,37 @@ export const classSubjects = pgTable("class_subjects", {
   teacherIdIdx: index("class_subjects_teacher_id_idx").on(table.teacherId),
 }));
 
+// Joint lessons table (combined lessons metadata)
+export const jointLessons = pgTable("joint_lessons", {
+  id: serial("id").primaryKey(),
+  subjectId: integer("subject_id").references(() => subjects.id, { onDelete: "cascade" }).notNull(),
+  weeklyHours: real("weekly_hours").notNull().default(2),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Joint lesson classes junction table
+export const jointLessonClasses = pgTable("joint_lesson_classes", {
+  id: serial("id").primaryKey(),
+  jointLessonId: integer("joint_lesson_id").references(() => jointLessons.id, { onDelete: "cascade" }).notNull(),
+  classId: integer("class_id").references(() => classes.id, { onDelete: "cascade" }).notNull(),
+}, (table) => ({
+  jointLessonIdIdx: index("joint_lesson_classes_joint_lesson_id_idx").on(table.jointLessonId),
+  classIdIdx: index("joint_lesson_classes_class_id_idx").on(table.classId),
+}));
+
+// Joint lesson groups table (teacher-room division for a joint lesson)
+export const jointLessonGroups = pgTable("joint_lesson_groups", {
+  id: serial("id").primaryKey(),
+  jointLessonId: integer("joint_lesson_id").references(() => jointLessons.id, { onDelete: "cascade" }).notNull(),
+  groupName: text("group_name").notNull(),
+  teacherId: integer("teacher_id").references(() => teachers.id, { onDelete: "cascade" }).notNull(),
+  roomId: integer("room_id").references(() => rooms.id, { onDelete: "set null" }),
+}, (table) => ({
+  jointLessonIdIdx: index("joint_lesson_groups_joint_lesson_id_idx").on(table.jointLessonId),
+  teacherIdIdx: index("joint_lesson_groups_teacher_id_idx").on(table.teacherId),
+}));
+
 // Schedule entries table (main timetable)
 export const scheduleEntries = pgTable("schedule_entries", {
   id: serial("id").primaryKey(),
@@ -121,6 +152,7 @@ export const scheduleEntries = pgTable("schedule_entries", {
   roomId: integer("room_id").references(() => rooms.id).notNull(),
   timeSlotId: integer("time_slot_id").references(() => timeSlots.id).notNull(),
   weekType: text("week_type").default("always").notNull(), // 'always' | 'surat' | 'mahraj'
+  jointLessonId: integer("joint_lesson_id").references(() => jointLessons.id, { onDelete: "set null" }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
@@ -215,6 +247,25 @@ export const scheduleEntriesRelations = relations(scheduleEntries, ({ one }) => 
   teacher: one(teachers, { fields: [scheduleEntries.teacherId], references: [teachers.id] }),
   room: one(rooms, { fields: [scheduleEntries.roomId], references: [rooms.id] }),
   timeSlot: one(timeSlots, { fields: [scheduleEntries.timeSlotId], references: [timeSlots.id] }),
+  jointLesson: one(jointLessons, { fields: [scheduleEntries.jointLessonId], references: [jointLessons.id] }),
+}));
+
+export const jointLessonsRelations = relations(jointLessons, ({ one, many }) => ({
+  subject: one(subjects, { fields: [jointLessons.subjectId], references: [subjects.id] }),
+  classes: many(jointLessonClasses),
+  groups: many(jointLessonGroups),
+  scheduleEntries: many(scheduleEntries),
+}));
+
+export const jointLessonClassesRelations = relations(jointLessonClasses, ({ one }) => ({
+  jointLesson: one(jointLessons, { fields: [jointLessonClasses.jointLessonId], references: [jointLessons.id] }),
+  class: one(classes, { fields: [jointLessonClasses.classId], references: [classes.id] }),
+}));
+
+export const jointLessonGroupsRelations = relations(jointLessonGroups, ({ one }) => ({
+  jointLesson: one(jointLessons, { fields: [jointLessonGroups.jointLessonId], references: [jointLessons.id] }),
+  teacher: one(teachers, { fields: [jointLessonGroups.teacherId], references: [teachers.id] }),
+  room: one(rooms, { fields: [jointLessonGroups.roomId], references: [rooms.id] }),
 }));
 
 // Insert schemas
@@ -232,6 +283,9 @@ export const insertScheduleEntrySchema = createInsertSchema(scheduleEntries)
 export const insertScheduleConflictSchema = createInsertSchema(scheduleConflicts).omit({ id: true, createdAt: true });
 export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export const insertJointLessonSchema = createInsertSchema(jointLessons).omit({ id: true, createdAt: true });
+export const insertJointLessonClassSchema = createInsertSchema(jointLessonClasses).omit({ id: true });
+export const insertJointLessonGroupSchema = createInsertSchema(jointLessonGroups).omit({ id: true });
 
 // Types
 export type AccessCode = typeof accessCodes.$inferSelect;
@@ -260,6 +314,12 @@ export type UserRole = typeof userRoles.$inferSelect;
 export type InsertUserRole = z.infer<typeof insertUserRoleSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type JointLesson = typeof jointLessons.$inferSelect;
+export type InsertJointLesson = z.infer<typeof insertJointLessonSchema>;
+export type JointLessonClass = typeof jointLessonClasses.$inferSelect;
+export type InsertJointLessonClass = z.infer<typeof insertJointLessonClassSchema>;
+export type JointLessonGroup = typeof jointLessonGroups.$inferSelect;
+export type InsertJointLessonGroup = z.infer<typeof insertJointLessonGroupSchema>;
 
 
 // Login schema — Supabase Auth (email + password)

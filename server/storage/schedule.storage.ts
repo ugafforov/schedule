@@ -27,10 +27,38 @@ export class ScheduleStorage {
     return db.insert(scheduleEntries).values(data).returning();
   }
   async updateScheduleEntry(id: number, data: Partial<InsertScheduleEntry>): Promise<ScheduleEntry | undefined> {
+    const [entry] = await db.select().from(scheduleEntries).where(eq(scheduleEntries.id, id));
+    if (!entry) return undefined;
+
+    if (entry.jointLessonId && data.timeSlotId !== undefined) {
+      await db.update(scheduleEntries)
+        .set({ timeSlotId: data.timeSlotId })
+        .where(and(
+          eq(scheduleEntries.jointLessonId, entry.jointLessonId),
+          eq(scheduleEntries.timeSlotId, entry.timeSlotId),
+          eq(scheduleEntries.isActive, true)
+        ));
+      return { ...entry, timeSlotId: data.timeSlotId };
+    }
+
     const [r] = await db.update(scheduleEntries).set(data).where(eq(scheduleEntries.id, id)).returning();
     return r;
   }
   async deleteScheduleEntry(id: number): Promise<boolean> {
+    const [entry] = await db.select().from(scheduleEntries).where(eq(scheduleEntries.id, id));
+    if (!entry) return false;
+
+    if (entry.jointLessonId) {
+      const r = await db.update(scheduleEntries)
+        .set({ isActive: false })
+        .where(and(
+          eq(scheduleEntries.jointLessonId, entry.jointLessonId),
+          eq(scheduleEntries.timeSlotId, entry.timeSlotId),
+          eq(scheduleEntries.isActive, true)
+        ));
+      return (r.rowCount || 0) > 0;
+    }
+
     const r = await db.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.id, id));
     return (r.rowCount || 0) > 0;
   }
