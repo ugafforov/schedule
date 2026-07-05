@@ -174,11 +174,11 @@ function EditDialog({ row, open, onClose, onSave }: {
         <div className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Boshlanish</Label>
+              <Label className="text-xs text-muted-foreground">Boshlanish</Label>
               <Input type="time" value={start} onChange={e => setStart(e.target.value)} className="font-mono" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Tugash</Label>
+              <Label className="text-xs text-muted-foreground">Tugash</Label>
               <Input type="time" value={end} onChange={e => setEnd(e.target.value)} className="font-mono" />
             </div>
           </div>
@@ -194,7 +194,7 @@ function EditDialog({ row, open, onClose, onSave }: {
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Bekor</Button>
           <Button onClick={() => { onSave({ startTime: start, endTime: end }); onClose(); }}
-            disabled={d <= 0} className="bg-blue-600 hover:bg-blue-700">Saqlash</Button>
+            disabled={d <= 0} className="bg-primary hover:bg-primary/90">Saqlash</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -220,16 +220,16 @@ function AddDialog({ open, onClose, onAdd }: {
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="flex gap-2">
-            <Button size="sm" variant={type === "lesson" ? "default" : "outline"} onClick={() => setType("lesson")} className={type === "lesson" ? "bg-blue-600 hover:bg-blue-700" : ""}>Dars</Button>
-            <Button size="sm" variant={type === "lunch" ? "default" : "outline"} onClick={() => setType("lunch")} className={type === "lunch" ? "bg-orange-500 hover:bg-orange-600 text-white" : ""}>Tushlik</Button>
+            <Button size="sm" variant={type === "lesson" ? "default" : "outline"} onClick={() => setType("lesson")} className={type === "lesson" ? "bg-primary hover:bg-primary/90" : ""}>Dars</Button>
+            <Button size="sm" variant={type === "lunch" ? "default" : "outline"} onClick={() => setType("lunch")} className={type === "lunch" ? "bg-orange-500 hover:bg-orange-600 text-primary-foreground" : ""}>Tushlik</Button>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Boshlanish</Label>
+              <Label className="text-xs text-muted-foreground">Boshlanish</Label>
               <Input type="time" value={start} onChange={e => setStart(e.target.value)} className="font-mono" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-500">Tugash</Label>
+              <Label className="text-xs text-muted-foreground">Tugash</Label>
               <Input type="time" value={end} onChange={e => setEnd(e.target.value)} className="font-mono" />
             </div>
           </div>
@@ -241,7 +241,7 @@ function AddDialog({ open, onClose, onAdd }: {
           <Button variant="outline" onClick={onClose}>Bekor</Button>
           <Button
             onClick={() => { onAdd({ type, periodNumber: 0, startTime: start, endTime: end }); onClose(); }}
-            disabled={d <= 0} className="bg-blue-600 hover:bg-blue-700">Qo'shish</Button>
+            disabled={d <= 0} className="bg-primary hover:bg-primary/90">Qo'shish</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -337,133 +337,133 @@ export default function Darslar() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dars soatlari</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Avtomatik qo'ng'iroq jadvalini tuzing</p>
+          <h1 className="text-2xl font-bold text-foreground">Dars soatlari</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Avtomatik qo'ng'iroq jadvalini tuzing</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleReset} className="text-gray-600">
+          <Button variant="outline" onClick={handleReset} className="text-foreground">
             <RotateCcw className="mr-2 h-4 w-4" />Standartga qaytarish
           </Button>
           <Button onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending || rows.length === 0}
-            className="bg-blue-600 hover:bg-blue-700">
+            className="bg-primary hover:bg-primary/90">
             <Save className="mr-2 h-4 w-4" />Saqlash
           </Button>
         </div>
       </div>
 
       {/* Generator */}
-      <Card className="border border-blue-100 bg-blue-50/30 shadow-sm">
+      <Card className="border border-blue-500/20 bg-blue-500/10 shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-800">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-blue-600 dark:text-blue-400">
             <Zap className="h-4 w-4" />Avtomatik jadval generatori
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-600">Maktab boshlanishi</Label>
+              <Label className="text-xs text-muted-foreground">Maktab boshlanishi</Label>
               <Input type="time" value={cfg.schoolStart}
                 onChange={e => setCfg(p => ({ ...p, schoolStart: e.target.value }))}
-                className="font-mono bg-white" />
+                className="font-mono bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-600">Maktab tugashi</Label>
+              <Label className="text-xs text-muted-foreground">Maktab tugashi</Label>
               <Input type="time" value={cfg.schoolEnd}
                 onChange={e => setCfg(p => ({ ...p, schoolEnd: e.target.value }))}
-                className="font-mono bg-white" />
+                className="font-mono bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-600">Dars davomiyligi (daq)</Label>
+              <Label className="text-xs text-muted-foreground">Dars davomiyligi (daq)</Label>
               <Input type="number" min={20} max={90} value={cfg.lessonMin}
                 onChange={e => setCfg(p => ({ ...p, lessonMin: Number(e.target.value) }))}
-                className="bg-white" />
+                className="bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-gray-600">Tanaffus (daq)</Label>
+              <Label className="text-xs text-muted-foreground">Tanaffus (daq)</Label>
               <Input type="number" min={5} max={30} value={cfg.breakMin}
                 onChange={e => setCfg(p => ({ ...p, breakMin: Number(e.target.value) }))}
-                className="bg-white" />
+                className="bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
             </div>
           </div>
 
-          <div className="space-y-3 rounded-xl border border-gray-100 bg-white p-4">
+          <div className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center justify-between gap-4">
                 <div className="space-y-0.5">
-                  <p className="text-sm font-medium text-gray-800">Tushlik tanaffusi</p>
-                  <p className="text-xs text-gray-500">Kun o‘rtasidagi tushlik vaqti.</p>
+                  <p className="text-sm font-medium text-foreground">Tushlik tanaffusi</p>
+                  <p className="text-xs text-muted-foreground">Kun o‘rtasidagi tushlik vaqti.</p>
                 </div>
                 <Switch checked={cfg.useLunch} id="lunch-sw" onCheckedChange={v => setCfg(p => ({ ...p, useLunch: v }))} />
               </div>
               {cfg.useLunch && (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-gray-600">Nechi darsdan keyin</Label>
-                    <Input type="number" min={1} max={8} value={cfg.lunchAfterLesson} onChange={e => setCfg(p => ({ ...p, lunchAfterLesson: Number(e.target.value) }))} className="w-full bg-white" />
+                    <Label className="text-xs text-muted-foreground">Nechi darsdan keyin</Label>
+                    <Input type="number" min={1} max={8} value={cfg.lunchAfterLesson} onChange={e => setCfg(p => ({ ...p, lunchAfterLesson: Number(e.target.value) }))} className="w-full bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-gray-600">Tushlik davomiyligi (daq)</Label>
-                    <Input type="number" min={10} max={60} value={cfg.lunchMin} onChange={e => setCfg(p => ({ ...p, lunchMin: Number(e.target.value) }))} className="w-full bg-white" />
+                    <Label className="text-xs text-muted-foreground">Tushlik davomiyligi (daq)</Label>
+                    <Input type="number" min={10} max={60} value={cfg.lunchMin} onChange={e => setCfg(p => ({ ...p, lunchMin: Number(e.target.value) }))} className="w-full bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between gap-4 pt-2 border-t border-border">
                 <div className="space-y-0.5">
-                  <p className="text-sm font-medium text-gray-800">Kechki tushlik</p>
-                  <p className="text-xs text-gray-500">Ikkinchi tushlik varianti.</p>
+                  <p className="text-sm font-medium text-foreground">Kechki tushlik</p>
+                  <p className="text-xs text-muted-foreground">Ikkinchi tushlik varianti.</p>
                 </div>
                 <Switch checked={cfg.useEveningLunch} id="evening-lunch-sw" onCheckedChange={v => setCfg(p => ({ ...p, useEveningLunch: v }))} />
               </div>
               {cfg.useEveningLunch && (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-gray-600">Nechi darsdan keyin</Label>
-                    <Input type="number" min={1} max={8} value={cfg.eveningLunchAfterLesson} onChange={e => setCfg(p => ({ ...p, eveningLunchAfterLesson: Number(e.target.value) }))} className="w-full bg-white" />
+                    <Label className="text-xs text-muted-foreground">Nechi darsdan keyin</Label>
+                    <Input type="number" min={1} max={8} value={cfg.eveningLunchAfterLesson} onChange={e => setCfg(p => ({ ...p, eveningLunchAfterLesson: Number(e.target.value) }))} className="w-full bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-gray-600">Davomiyligi (daq)</Label>
-                    <Input type="number" min={10} max={60} value={cfg.eveningLunchMin} onChange={e => setCfg(p => ({ ...p, eveningLunchMin: Number(e.target.value) }))} className="w-full bg-white" />
+                    <Label className="text-xs text-muted-foreground">Davomiyligi (daq)</Label>
+                    <Input type="number" min={10} max={60} value={cfg.eveningLunchMin} onChange={e => setCfg(p => ({ ...p, eveningLunchMin: Number(e.target.value) }))} className="w-full bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
                   </div>
                 </div>
               )}
           </div>
 
-          <Button onClick={handleGenerate} className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+          <Button onClick={handleGenerate} className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
             <Zap className="mr-2 h-4 w-4" />Jadval tuzish
           </Button>
         </CardContent>
       </Card>
 
       {/* Schedule list */}
-      <Card className="border border-gray-100 shadow-sm">
+      <Card className="border border-border shadow-sm bg-card text-card-foreground">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-600" />
+              <Clock className="h-4 w-4 text-primary" />
               Dars jadvali soatlari
-              <Badge variant="secondary" className="text-xs ml-1">{lessonCount} ta dars</Badge>
+              <Badge variant="secondary" className="text-xs ml-1 bg-muted text-foreground">{lessonCount} ta dars</Badge>
               {lunchCount > 0 && (
-                <Badge className="text-xs bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100">
+                <Badge className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/20">
                   {lunchCount} ta tushlik
                 </Badge>
               )}
             </CardTitle>
             <Button size="sm" variant="outline" onClick={() => setShowAdd(true)}
-              className="text-blue-600 border-blue-200 hover:bg-blue-50">
+              className="text-primary border-primary/20 hover:bg-primary/10">
               <Plus className="h-4 w-4 mr-1" />Qo'shish
             </Button>
           </div>
-          <p className="text-xs text-gray-400 mt-1">Bu vaqtlar Dushanba–Juma barcha kunlarga qo'llaniladi</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Bu vaqtlar Dushanba–Juma barcha kunlarga qo'llaniladi</p>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="space-y-3">
               {Array(6).fill(0).map((_, i) => (
-                <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-xl" />
+                <div key={i} className="h-14 bg-muted animate-pulse rounded-xl" />
               ))}
             </div>
           ) : rows.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 space-y-2">
+            <div className="text-center py-12 text-muted-foreground/60 space-y-2">
               <Clock className="h-10 w-10 mx-auto opacity-30" />
               <p className="text-sm">Hozircha jadval yo'q</p>
               <p className="text-xs">Yuqoridagi generatorni ishlatib jadval tuzing</p>
@@ -477,18 +477,18 @@ export default function Darslar() {
                   <div key={row.key}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors group ${
                       isLesson
-                        ? "bg-white hover:bg-blue-50/40 border-gray-100"
-                        : "bg-orange-50/70 hover:bg-orange-50 border-orange-100"
+                        ? "bg-card hover:bg-muted/40 border-border text-card-foreground"
+                        : "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20 text-amber-600 dark:text-amber-400"
                     }`}>
 
                     {/* Badge */}
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLesson ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-600"}`}>
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isLesson ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-amber-500/20 text-amber-600 dark:text-amber-400"}`}>
                       {isLesson ? <span className="font-bold text-sm">{row.periodNumber}</span> : <UtensilsCrossed className="h-4 w-4" />}
                     </div>
 
                     {/* Label */}
                     <div className="w-20 flex-shrink-0">
-                      <span className={`text-sm font-medium ${isLesson ? "text-gray-700" : "text-orange-700"}`}>
+                      <span className={`text-sm font-medium ${isLesson ? "text-foreground" : "text-amber-600 dark:text-amber-400"}`}>
                         {isLesson ? `${row.periodNumber}-dars` : "Tushlik"}
                       </span>
                     </div>
@@ -499,22 +499,22 @@ export default function Darslar() {
                         onChange={e => setRows(prev => reindex(prev.map(r =>
                           r.key === row.key ? { ...r, startTime: e.target.value } : r
                         )))}
-                        className="h-8 w-28 text-sm font-mono bg-white" />
+                        className="h-8 w-28 text-sm font-mono bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
                       <span className="text-gray-300">—</span>
                       <Input type="time" value={row.endTime}
                         onChange={e => setRows(prev => reindex(prev.map(r =>
                           r.key === row.key ? { ...r, endTime: e.target.value } : r
                         )))}
-                        className="h-8 w-28 text-sm font-mono bg-white" />
+                        className="h-8 w-28 text-sm font-mono bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
                     </div>
 
                     {/* Duration */}
                     <div className="flex-shrink-0">
                       {d > 0
-                        ? <Badge variant="outline" className="text-xs text-emerald-700 border-emerald-200 bg-emerald-50">
+                        ? <Badge variant="outline" className="text-xs text-emerald-600 dark:text-emerald-400 border-emerald-500/20 bg-emerald-500/10">
                             <CheckCircle className="h-3 w-3 mr-1" />{d} daqiqa
                           </Badge>
-                        : <Badge variant="outline" className="text-xs text-red-600 border-red-200 bg-red-50">
+                        : <Badge variant="outline" className="text-xs text-red-500 border-red-500/20 bg-red-500/10">
                             <AlertTriangle className="h-3 w-3 mr-1" />Noto'g'ri
                           </Badge>
                       }
@@ -523,12 +523,12 @@ export default function Darslar() {
                     {/* Actions */}
                     <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button size="icon" variant="ghost"
-                        className="h-7 w-7 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                        className="h-7 w-7 text-muted-foreground/60 hover:text-foreground"
                         onClick={() => setEditTarget(row)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                       <Button size="icon" variant="ghost"
-                        className="h-7 w-7 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                        className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-500/10"
                         onClick={() => setDeleteKey(row.key)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -542,13 +542,13 @@ export default function Darslar() {
       </Card>
 
       {/* Note */}
-      <Card className="border border-amber-100 bg-amber-50/50 shadow-sm">
+      <Card className="border border-amber-500/20 bg-amber-500/10 shadow-sm">
         <CardContent className="py-4 px-5">
           <div className="flex items-start gap-3">
-            <Clock className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+            <Clock className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
             <div>
-              <p className="text-sm font-medium text-amber-800">Eslatma</p>
-              <p className="text-xs mt-0.5 text-amber-700">
+              <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Eslatma</p>
+              <p className="text-xs mt-0.5 text-amber-600/90 dark:text-amber-400/90">
                 Dars soatlarini o'zgartirgandan so'ng, mavjud jadval qayta generatsiya qilinishi kerak bo'ladi.
                 Vaqtlar barcha darslar uchun bir xil qo'llaniladi.
               </p>
@@ -570,7 +570,7 @@ export default function Darslar() {
               <Trash2 className="h-4 w-4 text-red-500" />O'chirishni tasdiqlang
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600 py-2">Bu qatorni o'chirishni xohlaysizmi?</p>
+          <p className="text-sm text-muted-foreground py-2">Bu qatorni o'chirishni xohlaysizmi?</p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteKey(null)}>Bekor</Button>
             <Button variant="destructive" onClick={() => deleteKey && handleDelete(deleteKey)}>O'chirish</Button>

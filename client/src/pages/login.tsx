@@ -19,13 +19,13 @@ export default function Login() {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
-            <School className="h-6 w-6 text-white" />
+            <School className="h-6 w-6 text-primary-foreground" />
           </div>
-          <span className="text-white font-bold text-lg">Maktab Dars Jadvali</span>
+          <span className="text-primary-foreground font-bold text-lg">Maktab Dars Jadvali</span>
         </div>
 
         <div>
-          <h1 className="text-4xl font-bold text-white leading-tight mb-4">
+          <h1 className="text-4xl font-bold text-primary-foreground leading-tight mb-4">
             Maktab jadvalini<br />
             <span className="text-blue-400">oson boshqaring</span>
           </h1>
@@ -44,7 +44,7 @@ export default function Login() {
                   <Icon className={`h-5 w-5 ${color.split(" ")[1]}`} />
                 </div>
                 <div>
-                  <h3 className="text-white font-semibold">{title}</h3>
+                  <h3 className="text-primary-foreground font-semibold">{title}</h3>
                   <p className="text-slate-400 text-sm mt-0.5">{desc}</p>
                 </div>
               </div>
@@ -57,13 +57,13 @@ export default function Login() {
 
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <div className="bg-card rounded-2xl shadow-2xl p-8">
             <div className="text-center mb-8">
-              <div className="mx-auto w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-                <School className="h-7 w-7 text-white" />
+              <div className="mx-auto w-14 h-14 bg-primary rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                <School className="h-7 w-7 text-primary-foreground" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Kirish</h2>
-              <p className="text-gray-500 text-sm mt-1">Tizimga kirish uchun kodingizni kiriting</p>
+              <h2 className="text-2xl font-bold text-foreground">Kirish</h2>
+              <p className="text-muted-foreground text-sm mt-1">Tizimga kirish uchun kodingizni kiriting</p>
             </div>
             <LoginForm />
           </div>

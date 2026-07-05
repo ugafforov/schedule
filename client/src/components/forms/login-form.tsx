@@ -63,18 +63,18 @@ export function LoginForm() {
 
       {/* Email */}
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-gray-700 font-medium">
+        <Label htmlFor="email" className="text-foreground font-medium">
           Email
         </Label>
         <div className="relative">
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
             id="email"
             type="email"
             placeholder="email@maktab.uz"
             autoComplete="email"
             {...register("email")}
-            className="pl-10 h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+            className="pl-10 h-11 border-border focus:border-blue-500 focus:ring-blue-500"
           />
         </div>
         {errors.email && (
@@ -84,23 +84,23 @@ export function LoginForm() {
 
       {/* Parol */}
       <div className="space-y-2">
-        <Label htmlFor="password" className="text-gray-700 font-medium">
+        <Label htmlFor="password" className="text-foreground font-medium">
           Parol
         </Label>
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
             id="password"
             type={showPassword ? "text" : "password"}
             placeholder="Parolingizni kiriting"
             autoComplete="current-password"
             {...register("password")}
-            className="pl-10 pr-10 h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+            className="pl-10 pr-10 h-11 border-border focus:border-blue-500 focus:ring-blue-500"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
             tabIndex={-1}
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -113,7 +113,7 @@ export function LoginForm() {
 
       <Button
         type="submit"
-        className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm"
+        className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg shadow-sm"
         disabled={isSubmitting}
       >
         {isSubmitting ? (

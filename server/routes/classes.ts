@@ -115,7 +115,11 @@ export const classRoutes = new Hono()
   .post("/:id/subjects", async (c) => {
     const id = parseInt(c.req.param("id"));
     const { assignments } = await c.req.json();
-    await storage.setClassSubjects(id, assignments);
+    // Filter out invalid assignments on the backend as well to prevent foreign key errors
+    const validAssignments = (assignments || []).filter(
+      (a: any) => a.subjectId && a.subjectId !== 0
+    );
+    await storage.setClassSubjects(id, validAssignments);
     return c.json({ message: "Muvaffaqiyatli saqlandi" });
   })
 

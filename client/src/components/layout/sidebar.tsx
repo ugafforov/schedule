@@ -43,8 +43,8 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           "relative flex items-center w-full rounded-lg py-2.5 px-[14px] outline-none",
           "transition-colors duration-100",
           active
-            ? "bg-blue-600 text-white"
-            : "text-slate-400 hover:bg-slate-700/60 hover:text-white"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
         )}
       >
         <Icon className="w-5 h-5 flex-shrink-0" />
@@ -68,7 +68,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
     <aside className={cn(
       "group/sidebar",
       "hidden lg:flex flex-col flex-shrink-0 h-full",
-      "bg-slate-900 border-r border-slate-700/60 overflow-x-hidden",
+      "bg-background border-r border-border overflow-x-hidden",
       "w-[60px] hover:w-[220px]",
       "transition-[width] duration-200 ease-in-out",
       "[will-change:width]"
@@ -82,8 +82,8 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
               "relative flex items-center w-full rounded-lg py-2.5 px-[10px] outline-none",
               "transition-colors duration-100",
               location === item.href
-                ? "bg-blue-600 text-white"
-                : "text-slate-400 hover:bg-slate-700/60 hover:text-white"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             )}
           >
             <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -99,15 +99,15 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
         ))}
       </nav>
 
-      <div className="border-t border-slate-700/60 py-3 px-[10px] space-y-1">
+      <div className="border-t border-border py-3 px-[10px] space-y-1">
         <button
           onClick={() => navigate("/settings")}
           className={cn(
             "relative flex items-center w-full rounded-lg py-2.5 px-[10px] outline-none",
             "transition-colors duration-100",
             location === "/settings"
-              ? "bg-slate-700 text-white"
-              : "text-slate-400 hover:bg-slate-700/60 hover:text-white"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
           )}
         >
           <Settings className="w-5 h-5 flex-shrink-0" />
@@ -125,7 +125,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           onClick={logout}
           className={cn(
             "relative flex items-center w-full rounded-lg py-2.5 px-[10px] outline-none mt-1",
-            "transition-colors duration-100 text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300"
+            "transition-colors duration-100 text-destructive hover:bg-destructive/10 hover:text-destructive"
           )}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
@@ -153,12 +153,12 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
           className="fixed inset-0 bg-black/50 backdrop-blur-sm"
           onClick={onMobileClose}
         />
-        <aside className="relative w-64 bg-slate-900 shadow-2xl flex flex-col z-10">
-          <div className="h-14 border-b border-slate-700 flex items-center justify-between px-4 flex-shrink-0">
-            <span className="text-sm font-bold text-white">Menyu</span>
+        <aside className="relative w-64 bg-background shadow-2xl flex flex-col z-10">
+          <div className="h-14 border-b border-border flex items-center justify-between px-4 flex-shrink-0">
+            <span className="text-sm font-bold text-foreground">Menyu</span>
             <button
               onClick={onMobileClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
             >
               <X className="h-5 w-5" />
             </button>
@@ -168,11 +168,11 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarPr
               <NavItem key={item.href} {...item} expanded />
             ))}
           </nav>
-          <div className="border-t border-slate-700 px-3 py-3 space-y-1">
+          <div className="border-t border-border px-3 py-3 space-y-1">
             <NavItem href="/settings" label="Sozlamalar" icon={Settings} expanded />
             <button
               onClick={logout}
-              className="flex items-center w-full rounded-lg py-2.5 px-3 mt-1 text-red-400 bg-red-500/10 hover:bg-red-500/20 hover:text-red-300 transition-colors duration-100"
+              className="flex items-center w-full rounded-lg py-2.5 px-3 mt-1 text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors duration-100"
             >
               <LogOut className="w-5 h-5 flex-shrink-0 mr-3" />
               <span className="text-sm font-medium">Chiqish</span>

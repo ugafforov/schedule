@@ -37,8 +37,8 @@ export function StatsCards({ stats }: StatsCardsProps) {
       value: stats?.activeConflicts || 0,
       icon: AlertTriangle,
       bgColor: stats?.activeConflicts ? "bg-orange-500" : "bg-gray-400",
-      lightBg: stats?.activeConflicts ? "bg-orange-50" : "bg-gray-50",
-      iconColor: stats?.activeConflicts ? "text-orange-600" : "text-gray-500",
+      lightBg: stats?.activeConflicts ? "bg-orange-50" : "bg-muted/50",
+      iconColor: stats?.activeConflicts ? "text-orange-600" : "text-muted-foreground",
       note: stats?.activeConflicts ? "hal qilinmagan" : "muammo yo'q",
     },
     {
@@ -57,13 +57,13 @@ export function StatsCards({ stats }: StatsCardsProps) {
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <Card key={card.label} className="border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200">
+          <Card key={card.label} className="border border-border shadow-sm hover:shadow-md transition-shadow duration-200">
             <CardContent className="p-5">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-sm text-gray-500 font-medium">{card.label}</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-1.5">{card.value}</p>
-                  <p className="text-xs text-gray-400 mt-1">{card.note}</p>
+                  <p className="text-sm text-muted-foreground font-medium">{card.label}</p>
+                  <p className="text-3xl font-bold text-foreground mt-1.5">{card.value}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{card.note}</p>
                 </div>
                 <div className={`w-11 h-11 ${card.lightBg} rounded-xl flex items-center justify-center flex-shrink-0`}>
                   <Icon className={`${card.iconColor} h-5 w-5`} />

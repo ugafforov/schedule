@@ -57,3 +57,6 @@ skills-lock.json
 # Misc
 curriculum_layout.txt
 curriculum_text.txt
+.mcp.json
+mcp_config.json
+.gemini/

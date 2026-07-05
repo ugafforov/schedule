@@ -2,7 +2,7 @@ import { storage } from "../storage/index";
 import { db } from "../db";
 import { scheduleEntries, timeSlots, type InsertScheduleEntry, type ScheduleEntry } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory } from "@shared/constants";
+import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory, getMaxDailyComplexity } from "@shared/constants";
 
 const DAYS = [1, 2, 3, 4, 5, 6];
 const DAY_NAMES = ["", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
@@ -74,6 +74,7 @@ export interface GenerateScheduleOptions {
   clearExisting?: boolean;
 }
 
+// These are no longer needed as we use SanPiN curve from constants directly, but we keep them for backward compatibility if needed, or remove them.
 const DAY_QUALITY: Record<number, number> = { 2: 10, 3: 10, 4: 9, 1: 7, 5: 6 };
 const PERIOD_QUALITY: Record<number, number> = { 2: 10, 3: 10, 4: 10, 1: 7, 5: 7, 6: 5 };
 
@@ -148,6 +149,15 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     let altCount = 0; // Class-specific counter to alternate between surat and mahraj
     for (const cs of classSubjectList) {
       if (!cs.teacherId) continue;
+
+      // Birlashtirilgan darslar (joint lessons) tarkibidagi fanlarni oddiy rejimda generatsiya qilmaymiz
+      const isPartOfJoint = allJointLessons.some(jl => 
+        jl.subjectId === cs.subjectId && jl.classIds.includes(cls.id)
+      );
+      if (isPartOfJoint) {
+        continue;
+      }
+
       const sub = subjectMap.get(cs.subjectId);
       
       const hoursAlways = Math.floor(cs.weeklyHours);
@@ -268,6 +278,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   const classBusy = new Set<string>();
   const classDailyCount = new Map<string, number>();
   const subjectDailyCount = new Map<string, number>();
+  const classDailyComplexity = new Map<string, number>();
 
   // Helpers to check and set week-type aware busy states
   function isEntityBusy(
@@ -290,6 +301,51 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     weekType: "always" | "surat" | "mahraj"
   ) {
     busySet.add(`${entityId}_${slotId}_${weekType}`);
+  }
+
+  // Load existing active schedule entries to populate busy states for partial generation
+  const existingEntries = await storage.getScheduleEntries();
+  const clearedClassIds = new Set(classIds || []);
+  
+  // Find joint lesson IDs that will be cleared (because they involve a cleared class)
+  const clearedJointLessonIds = new Set<number>();
+  if (classIds?.length) {
+    for (const e of existingEntries) {
+      if (clearedClassIds.has(e.classId) && e.jointLessonId) {
+        clearedJointLessonIds.add(e.jointLessonId);
+      }
+    }
+  }
+
+  for (const e of existingEntries) {
+    // Skip entries that are being cleared
+    const isClearedClass = clearedClassIds.has(e.classId);
+    const isClearedJoint = e.jointLessonId && clearedJointLessonIds.has(e.jointLessonId);
+    
+    if (classIds?.length && (isClearedClass || isClearedJoint)) {
+      continue;
+    }
+    
+    // Mark as busy
+    markEntityBusy(classBusy, e.classId, e.timeSlotId, e.weekType as any);
+    markEntityBusy(teacherBusy, e.teacherId, e.timeSlotId, e.weekType as any);
+    markEntityBusy(roomBusy, e.roomId, e.timeSlotId, e.weekType as any);
+    
+    // Also update daily count and subject count for class
+    const slot = slots.find(s => s.id === e.timeSlotId);
+    if (slot) {
+      const day = slot.dayOfWeek;
+      const loadVal = e.weekType === "always" ? 1 : 0.5;
+      const cdKey = `${e.classId}_${day}`;
+      classDailyCount.set(cdKey, (classDailyCount.get(cdKey) || 0) + loadVal);
+      
+      const sdKey = `${e.classId}_${e.subjectId}_${day}`;
+      subjectDailyCount.set(sdKey, (subjectDailyCount.get(sdKey) || 0) + loadVal);
+      
+      const sub = subjectMap.get(e.subjectId);
+      const subComp = sub ? getSubjectComplexity(sub.name || "") : 7;
+      classDailyComplexity.set(cdKey, (classDailyComplexity.get(cdKey) || 0) + (subComp * loadVal));
+    }
   }
   
   const roomsByType = new Map<string, typeof allRooms>();
@@ -421,9 +477,26 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
             conflicts += 30; 
             reasons.push(`Sinf (${cid}) uchun bir kunda ayni shu fandan darslar ko'payib ketdi`); 
           }
+
+          // SanPiN Complexity check
+          const dayComplexity = classDailyComplexity.get(cdKey) || 0;
+          const newComplexity = dayComplexity + (lesson.complexity * loadVal);
+          const maxDailyComp = getMaxDailyComplexity(lesson.grade, day);
+          if (newComplexity > maxDailyComp) {
+            conflicts += (newComplexity - maxDailyComp) * 5; 
+            reasons.push(`Sinf (${cid}) uchun kunlik aqliy zo'riqish chegarasi (SanPiN) oshib ketdi`);
+          }
         }
 
-        conflicts += (slot.periodNumber * (lesson.complexity / 10));
+        // SanPiN category checks
+        if (lesson.category === "dynamic" && slot.periodNumber <= 3) {
+          conflicts += (4 - slot.periodNumber) * 10;
+          reasons.push(`Yengil fanlar tushdan keyin (4, 5, 6-darslarga) qo'yilishi tavsiya etiladi`);
+        }
+        if (lesson.category === "mental" && slot.periodNumber >= 5) {
+          conflicts += (slot.periodNumber - 4) * 10;
+          reasons.push(`Qiyin fanlar kunning birinchi yarmiga (2, 3-darslarga) qo'yilishi kerak`);
+        }
 
         if (conflicts < leastConflicts) {
           leastConflicts = conflicts;
@@ -506,8 +579,24 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           reasons.push("Bir kunda ayni shu fandan darslar ko'payib ketdi"); 
         }
 
-        // Add penalty for later periods for harder subjects
-        conflicts += (slot.periodNumber * (lesson.complexity / 10));
+        // SanPiN Complexity check
+        const dayComplexity = classDailyComplexity.get(cdKey) || 0;
+        const newComplexity = dayComplexity + (lesson.complexity * loadVal);
+        const maxDailyComp = getMaxDailyComplexity(lesson.grade, day);
+        if (newComplexity > maxDailyComp) {
+          conflicts += (newComplexity - maxDailyComp) * 5; 
+          reasons.push(`Sinf uchun kunlik aqliy zo'riqish chegarasi (SanPiN) oshib ketdi`);
+        }
+
+        // SanPiN category checks
+        if (lesson.category === "dynamic" && slot.periodNumber <= 3) {
+          conflicts += (4 - slot.periodNumber) * 10;
+          reasons.push(`Yengil fanlar tushdan keyin (4, 5, 6-darslarga) qo'yilishi tavsiya etiladi`);
+        }
+        if (lesson.category === "mental" && slot.periodNumber >= 5) {
+          conflicts += (slot.periodNumber - 4) * 10;
+          reasons.push(`Qiyin fanlar kunning birinchi yarmiga (2, 3-darslarga) qo'yilishi kerak`);
+        }
 
         if (conflicts < leastConflicts) {
           leastConflicts = conflicts;
@@ -546,6 +635,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         for (const cid of lesson.classIds) {
           classDailyCount.set(`${cid}_${day}`, (classDailyCount.get(`${cid}_${day}`) || 0) + loadVal);
           subjectDailyCount.set(`${cid}_${lesson.subjectId}_${day}`, (subjectDailyCount.get(`${cid}_${lesson.subjectId}_${day}`) || 0) + loadVal);
+          classDailyComplexity.set(`${cid}_${day}`, (classDailyComplexity.get(`${cid}_${day}`) || 0) + (lesson.complexity * loadVal));
         }
 
         // Create schedule entries: C classes * G groups
@@ -594,6 +684,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         const loadVal = lesson.weekType === "always" ? 1 : 0.5;
         classDailyCount.set(`${lesson.classId}_${day}`, (classDailyCount.get(`${lesson.classId}_${day}`) || 0) + loadVal);
         subjectDailyCount.set(`${lesson.classId}_${lesson.subjectId}_${day}`, (subjectDailyCount.get(`${lesson.classId}_${lesson.subjectId}_${day}`) || 0) + loadVal);
+        classDailyComplexity.set(`${lesson.classId}_${day}`, (classDailyComplexity.get(`${lesson.classId}_${day}`) || 0) + (lesson.complexity * loadVal));
 
         const entry1: InsertScheduleEntry = { 
           classId: lesson.classId, 
@@ -629,6 +720,16 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         reason: "Barcha slotlar band yoki mos xona topilmadi",
       });
     }
+  }
+
+  // --- Phase 2: Local Optimization (Swap) ---
+  // A tamed local search could go here: for each skipped lesson, try to find a placed lesson 
+  // that can be moved to another valid slot, freeing up the slot for the skipped lesson.
+  // Because of complex state dependencies (weekType, jointLessons, daily max constraints),
+  // a full swap evaluator requires cloning the busy sets. 
+  // Currently, we rely on the enhanced greedy SanPiN solver (Phase 1) for best results.
+  if (skippedLessons.length > 0) {
+    console.log(`[Optimization] Found ${skippedLessons.length} skipped lessons. A full constraint solver (e.g. OR-Tools) could attempt re-shuffling here.`);
   }
 
   console.log(`[Greedy] Finished. Placed ${placedLessons}/${precomputedLessons.length} lessons. Skipped: ${skippedLessons.length}. Conflicts: ${generatedConflicts.length}`);

@@ -24,7 +24,7 @@ export function TeacherSubjectDialog({
         <DialogHeader>
           <DialogTitle>O'qitiladigan fanlar</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto border border-gray-100 rounded-lg p-2">
+        <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto border border-border rounded-lg p-2">
           {subjects.map((sub) => (
             <button
               key={sub.id}
@@ -33,7 +33,7 @@ export function TeacherSubjectDialog({
               className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-left transition-colors ${
                 value.includes(sub.id)
                   ? "bg-blue-100 text-blue-800 border border-blue-200"
-                  : "bg-gray-50 text-gray-600 border border-transparent hover:bg-gray-100"
+                  : "bg-muted/50 text-muted-foreground border border-transparent hover:bg-muted"
               }`}
             >
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || "#3B82F6" }} />

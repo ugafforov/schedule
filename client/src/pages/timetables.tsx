@@ -95,11 +95,11 @@ function DraggableSubjectCard({
           <p className="text-[9px] font-semibold truncate" style={{ color: subject.color }}>
             {subject.name}
           </p>
-          <p className="text-[8px] text-gray-500">
+          <p className="text-[8px] text-muted-foreground/60">
             {missingHours} soat
           </p>
         </div>
-        <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: subject.color }}>
+        <div className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-primary-foreground" style={{ backgroundColor: subject.color }}>
           {missingHours}
         </div>
       </div>
@@ -167,7 +167,7 @@ function EntryCard({
       style={cardStyle}
       className={`rounded cursor-grab active:cursor-grabbing group/cell relative shadow-sm hover:shadow-md transition-[background-color,border-color,box-shadow] duration-75 flex-1 flex flex-col justify-center ${
         isCompact ? "p-1 py-0.5" : "p-1"
-      } ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-white border-gray-200/80 z-[1000]' : ''}`}
+      } ${isOverlay ? 'shadow-lg rotate-1 scale-[1.03] bg-card border-border z-[1000] text-card-foreground' : 'text-foreground'}`}
       onClick={(e) => {
         if (isHoldingSubject) {
           // Let click bubble to DroppableCell or DroppableSidebar
@@ -191,19 +191,19 @@ function EntryCard({
       <div className="flex items-start justify-between gap-0.5">
         <div className="flex-1 min-w-0 flex flex-col gap-0.5" {...dragAttributes} {...dragListeners}>
           <div className={`flex items-center gap-1 w-full ${isCompact ? "" : "mb-0.5"}`}>
-            <GripVertical className="h-3 w-3 text-gray-400 opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 -ml-1" />
+            <GripVertical className="h-3 w-3 text-muted-foreground/40 opacity-0 group-hover/cell:opacity-100 transition-opacity flex-shrink-0 -ml-1" />
             <span className={`${isCompact ? "text-[9px]" : "text-[10.5px]"} font-bold leading-tight truncate max-w-[70%]`} style={{ color: textColor }}>
               {subject?.name || "?"}
             </span>
             {entry.jointLessonId && (
               <span title="Birlashtirilgan dars">
-                <Link2 className="h-3 w-3 text-gray-500 flex-shrink-0 ml-0.5" />
+                <Link2 className="h-3 w-3 text-muted-foreground/60 flex-shrink-0 ml-0.5" />
               </span>
             )}
             {entry.weekType && entry.weekType !== "always" && (
               <span 
                 title={entry.weekType === "surat" ? "Surat (Toq hafta). Mahrajga o'tkazish uchun bosing." : "Mahraj (Juft hafta). Suratga o'tkazish uchun bosing."}
-                className={`text-[6.5px] leading-none px-0.5 py-0.5 rounded font-bold ml-auto flex-shrink-0 text-white cursor-pointer hover:opacity-80 active:scale-95 transition-all ${entry.weekType === "surat" ? "bg-emerald-600" : "bg-purple-600"}`}
+                className={`text-[6.5px] leading-none px-0.5 py-0.5 rounded font-bold ml-auto flex-shrink-0 text-primary-foreground cursor-pointer hover:opacity-80 active:scale-95 transition-all ${entry.weekType === "surat" ? "bg-emerald-600" : "bg-purple-600"}`}
                 onClick={(e) => {
                   if (onToggleWeekType) {
                     e.stopPropagation();
@@ -217,7 +217,7 @@ function EntryCard({
           </div>
           
           {isCompact ? (
-            <div className="text-[7.5px] text-gray-600 truncate flex items-center justify-between gap-1 mt-0.5 leading-none">
+            <div className="text-[7.5px] text-muted-foreground/80 truncate flex items-center justify-between gap-1 mt-0.5 leading-none">
               <span className="truncate">
                 {viewMode === "class" && showAllClasses 
                   ? className 
@@ -225,23 +225,23 @@ function EntryCard({
                     ? teacherName 
                     : className}
               </span>
-              <span className={`flex-shrink-0 ${isNoRoom ? "text-red-600 font-bold" : "text-gray-500"}`}>
+              <span className={`flex-shrink-0 ${isNoRoom ? "text-red-600 font-bold" : "text-muted-foreground/60"}`}>
                 ({room?.roomNumber || "Xona yo'q"})
               </span>
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-1 text-gray-700">
+              <div className="flex items-center gap-1 text-muted-foreground">
                 {viewMode === "class" && showAllClasses ? (
-                  <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] font-medium truncate">{className}</span></>
+                  <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-muted-foreground/40" /><span className="text-[9px] font-medium truncate">{className}</span></>
                 ) : viewMode === "class" ? (
-                  <><UserCheck className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] truncate">{teacherName}</span></>
+                  <><UserCheck className="h-2.5 w-2.5 flex-shrink-0 text-muted-foreground/40" /><span className="text-[9px] truncate">{teacherName}</span></>
                 ) : (
-                  <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" /><span className="text-[9px] font-medium truncate">{className}</span></>
+                  <><GraduationCap className="h-2.5 w-2.5 flex-shrink-0 text-muted-foreground/40" /><span className="text-[9px] font-medium truncate">{className}</span></>
                 )}
               </div>
 
-              <div className={`flex items-center gap-1 ${isNoRoom ? "text-red-600 font-semibold" : "text-gray-500"}`}>
+              <div className={`flex items-center gap-1 ${isNoRoom ? "text-red-600 font-semibold" : "text-muted-foreground/60"}`}>
                 {isNoRoom ? <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0" /> : <DoorOpen className="h-2.5 w-2.5 flex-shrink-0" />}
                 <span className="text-[9px] truncate">{room?.roomNumber || "Xona yo'q"}</span>
               </div>
@@ -250,10 +250,10 @@ function EntryCard({
         </div>
         
         {!isHoldingSubject && (
-          <div className="flex items-center gap-0.5 absolute right-0.5 top-0.5 opacity-0 group-hover/cell:opacity-100 transition-opacity bg-white/90 rounded border shadow-sm p-0.5">
+          <div className="flex items-center gap-0.5 absolute right-0.5 top-0.5 opacity-0 group-hover/cell:opacity-100 transition-opacity bg-card/90 rounded border border-border shadow-sm p-0.5">
             {!isOverlay && !isOptimistic && onEdit && (
               <button
-                className="text-gray-500 hover:text-gray-700 p-0.5"
+                className="text-muted-foreground/60 hover:text-foreground p-0.5"
                 onClick={e => { e.stopPropagation(); onEdit(); }}
                 title="Tahrirlash"
               >
@@ -353,15 +353,15 @@ function DroppableCell({
 
   const statusClasses = {
     idle: "",
-    valid: "bg-emerald-50 ring-1 ring-emerald-300 ring-inset cursor-pointer hover:bg-emerald-100/85",
-    invalid: "bg-red-50 ring-1 ring-red-200 ring-inset opacity-50 cursor-not-allowed"
+    valid: "bg-emerald-500/10 ring-1 ring-emerald-500/30 ring-inset cursor-pointer hover:bg-emerald-500/20",
+    invalid: "bg-red-500/10 ring-1 ring-red-500/20 ring-inset opacity-50 cursor-not-allowed"
   };
 
   return (
     <td 
       ref={setNodeRef} 
       style={{ height: "58px" }}
-      className={`py-0.5 px-0.5 align-top h-[58px] transition-colors duration-100 ${statusClasses[status]} ${isOver && status !== "invalid" ? "bg-emerald-100 ring-2 ring-emerald-400 ring-inset" : ""}`}
+      className={`py-0.5 px-0.5 align-top h-[58px] transition-colors duration-100 ${statusClasses[status]} ${isOver && status !== "invalid" ? "bg-emerald-500/20 ring-2 ring-emerald-500/40 ring-inset" : ""}`}
       onClick={(e) => {
         if (status === "valid" && onClick) {
           e.stopPropagation();
@@ -395,10 +395,10 @@ function DroppableSidebar({
       onClick={onClick}
       className={`w-48 flex-shrink-0 space-y-2 p-2 rounded-lg border-2 border-dashed transition-all duration-200 ${
         isOver
-          ? "border-red-400 bg-red-50/50 scale-[1.02] shadow-sm"
+          ? "border-red-500 bg-red-500/15 scale-[1.02] shadow-sm"
           : isHighlighted
-            ? "border-red-400 bg-red-50/10 cursor-pointer hover:bg-red-50/20 shadow-sm"
-            : "border-transparent bg-gray-50/10"
+            ? "border-red-500 bg-red-500/5 cursor-pointer hover:bg-red-500/10 shadow-sm"
+            : "border-transparent bg-muted/20"
       }`}
     >
       {children}
@@ -1517,26 +1517,26 @@ export default function Timetables() {
   };
 
   return (
-    <div className="p-6 space-y-5 max-w-full">
+    <div className="p-6 space-y-5 max-w-full text-foreground">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dars jadvali</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Haftalik dars jadvalini boshqarish va yaratish</p>
+          <h1 className="text-2xl font-bold text-foreground">Dars jadvali</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Haftalik dars jadvalini boshqarish va yaratish</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={handleExportPDF} className="text-red-600 border-red-200 hover:bg-red-50">
+          <Button variant="outline" size="sm" onClick={handleExportPDF} className="text-red-500 border-red-500/20 hover:bg-red-500/10">
             <FileText className="mr-1.5 h-4 w-4" />PDF
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportExcel} className="text-green-600 border-green-200 hover:bg-green-50">
+          <Button variant="outline" size="sm" onClick={handleExportExcel} className="text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10">
             <FileSpreadsheet className="mr-1.5 h-4 w-4" />Excel
           </Button>
-          <Button variant="outline" size="sm" onClick={() => window.print()} className="text-gray-600">
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="text-muted-foreground/80 hover:text-foreground border-border">
             <Printer className="mr-1.5 h-4 w-4" />Chop etish
           </Button>
           <Button
             variant="outline" size="sm"
-            className="text-red-600 border-red-200 hover:bg-red-50"
+            className="text-red-500 border-red-500/20 hover:bg-red-500/10"
             onClick={() => clearMutation.mutate()}
             disabled={clearMutation.isPending}
           >
@@ -1544,7 +1544,7 @@ export default function Timetables() {
           </Button>
           <Button
             onClick={() => { setShowGenerator(!showGenerator); setGeneratorResult(null); }}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Wand2 className="mr-2 h-4 w-4" />Jadval yaratish
           </Button>
@@ -1553,16 +1553,16 @@ export default function Timetables() {
 
       {/* Generator Panel */}
       {showGenerator && (
-        <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <Card className="border-blue-500/20 bg-blue-500/5 dark:bg-blue-950/20">
           <CardContent className="pt-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <Wand2 className="h-4 w-4 text-white" />
+                <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center">
+                  <Wand2 className="h-4 w-4 text-primary-foreground" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Avtomatik jadval yaratish</h3>
-                  <p className="text-xs text-gray-500">Cheklovlar asosida optimal jadval tuziladi</p>
+                  <h3 className="font-semibold text-foreground">Avtomatik jadval yaratish</h3>
+                  <p className="text-xs text-muted-foreground">Cheklovlar asosida optimal jadval tuziladi</p>
                 </div>
               </div>
               <Button variant="ghost" size="sm" onClick={() => { setShowGenerator(false); setGeneratorResult(null); }}>✕</Button>
@@ -1575,11 +1575,11 @@ export default function Timetables() {
                 { label: "O'qituvchilar", count: teachers.length, ok: teachers.length > 0, icon: Users },
                 { label: "Xonalar", count: rooms.length, ok: rooms.length > 0, icon: DoorOpen },
               ].map(({ label, count, ok, icon: Icon }) => (
-                <div key={label} className={`flex items-center space-x-2 p-2.5 rounded-lg ${ok ? "bg-green-50 border border-green-100" : "bg-red-50 border border-red-100"}`}>
-                  <Icon className={`h-4 w-4 ${ok ? "text-green-600" : "text-red-500"}`} />
+                <div key={label} className={`flex items-center space-x-2 p-2.5 rounded-lg ${ok ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-red-500/10 border border-red-500/20"}`}>
+                  <Icon className={`h-4 w-4 ${ok ? "text-emerald-500" : "text-red-500"}`} />
                   <div>
-                    <p className="text-xs font-medium text-gray-700">{label}</p>
-                    <p className={`text-sm font-bold ${ok ? "text-green-700" : "text-red-600"}`}>{count} ta</p>
+                    <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                    <p className={`text-sm font-bold ${ok ? "text-emerald-500" : "text-red-500"}`}>{count} ta</p>
                   </div>
                 </div>
               ))}
@@ -1587,8 +1587,8 @@ export default function Timetables() {
 
             <div className="flex items-center space-x-3 mb-4">
               <label className="flex items-center space-x-2 cursor-pointer">
-                <input type="checkbox" checked={clearExisting} onChange={e => setClearExisting(e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
-                <span className="text-sm text-gray-700">Mavjud jadvalini tozalab yangi yaratish</span>
+                <input type="checkbox" checked={clearExisting} onChange={e => setClearExisting(e.target.checked)} className="w-4 h-4 text-blue-600 rounded bg-muted/20 border-border" />
+                <span className="text-sm text-muted-foreground">Mavjud jadvalini tozalab yangi yaratish</span>
               </label>
             </div>
 
@@ -1596,34 +1596,34 @@ export default function Timetables() {
               <Button
                 onClick={() => generateMutation.mutate({})}
                 disabled={generateMutation.isPending || classes.length === 0 || rooms.length === 0}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {generateMutation.isPending
                   ? <><RefreshCw className="mr-2 h-4 w-4 animate-spin" />Yaratilmoqda...</>
                   : <><Wand2 className="mr-2 h-4 w-4" />Barcha sinflar uchun jadval yaratish</>}
               </Button>
               {selectedClassId !== "all" && viewMode === "class" && (
-                <Button variant="outline" onClick={() => generateMutation.mutate({ classIds: [selectedClassId as number] })} disabled={generateMutation.isPending}>
+                <Button variant="outline" onClick={() => generateMutation.mutate({ classIds: [selectedClassId as number] })} disabled={generateMutation.isPending} className="border-border">
                   Faqat "{classes.find(c => c.id === selectedClassId)?.name}" sinfi uchun
                 </Button>
               )}
             </div>
 
             {(classes.length === 0 || rooms.length === 0) && (
-              <p className="text-xs text-red-600 mt-2">⚠ Jadval yaratish uchun avval sinflar va xonalar qo'shing, keyin sinflarga fan va o'qituvchi belgilang.</p>
+              <p className="text-xs text-red-500 mt-2">⚠ Jadval yaratish uchun avval sinflar va xonalar qo'shing, keyin sinflarga fan va o'qituvchi belgilang.</p>
             )}
 
             {/* Generation result summary */}
             {generatorResult && (
-              <div className="mt-4 border-t border-blue-100 pt-4">
+              <div className="mt-4 border-t border-blue-500/20 pt-4">
                 <div className="flex items-center space-x-2 mb-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span className="text-sm font-semibold text-gray-800">{generatorResult.count} ta dars yaratildi — {generatorResult.coverage}% qoplanish</span>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <span className="text-sm font-semibold text-foreground">{generatorResult.count} ta dars yaratildi — {generatorResult.coverage}% qoplanish</span>
                 </div>
                 {generatorResult.classResults?.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                     {generatorResult.classResults.map((r: any) => (
-                      <div key={r.className} className={`text-xs px-2.5 py-1.5 rounded-lg border ${r.coverage >= 100 ? "bg-green-50 border-green-200 text-green-700" : r.coverage >= 70 ? "bg-yellow-50 border-yellow-200 text-yellow-700" : "bg-red-50 border-red-200 text-red-700"}`}>
+                      <div key={r.className} className={`text-xs px-2.5 py-1.5 rounded-lg border ${r.coverage >= 100 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : r.coverage >= 70 ? "bg-amber-500/10 border-amber-500/20 text-amber-500" : "bg-red-500/10 border-red-500/20 text-red-500"}`}>
                         <span className="font-semibold">{r.className}</span>
                         <span className="ml-1 opacity-75">{r.scheduled}/{r.total} ({r.coverage}%)</span>
                       </div>
@@ -1647,28 +1647,28 @@ export default function Timetables() {
       )}
 
       {/* Main schedule card */}
-      <Card className="border border-gray-100 shadow-sm">
+      <Card className="border border-border bg-card text-card-foreground shadow-sm">
         <CardHeader className="pb-2 pt-3">
           {/* Row 1: Week nav + View toggle + Conflicts */}
           <div className="flex items-center justify-between gap-2">
             {/* Title */}
             <div className="flex items-center space-x-2">
-              <Clock className="h-4 w-4 text-blue-600 animate-pulse" />
-              <span className="text-sm font-semibold text-gray-900">Maktab haftalik dars jadvali</span>
+              <Clock className="h-4 w-4 text-primary animate-pulse" />
+              <span className="text-sm font-semibold text-foreground">Maktab haftalik dars jadvali</span>
             </div>
 
             {/* View mode toggle */}
-            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+            <div className="flex items-center bg-muted rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode("class")}
-                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${viewMode === "class" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
+                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${viewMode === "class" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`}
               >
                 <GraduationCap className="h-3 w-3" />
                 <span>Sinf bo'yicha</span>
               </button>
               <button
                 onClick={() => setViewMode("teacher")}
-                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${viewMode === "teacher" ? "bg-white shadow-sm text-blue-700" : "text-gray-500 hover:text-gray-700"}`}
+                className={`flex items-center space-x-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${viewMode === "teacher" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`}
               >
                 <UserCheck className="h-3 w-3" />
                 <span>O'qituvchi bo'yicha</span>
@@ -1689,23 +1689,23 @@ export default function Timetables() {
                         <AlertTriangle className="mr-0.5 h-2.5 w-2.5 animate-bounce" />{conflicts.length} ta ziddiyat
                       </Badge>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="w-80 p-3 max-h-60 overflow-y-auto bg-white border border-gray-100 shadow-lg rounded-lg z-50">
+                    <TooltipContent side="bottom" align="end" className="w-80 p-3 max-h-60 overflow-y-auto bg-card border border-border shadow-lg text-card-foreground rounded-lg z-50">
                       <div className="space-y-2">
-                        <p className="font-bold text-xs text-gray-900 border-b pb-1 mb-1.5 flex items-center gap-1">
+                        <p className="font-bold text-xs text-foreground border-b border-border pb-1 mb-1.5 flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3 text-red-500" />
                           Mavjud ziddiyatlar:
                         </p>
                         {conflicts.map((c: any, idx: number) => (
-                          <div key={c.id || idx} className="p-2 rounded bg-red-50/50 border border-red-100/50 text-[10px] text-gray-700">
-                            <p className="font-bold text-red-800 mb-0.5">
+                          <div key={c.id || idx} className="p-2 rounded bg-red-500/10 border border-red-500/20 text-[10px] text-foreground">
+                            <p className="font-bold text-red-500 mb-0.5">
                               {c.conflictType === "room" ? "Xona ziddiyati" : 
                                c.conflictType === "teacher" ? "O'qituvchi ziddiyati" : 
                                c.conflictType === "unavailability" ? "Bandlik ziddiyati" : "Sinf ziddiyati"}
                             </p>
-                            <p className="leading-relaxed">{c.description}</p>
+                            <p className="leading-relaxed text-muted-foreground">{c.description}</p>
                           </div>
                         ))}
-                        <p className="text-[9px] text-blue-500 text-center pt-1 border-t mt-1.5 font-medium cursor-pointer">
+                        <p className="text-[9px] text-blue-500 dark:text-blue-400 text-center pt-1 border-t border-border mt-1.5 font-medium cursor-pointer">
                           Bosh sahifaga o'tish va to'liq ko'rish uchun bosing
                         </p>
                       </div>
@@ -1713,11 +1713,11 @@ export default function Timetables() {
                   </Tooltip>
                 </TooltipProvider>
               ) : (
-                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-green-50 text-green-700">
+                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                   <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />Ziddiyatsiz
                 </Badge>
               )}
-              <span className="text-[10px] text-gray-400">{entries.length} ta dars</span>
+              <span className="text-[10px] text-muted-foreground/60">{entries.length} ta dars</span>
             </div>
           </div>
 
@@ -1727,7 +1727,7 @@ export default function Timetables() {
               <div className="flex gap-1 overflow-x-auto max-w-[50%] scrollbar-none pb-0.5">
                 <button
                   onClick={() => setSelectedClassId("all")}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${selectedClassId === "all" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors whitespace-nowrap flex-shrink-0 ${selectedClassId === "all" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
                 >
                   Barchasi
                 </button>
@@ -1739,16 +1739,16 @@ export default function Timetables() {
                       onClick={() => setSelectedClassId(cls.id)}
                       className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors whitespace-nowrap flex-shrink-0 flex items-center gap-1.5 ${
                         selectedClassId === cls.id 
-                          ? "bg-blue-600 text-white" 
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          ? "bg-primary text-primary-foreground" 
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
                       <span>{cls.name}</span>
                       {missingHours > 0 && (
                         <span className={`inline-flex items-center justify-center px-1 text-[8px] font-bold rounded-full min-w-[14px] h-3.5 ${
                           selectedClassId === cls.id 
-                            ? "bg-white text-blue-600" 
-                            : "bg-red-500 text-white shadow-sm"
+                            ? "bg-card text-primary" 
+                            : "bg-red-500 text-primary-foreground shadow-sm"
                         }`}>
                           {missingHours}
                         </span>
@@ -1763,7 +1763,7 @@ export default function Timetables() {
                   value={selectedTeacherId ? String(selectedTeacherId) : "all"}
                   onValueChange={v => setSelectedTeacherId(v === "all" ? null : parseInt(v))}
                 >
-                  <SelectTrigger className="h-7 text-[10px] w-48">
+                  <SelectTrigger className="h-7 text-[10px] w-48 bg-muted/20 border-border text-foreground">
                     <SelectValue placeholder="O'qituvchi tanlang..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -1776,10 +1776,10 @@ export default function Timetables() {
                   </SelectContent>
                 </Select>
                 {selectedTeacherId && (
-                  <div className="flex items-center space-x-1 text-[10px] text-gray-500">
+                  <div className="flex items-center space-x-1 text-[10px] text-muted-foreground">
                     <span>{teacherEntries.length} ta dars</span>
                     {teachers.find(t => t.id === selectedTeacherId)?.maxHoursPerWeek && (
-                      <span className="text-gray-400">/ {teachers.find(t => t.id === selectedTeacherId)?.maxHoursPerWeek} max</span>
+                      <span className="text-muted-foreground/60">/ {teachers.find(t => t.id === selectedTeacherId)?.maxHoursPerWeek} max</span>
                     )}
                   </div>
                 )}
@@ -1789,15 +1789,15 @@ export default function Timetables() {
             {/* Missing Lessons Indicator - inline */}
             {missingLessons.length > 0 && (
               <div className="flex items-center gap-1 flex-shrink-0">
-                <span className="text-[9px] text-gray-400 whitespace-nowrap">Yetishmayotgan:</span>
+                <span className="text-[9px] text-muted-foreground/60 whitespace-nowrap">Yetishmayotgan:</span>
                 {missingLessons.slice(0, 2).map((ml, idx) => (
                   <div key={idx} className="px-1.5 py-0.5 rounded-full text-[9px] font-medium border flex items-center gap-0.5 whitespace-nowrap" style={{ borderColor: ml.color, backgroundColor: `${ml.color}15`, color: ml.color }}>
                     <span className="max-w-[60px] truncate">{ml.subjectName}</span>
-                    <span className="w-3 h-3 rounded-full bg-white flex items-center justify-center font-bold text-[8px] flex-shrink-0">{ml.missingHours}</span>
+                    <span className="w-3 h-3 rounded-full bg-card flex items-center justify-center font-bold text-[8px] flex-shrink-0">{ml.missingHours}</span>
                   </div>
                 ))}
                 {missingLessons.length > 2 && (
-                  <span className="text-[9px] text-gray-400 whitespace-nowrap">+{missingLessons.length - 2}</span>
+                  <span className="text-[9px] text-muted-foreground/60 whitespace-nowrap">+{missingLessons.length - 2}</span>
                 )}
               </div>
             )}
@@ -1806,27 +1806,27 @@ export default function Timetables() {
 
         <CardContent>
           {/* Legend / Guide */}
-          <div className="flex items-center flex-wrap gap-x-4 gap-y-2 text-[10px] text-gray-600 bg-gray-50 p-2 rounded-lg mb-3 border border-gray-100">
-            <div className="font-bold text-gray-800 mr-1 flex items-center gap-1">
-              <BookOpen className="h-3 w-3 text-blue-600" /> Yo'riqnoma:
+          <div className="flex items-center flex-wrap gap-x-4 gap-y-2 text-[10px] text-muted-foreground bg-muted/40 p-2 rounded-lg mb-3 border border-border">
+            <div className="font-bold text-foreground mr-1 flex items-center gap-1">
+              <BookOpen className="h-3 w-3 text-primary" /> Yo'riqnoma:
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
               <span>Fan rangi (har bir fanning o'z rangi)</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <UserCheck className="h-3 w-3 text-gray-500" />
+              <UserCheck className="h-3 w-3 text-muted-foreground/60" />
               <span>O'qituvchi</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <GraduationCap className="h-3 w-3 text-gray-500" />
+              <GraduationCap className="h-3 w-3 text-muted-foreground/60" />
               <span>Sinf nomi</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <DoorOpen className="h-3 w-3 text-gray-500" />
+              <DoorOpen className="h-3 w-3 text-muted-foreground/60" />
               <span>Xona raqami</span>
             </div>
-            <div className="flex items-center gap-1.5 text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">
+            <div className="flex items-center gap-1.5 text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
               <AlertTriangle className="h-3 w-3" />
               <span className="font-medium">Xona biriktirilmagan!</span>
             </div>
@@ -1834,12 +1834,12 @@ export default function Timetables() {
 
           {loadingEntries ? (
             <div className="space-y-2">
-              {Array(6).fill(0).map((_, i) => <div key={i} className="h-14 bg-gray-100 animate-pulse rounded-lg" />)}
+              {Array(6).fill(0).map((_, i) => <div key={i} className="h-14 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : periods.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-muted-foreground/60">
               <Clock className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p className="font-medium text-gray-600">Vaqt uyalari yuklanmoqda...</p>
+              <p className="font-medium text-muted-foreground">Vaqt uyalari yuklanmoqda...</p>
             </div>
           ) : (
             <DndContext
@@ -1862,9 +1862,9 @@ export default function Timetables() {
                     }
                   }}
                 >
-                  <div className="text-[10px] font-semibold text-gray-500 mb-1.5">Mavjud fanlar</div>
+                  <div className="text-[10px] font-semibold text-muted-foreground/60 mb-1.5">Mavjud fanlar</div>
                   {missingLessons.length === 0 ? (
-                    <div className="text-[9px] text-gray-400 italic py-2">Barcha fanlar biriktirilgan</div>
+                    <div className="text-[9px] text-muted-foreground/60 italic py-2">Barcha fanlar biriktirilgan</div>
                   ) : (
                     <div className="space-y-1">
                       {missingLessons.map((ml, idx) => {
@@ -1903,12 +1903,12 @@ export default function Timetables() {
               )}
               
               {/* Right: Schedule table */}
-              <div className="w-full lg:w-1/2 lg:ml-auto -mx-2 shadow-sm border border-gray-100 rounded-lg p-2 bg-white">
+              <div className="w-full lg:w-1/2 lg:ml-auto -mx-2 shadow-sm border border-border rounded-lg p-2 bg-card text-card-foreground">
                 {selectedSubjectToPlace && (
-                  <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-md flex items-center justify-between text-[11px] text-blue-700 animate-pulse">
+                  <div className="mb-2 p-2 bg-blue-500/10 border border-blue-500/20 rounded-md flex items-center justify-between text-[11px] text-blue-600 dark:text-blue-400 animate-pulse">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-semibold">Tanlandi:</span>
-                      <Badge style={{ backgroundColor: getSubject(selectedSubjectToPlace.subjectId)?.color }} className="text-white text-[9px] px-1.5 py-0">
+                      <Badge style={{ backgroundColor: getSubject(selectedSubjectToPlace.subjectId)?.color }} className="text-primary-foreground text-[9px] px-1.5 py-0">
                         {getSubject(selectedSubjectToPlace.subjectId)?.name}
                       </Badge>
                       <span>— Joylashtirish uchun yashil katakchani bosing.</span>
@@ -1916,7 +1916,7 @@ export default function Timetables() {
                     <Button 
                       size="sm" 
                       variant="ghost" 
-                      className="h-6 text-[10px] text-blue-700 hover:bg-blue-100 px-1.5 py-0 ml-2" 
+                      className="h-6 text-[10px] text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 px-1.5 py-0 ml-2" 
                       onClick={() => setSelectedSubjectToPlace(null)}
                     >
                       Bekor qilish (ESC)
@@ -1927,9 +1927,9 @@ export default function Timetables() {
                 <table className="w-full table-fixed">
                   <thead>
                     <tr>
-                      <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-gray-500 w-20">Dars</th>
+                      <th className="text-left py-1.5 px-2 text-[10px] font-semibold text-muted-foreground/60 w-20">Dars</th>
                       {daysToRender.map((day, i) => (
-                        <th key={day} style={{ width: `${100 / daysToRender.length}%` }} className="text-center py-1.5 px-1 text-[10px] font-semibold text-gray-700">
+                        <th key={day} style={{ width: `${100 / daysToRender.length}%` }} className="text-center py-1.5 px-1 text-[10px] font-semibold text-muted-foreground">
                           <div>{day}</div>
                         </th>
                       ))}
@@ -1937,11 +1937,11 @@ export default function Timetables() {
                   </thead>
                   <tbody>
                     {periods.map((period, pi) => (
-                      <tr key={period.id} className={pi % 2 === 0 ? "bg-gray-50/50" : "bg-white"}>
-                        <td className="py-1 px-2 align-middle" style={{ height: "58px" }}>
+                      <tr key={period.id} className={pi % 2 === 0 ? "bg-muted/40" : "bg-card"}>
+                        <td className="py-1 px-2 align-middle border-b border-border/50" style={{ height: "58px" }}>
                           <div className="flex flex-col justify-center h-full">
-                            <div className="text-[10px] font-semibold text-gray-700">{pi + 1}-dars</div>
-                            <div className="text-[9px] text-gray-400 font-mono">
+                            <div className="text-[10px] font-semibold text-foreground">{pi + 1}-dars</div>
+                            <div className="text-[9px] text-muted-foreground/60 font-mono">
                               {period.startTime?.slice(0, 5)}–{period.endTime?.slice(0, 5)}
                             </div>
                           </div>
@@ -1949,7 +1949,7 @@ export default function Timetables() {
                         {daysToRender.map((_, dayIdx) => {
                           const dayNum = dayIdx + 1;
                           const slot = slotMap.get(`${dayNum}_${period.periodNumber}`);
-                          if (!slot) return <td key={dayIdx} className="py-1 px-1" style={{ height: "58px" }} />;
+                          if (!slot) return <td key={dayIdx} className="py-1 px-1 border-b border-border/50" style={{ height: "58px" }} />;
                           const slotEntries = entryBySlot.get(slot.id) || [];
 
                           return (
@@ -2106,7 +2106,7 @@ export default function Timetables() {
                     />
                   ) : activeDragNewSubject ? (
                     <div
-                      className="p-1.5 rounded border-2 shadow-lg rotate-1 cursor-grabbing bg-white min-w-[120px] max-w-[180px]"
+                      className="p-1.5 rounded border-2 shadow-lg rotate-1 cursor-grabbing bg-card min-w-[120px] max-w-[180px]"
                       style={{
                         borderColor: getSubject(activeDragNewSubject.subjectId)?.color,
                         backgroundColor: `${getSubject(activeDragNewSubject.subjectId)?.color}15`,
@@ -2117,7 +2117,7 @@ export default function Timetables() {
                           <p className="text-[9px] font-semibold truncate" style={{ color: getSubject(activeDragNewSubject.subjectId)?.color }}>
                             {getSubject(activeDragNewSubject.subjectId)?.name}
                           </p>
-                          <p className="text-[8px] text-gray-500">
+                          <p className="text-[8px] text-muted-foreground">
                             Yangi dars
                           </p>
                         </div>
@@ -2141,7 +2141,7 @@ export default function Timetables() {
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Fan</label>
+                <label className="text-sm font-medium text-foreground">Fan</label>
                 <Select value={String(editForm.subjectId)} onValueChange={v => setEditForm(p => p ? { ...p, subjectId: parseInt(v) } : p)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -2150,7 +2150,7 @@ export default function Timetables() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">O'qituvchi</label>
+                <label className="text-sm font-medium text-foreground">O'qituvchi</label>
                 <Select value={String(editForm.teacherId)} onValueChange={v => setEditForm(p => p ? { ...p, teacherId: parseInt(v) } : p)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -2163,7 +2163,7 @@ export default function Timetables() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Xona</label>
+                <label className="text-sm font-medium text-foreground">Xona</label>
                 <Select value={String(editForm.roomId)} onValueChange={v => setEditForm(p => p ? { ...p, roomId: parseInt(v) } : p)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -2172,7 +2172,7 @@ export default function Timetables() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">Dars turi</label>
+                <label className="text-sm font-medium text-foreground">Dars turi</label>
                 <Select value={editForm.weekType} onValueChange={v => setEditForm(p => p ? { ...p, weekType: v } : p)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -2185,7 +2185,7 @@ export default function Timetables() {
             </div>
             <DialogFooter>
               <Button
-                className="bg-red-600 hover:bg-red-700 text-white mr-auto order-first"
+                className="bg-red-600 hover:bg-red-700 text-primary-foreground mr-auto order-first"
                 variant="destructive"
                 onClick={() => { deleteEntryMutation.mutate(editEntry.id); setEditEntry(null); }}
               >
@@ -2195,7 +2195,7 @@ export default function Timetables() {
               <Button
                 onClick={() => updateEntryMutation.mutate({ id: editEntry.id, data: editForm })}
                 disabled={updateEntryMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-primary hover:bg-primary/90"
               >
                 Saqlash
               </Button>
@@ -2215,7 +2215,7 @@ export default function Timetables() {
               </DialogTitle>
             </DialogHeader>
             <div className="py-3">
-              <p className="text-sm text-gray-700">
+              <p className="text-sm text-foreground">
                 Bu o'qituvchining ushbu vaqtda <strong>{conflictWarning.conflictingClassName}</strong> sinfida darsi bor.
                 <br /><br />
                 O'sha darsni zaxiraga (yetishmayotganlar ro'yxatiga) olib, darsni bu yerga joylashtiraylikmi?
@@ -2259,14 +2259,14 @@ export default function Timetables() {
             willChange: 'transform',
             transition: 'none'
           }}
-          className="bg-white min-w-[100px] max-w-[150px] border border-solid border-gray-200"
+          className="bg-card min-w-[100px] max-w-[150px] border border-solid border-border"
         >
           <div className="flex items-center justify-between gap-1">
             <div className="flex-1 min-w-0">
               <p className="text-[9px] font-semibold truncate" style={{ color: getSubject(selectedSubjectToPlace.subjectId)?.color }}>
                 {getSubject(selectedSubjectToPlace.subjectId)?.name}
               </p>
-              <p className="text-[8px] text-gray-500">
+              <p className="text-[8px] text-muted-foreground">
                 {selectedSubjectToPlace.sourceEntryId ? "Ko'chirilmoqda" : "Joylashtirilmoqda"}
               </p>
             </div>

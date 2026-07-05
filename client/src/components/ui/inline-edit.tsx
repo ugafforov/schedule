@@ -129,11 +129,11 @@ export function InlineEdit({
       className={`cursor-pointer hover:bg-blue-50 rounded px-1.5 py-0.5 transition-colors group flex items-center gap-1 min-w-0 ${className}`}
       title="Tahrirlash uchun bosing"
     >
-      <span className="truncate">{value || <span className="text-gray-400 italic">{placeholder || "—"}</span>}</span>
+      <span className="truncate">{value || <span className="text-muted-foreground italic">{placeholder || "—"}</span>}</span>
       {showSuccess ? (
         <Check className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
       ) : (
-        <span className="opacity-0 group-hover:opacity-100 text-gray-400 text-xs flex-shrink-0">✎</span>
+        <span className="opacity-0 group-hover:opacity-100 text-muted-foreground text-xs flex-shrink-0">✎</span>
       )}
     </div>
   );
@@ -200,7 +200,7 @@ export function InlineSelect({
   if (isEditing) {
     return (
       <div ref={containerRef} className={`relative ${className}`}>
-        <div className="absolute z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px] max-h-48 overflow-auto">
+        <div className="absolute z-50 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[140px] max-h-48 overflow-auto">
           {isLoading ? (
             <div className="flex items-center justify-center py-2">
               <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
@@ -212,8 +212,8 @@ export function InlineSelect({
                 <button
                   key={option.value}
                   onClick={() => handleSelect(option.value)}
-                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 flex items-center gap-2 ${
-                    option.value === value ? "bg-blue-50 text-blue-700" : "text-gray-700"
+                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 flex items-center gap-2 ${
+                    option.value === value ? "bg-blue-50 text-blue-700" : "text-foreground"
                   }`}
                 >
                   {Icon && <Icon className="h-3.5 w-3.5" />}
@@ -235,7 +235,7 @@ export function InlineSelect({
     >
       {SelectedIcon && <SelectedIcon className="h-3.5 w-3.5 flex-shrink-0" />}
       <span className="truncate">{selectedOption?.label || value}</span>
-      <span className="opacity-0 group-hover:opacity-100 text-gray-400 text-xs flex-shrink-0">▼</span>
+      <span className="opacity-0 group-hover:opacity-100 text-muted-foreground text-xs flex-shrink-0">▼</span>
     </div>
   );
 }

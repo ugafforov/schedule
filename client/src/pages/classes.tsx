@@ -34,7 +34,7 @@ function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boole
         <DialogHeader>
           <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-gray-600">{title}</p>
+        <p className="text-sm text-muted-foreground">{title}</p>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
           <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
@@ -51,7 +51,7 @@ function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; ti
         <DialogHeader>
           <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-gray-600">{title}</p>
+        <p className="text-sm text-muted-foreground">{title}</p>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
           <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
@@ -121,7 +121,7 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
               <div className="flex gap-1">
                 <button onClick={() => setSelectedGrades([...ALL_GRADES])} className="text-xs text-blue-600 hover:underline">Hammasi</button>
                 <span className="text-gray-300">|</span>
-                <button onClick={() => setSelectedGrades([])} className="text-xs text-gray-500 hover:underline">Tozalash</button>
+                <button onClick={() => setSelectedGrades([])} className="text-xs text-muted-foreground hover:underline">Tozalash</button>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -130,7 +130,7 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
                 return (
                   <button key={g} onClick={() => toggleGrade(g)}
                     className={`w-12 h-10 rounded-lg border-2 text-sm font-bold transition-all ${
-                      sel ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      sel ? "border-blue-500 bg-blue-50 text-blue-700" : "border-border text-muted-foreground hover:border-border"
                     }`}>{g}</button>
                 );
               })}
@@ -141,7 +141,7 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
           <div className="space-y-1.5">
             <Label className="text-sm">Guruhlar (vergul bilan ajratilgan)</Label>
             <Input placeholder="A, B, C" value={sections} onChange={e => setSections(e.target.value)} />
-            <p className="text-xs text-gray-400">Masalan: A, B yoki A, B, C, D</p>
+            <p className="text-xs text-muted-foreground">Masalan: A, B yoki A, B, C, D</p>
           </div>
 
           {/* Students count */}
@@ -153,10 +153,10 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
           {/* Preview */}
           {preview.length > 0 && (
             <div className="space-y-2">
-              <Label className="text-sm text-gray-600">Ko'rinish — <span className="text-blue-600 font-semibold">{preview.length} ta sinf</span> yaratiladi:</Label>
-              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-3 bg-gray-50 rounded-xl border border-gray-100">
+              <Label className="text-sm text-muted-foreground">Ko'rinish — <span className="text-blue-600 font-semibold">{preview.length} ta sinf</span> yaratiladi:</Label>
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-3 bg-muted/50 rounded-xl border border-border">
                 {preview.map(name => (
-                  <span key={name} className="px-2 py-0.5 bg-white border border-gray-200 rounded-md text-xs font-medium text-gray-700">{name}</span>
+                  <span key={name} className="px-2 py-0.5 bg-card border border-border rounded-md text-xs font-medium text-foreground">{name}</span>
                 ))}
               </div>
             </div>
@@ -164,7 +164,7 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
-          <Button onClick={handleCreate} disabled={loading || preview.length === 0} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={handleCreate} disabled={loading || preview.length === 0} className="bg-primary hover:bg-primary/90">
             {loading ? "Yaratilmoqda..." : `${preview.length} ta sinf yaratish`}
           </Button>
         </DialogFooter>
@@ -319,73 +319,73 @@ export default function Classes() {
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sinflar</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Sinflar va ularga biriktirilgan fanlarni boshqarish</p>
+          <h1 className="text-2xl font-bold text-foreground">Sinflar</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Sinflar va ularga biriktirilgan fanlarni boshqarish</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             onClick={() => classes.length > 0 && setClearOpen(true)}
             disabled={clearAllMutation.isPending || classes.length === 0}
-            className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+            className="border-red-500/20 text-red-500 hover:bg-red-500/10 hover:border-red-500/30"
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Barchasini tozalash
           </Button>
-          <Button variant="outline" onClick={() => setExcelImportOpen(true)} className="border-emerald-100 text-emerald-700 hover:bg-emerald-50">
+          <Button variant="outline" onClick={() => setExcelImportOpen(true)} className="border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10">
             <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel Import
           </Button>
-          <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:border-amber-300">
+          <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30">
             <Zap className="mr-2 h-4 w-4 text-amber-500" />
             Tez yaratish
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="border-indigo-100 text-indigo-700 hover:bg-indigo-50">
+              <Button variant="outline" className="border-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10">
                 <Calendar className="mr-2 h-4 w-4 text-indigo-500" /> O'quv kunlari (Tezkor)
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 bg-white border border-gray-100 shadow-md rounded-lg p-1">
-              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("primary", "1,2,3,4,5")} className="text-xs py-2 cursor-pointer hover:bg-gray-50 rounded-md">
+            <DropdownMenuContent align="end" className="w-64 bg-card border border-border shadow-md rounded-lg p-1 text-card-foreground">
+              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("primary", "1,2,3,4,5")} className="text-xs py-2 cursor-pointer hover:bg-muted rounded-md">
                 Boshlang'ich (1-4) sinflarni 5 kunlik qilish
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("high", "1,2,3,4,5,6")} className="text-xs py-2 cursor-pointer hover:bg-gray-50 rounded-md">
+              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("high", "1,2,3,4,5,6")} className="text-xs py-2 cursor-pointer hover:bg-muted rounded-md">
                 Yuqori (5-11) sinflarni 6 kunlik qilish
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("all", "1,2,3,4,5,6")} className="text-xs py-2 cursor-pointer hover:bg-gray-50 rounded-md">
+              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("all", "1,2,3,4,5,6")} className="text-xs py-2 cursor-pointer hover:bg-muted rounded-md">
                 Barcha sinflarni 6 kunlik qilish
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("all", "1,2,3,4,5")} className="text-xs py-2 cursor-pointer hover:bg-gray-50 rounded-md">
+              <DropdownMenuItem onClick={() => handleBulkStudyDaysUpdate("all", "1,2,3,4,5")} className="text-xs py-2 cursor-pointer hover:bg-muted rounded-md">
                 Barcha sinflarni 5 kunlik qilish
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={openAdd} className="bg-primary hover:bg-primary/90">
             <Plus className="mr-2 h-4 w-4" />
             Sinf qo'shish
           </Button>
         </div>
       </div>
 
-      <Card className="border border-gray-100 shadow-sm">
+      <Card className="border border-border bg-card text-card-foreground shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center">
-              <GraduationCap className="mr-2 h-4 w-4 text-blue-600" />
+              <GraduationCap className="mr-2 h-4 w-4 text-primary" />
               Sinflar ro'yxati
-              <Badge variant="secondary" className="ml-2 text-xs">{classes.length} ta</Badge>
+              <Badge variant="secondary" className="ml-2 text-xs bg-muted text-foreground">{classes.length} ta</Badge>
             </CardTitle>
             <div className="flex items-center gap-2">
               <div className="relative w-60">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input placeholder="Sinf nomini qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
-                {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><X className="h-3.5 w-3.5" /></button>}
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 h-4 w-4" />
+                <Input placeholder="Sinf nomini qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
+                {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60"><X className="h-3.5 w-3.5" /></button>}
               </div>
-              <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg">
-                <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "grid" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("grid")} aria-label="Grid view">
+              <div className="flex items-center gap-1 p-1 bg-muted/50 border border-border rounded-lg">
+                <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "grid" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setViewMode("grid")} aria-label="Grid view">
                   <LayoutGrid className="h-4 w-4" />
                 </Button>
-                <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "list" ? "bg-white shadow-sm text-gray-900" : "text-gray-600"}`} onClick={() => setViewMode("list")} aria-label="List view">
+                <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "list" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setViewMode("list")} aria-label="List view">
                   <List className="h-4 w-4" />
                 </Button>
               </div>
@@ -395,7 +395,7 @@ export default function Classes() {
         <CardContent>
           {isLoading ? (
             <div className={viewMode === "grid" ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" : "space-y-3"}>
-              {Array(10).fill(0).map((_, i) => <div key={i} className="h-28 bg-gray-100 animate-pulse rounded-xl" />)}
+              {Array(10).fill(0).map((_, i) => <div key={i} className="h-28 bg-muted animate-pulse rounded-xl" />)}
             </div>
           ) : filtered.length > 0 ? (
             viewMode === "grid" ? (
@@ -403,27 +403,27 @@ export default function Classes() {
               {filtered.map((cls, idx) => {
                 const [bg, text] = GRADE_COLORS[idx % GRADE_COLORS.length].split(" ");
                 return (
-                  <div key={cls.id} className="group border border-gray-100 rounded-xl p-4 hover:border-blue-200 hover:shadow-sm transition-all bg-white">
+                  <div key={cls.id} className="group border border-border rounded-xl p-4 hover:border-primary/50 hover:shadow-sm transition-all bg-card">
                     <div className="flex items-start justify-between mb-3">
                       <div className={`w-11 h-11 ${bg} rounded-xl flex items-center justify-center`}>
                         <span className={`font-bold text-lg ${text}`}>{cls.grade || cls.name?.[0] || "?"}</span>
                       </div>
                       <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => openEdit(cls)}><Edit className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-foreground" onClick={() => openEdit(cls)}><Edit className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-500/10"
                           onClick={() => setDeleteId(cls.id)} disabled={deleteMutation.isPending}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-gray-900 text-lg">{cls.name}</h3>
-                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase bg-gray-50 text-gray-500 border-gray-200">
+                      <h3 className="font-bold text-foreground text-lg">{cls.name}</h3>
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase bg-muted text-muted-foreground border-border">
                         {(cls as any).language || "uz"}
                       </Badge>
                     </div>
-                    <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-gray-50">
-                      <div className="flex items-center space-x-1 text-gray-400">
+                    <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
+                      <div className="flex items-center space-x-1 text-muted-foreground/60">
                         <Users className="h-3.5 w-3.5" /><span className="text-xs">{cls.totalStudents} o'quvchi</span>
                       </div>
                       <Badge 
@@ -435,8 +435,8 @@ export default function Classes() {
                         }}
                         className={`text-[9px] px-1.5 py-0 h-4.5 cursor-pointer font-semibold transition-all select-none ${
                           (cls as any).studyDays?.includes("6") 
-                            ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100" 
-                            : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                            ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20" 
+                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
                         }`}
                         title="Dars kunlarini o'zgartirish uchun bosing"
                       >
@@ -449,7 +449,7 @@ export default function Classes() {
             </div>
             ) : (
               <div className="space-y-3">
-                <div className="grid grid-cols-[minmax(0,1.6fr)_90px_110px_100px_80px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 bg-gray-50 rounded-xl border border-gray-100">
+                <div className="grid grid-cols-[minmax(0,1.6fr)_90px_110px_100px_80px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/50 rounded-xl border border-border">
                   <div>Sinf</div>
                   <div>Raqam</div>
                   <div>Kunlar</div>
@@ -460,7 +460,7 @@ export default function Classes() {
                   const [bg, text] = GRADE_COLORS[idx % GRADE_COLORS.length].split(" ");
                   const isUpdating = inlineUpdateMutation.isPending;
                   return (
-                    <div key={cls.id} className="grid grid-cols-[minmax(0,1.6fr)_90px_110px_100px_80px] gap-4 items-center p-3 rounded-xl border border-gray-100 bg-white hover:shadow-sm transition-all">
+                    <div key={cls.id} className="grid grid-cols-[minmax(0,1.6fr)_90px_110px_100px_80px] gap-4 items-center p-3 rounded-xl border border-border bg-card hover:shadow-sm transition-all">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
                           <span className={`font-bold text-lg ${text}`}>{cls.grade || cls.name?.[0] || "?"}</span>
@@ -471,10 +471,10 @@ export default function Classes() {
                               value={cls.name}
                               onSave={(name) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { name } })}
                               placeholder="Sinf nomi"
-                              className="font-semibold text-gray-900 text-sm"
+                              className="font-semibold text-foreground text-sm"
                               disabled={isUpdating}
                             />
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase bg-gray-50 text-gray-500 border-gray-200">
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 uppercase bg-muted text-muted-foreground border-border">
                               {(cls as any).language || "uz"}
                             </Badge>
                           </div>
@@ -482,7 +482,7 @@ export default function Classes() {
                             value={cls.section || ""}
                             onSave={(section) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { section } })}
                             placeholder="Guruh"
-                            className="text-xs text-gray-400"
+                            className="text-xs text-muted-foreground/60"
                             disabled={isUpdating}
                           />
                         </div>
@@ -491,7 +491,7 @@ export default function Classes() {
                         value={cls.grade || ""}
                         options={gradeOptions}
                         onSave={(grade) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { grade } })}
-                        className="text-sm text-gray-600"
+                        className="text-sm text-foreground"
                         disabled={isUpdating}
                       />
                       <div className="text-sm">
@@ -504,15 +504,15 @@ export default function Classes() {
                           }}
                           className={`text-[9px] px-1.5 py-0.5 h-5 cursor-pointer font-semibold transition-all select-none ${
                             (cls as any).studyDays?.includes("6") 
-                              ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100" 
-                              : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                              ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20" 
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
                           }`}
                           title="Dars kunlarini o'zgartirish uchun bosing"
                         >
                           {(cls as any).studyDays?.includes("6") ? "6 kun (Du-Sh)" : "5 kun (Du-Ju)"}
                         </Badge>
                       </div>
-                      <div className="text-sm text-gray-600 whitespace-nowrap">
+                      <div className="text-sm text-foreground whitespace-nowrap">
                         <InlineEdit
                           value={cls.totalStudents || 25}
                           onSave={(val: string) => inlineUpdateMutation.mutateAsync({ id: cls.id, data: { totalStudents: parseInt(val) || 25 } })}
@@ -523,11 +523,11 @@ export default function Classes() {
                           className="inline-block w-16"
                           disabled={isUpdating}
                         />
-                        <span className="ml-1 text-gray-400">o'quvchi</span>
+                        <span className="ml-1 text-muted-foreground/60">o'quvchi</span>
                       </div>
                       <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => openEdit(cls)} title="Batafsil tahrirlash"><Edit className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => setDeleteId(cls.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground/60 hover:text-foreground" onClick={() => openEdit(cls)} title="Batafsil tahrirlash"><Edit className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-500/10" onClick={() => setDeleteId(cls.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
                     </div>
                   );
@@ -536,16 +536,16 @@ export default function Classes() {
             )
           ) : (
             <div className="text-center py-16">
-              <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <GraduationCap className="h-6 w-6 text-gray-400" />
+              <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                <GraduationCap className="h-6 w-6 text-muted-foreground/40" />
               </div>
-              <p className="text-gray-600 font-medium">{search ? "Qidiruv bo'yicha natija topilmadi" : "Sinflar ro'yxati bo'sh"}</p>
+              <p className="text-muted-foreground font-medium">{search ? "Qidiruv bo'yicha natija topilmadi" : "Sinflar ro'yxati bo'sh"}</p>
               {!search && (
                 <div className="mt-4 flex flex-col sm:flex-row gap-2 justify-center">
-                  <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-200 text-amber-700 hover:bg-amber-50">
+                  <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10">
                     <Zap className="mr-2 h-4 w-4 text-amber-500" /> Tez yaratish (1-11 sinflar)
                   </Button>
-                  <Button onClick={openAdd} className="bg-blue-600 hover:bg-blue-700">
+                  <Button onClick={openAdd} className="bg-primary hover:bg-primary/90">
                     <Plus className="mr-2 h-4 w-4" /> Bitta sinf qo'shish
                   </Button>
                 </div>
@@ -561,10 +561,10 @@ export default function Classes() {
           <DialogHeader>
             <DialogTitle>{editing ? "Sinfni tahrirlash" : "Yangi sinf qo'shish"}</DialogTitle>
           </DialogHeader>
-          <div className="flex space-x-1 border-b border-gray-100 mb-4">
+          <div className="flex space-x-1 border-b border-border mb-4">
             {(["info", "subjects"] as const).map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm font-medium transition-colors rounded-t-lg ${activeTab === tab ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-500 hover:text-gray-700"}`}>
+                className={`px-4 py-2 text-sm font-medium transition-colors rounded-t-lg ${activeTab === tab ? "text-blue-600 border-b-2 border-blue-600" : "text-muted-foreground hover:text-foreground"}`}>
                 {tab === "info" ? "Asosiy ma'lumot" : `Fanlar (${form.subjects.length})`}
               </button>
             ))}
@@ -626,21 +626,21 @@ export default function Classes() {
                 </div>
               )}
               {form.subjects.length === 0 ? (
-                <div className="text-center py-8 text-gray-400"><BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" /><p className="text-sm">Hali fan qo'shilmagan</p></div>
+                <div className="text-center py-8 text-muted-foreground"><BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" /><p className="text-sm">Hali fan qo'shilmagan</p></div>
               ) : (
                 <div className="space-y-2 max-h-72 overflow-y-auto">
                   {form.subjects.map(sa => (
-                    <div key={sa.subjectId} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                    <div key={sa.subjectId} className="border border-border rounded-lg p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: subjects.find(s => s.id === sa.subjectId)?.color || "#3B82F6" }} />
-                          <span className="text-sm font-medium text-gray-900">{subjectName(sa.subjectId)}</span>
+                          <span className="text-sm font-medium text-foreground">{subjectName(sa.subjectId)}</span>
                         </div>
-                        <button onClick={() => removeSubject(sa.subjectId)} className="text-gray-400 hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => removeSubject(sa.subjectId)} className="text-muted-foreground hover:text-red-500"><X className="h-3.5 w-3.5" /></button>
                       </div>
                       <div className="grid grid-cols-[1fr_1fr_60px] gap-2 items-start">
                         <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-bold text-gray-500">1-O'qituvchi</label>
+                          <label className="text-[10px] uppercase font-bold text-muted-foreground">1-O'qituvchi</label>
                           <Select value={sa.teacherId ? String(sa.teacherId) : "none"}
                             onValueChange={v => updateSubjectField(sa.subjectId, "teacherId", v === "none" ? null : parseInt(v))}>
                             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tanlang" /></SelectTrigger>
@@ -651,7 +651,7 @@ export default function Classes() {
                           </Select>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-bold text-gray-500">2-O'qituvchi (Guruh)</label>
+                          <label className="text-[10px] uppercase font-bold text-muted-foreground">2-O'qituvchi (Guruh)</label>
                           <Select value={sa.teacherId2 ? String(sa.teacherId2) : "none"}
                             onValueChange={v => updateSubjectField(sa.subjectId, "teacherId2", v === "none" ? null : parseInt(v))}>
                             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tanlang" /></SelectTrigger>
@@ -662,7 +662,7 @@ export default function Classes() {
                           </Select>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-bold text-gray-500">Soat</label>
+                          <label className="text-[10px] uppercase font-bold text-muted-foreground">Soat</label>
                           <Input type="number" min={1} max={8} value={sa.weeklyHours}
                             onChange={e => updateSubjectField(sa.subjectId, "weeklyHours", parseInt(e.target.value) || 2)} className="h-8 text-xs px-2" />
                         </div>
@@ -672,8 +672,8 @@ export default function Classes() {
                 </div>
               )}
               {form.subjects.length > 0 && (
-                <div className="text-xs text-gray-500 border-t border-gray-100 pt-2">
-                  Jami: <span className="font-semibold text-gray-900">{form.subjects.reduce((s, x) => s + x.weeklyHours, 0)}</span> soat/hafta
+                <div className="text-xs text-muted-foreground border-t border-border pt-2">
+                  Jami: <span className="font-semibold text-foreground">{form.subjects.reduce((s, x) => s + x.weeklyHours, 0)}</span> soat/hafta
                 </div>
               )}
             </div>
@@ -681,7 +681,7 @@ export default function Classes() {
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setOpen(false)}>Bekor qilish</Button>
             <Button onClick={() => { if (!form.name && !form.grade) { toast({ title: "Xatolik", description: "Sinf nomi kiritilishi shart", variant: "destructive" }); return; } upsertMutation.mutate(form); }}
-              disabled={upsertMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
+              disabled={upsertMutation.isPending} className="bg-primary hover:bg-primary/90">
               {editing ? "Saqlash" : "Qo'shish"}
             </Button>
           </DialogFooter>

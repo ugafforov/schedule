@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { scheduleEntries, scheduleConflicts, teachers, classes, subjects, rooms, type ScheduleEntry, type InsertScheduleEntry, type ScheduleConflict, type InsertScheduleConflict } from "@shared/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, isNotNull } from "drizzle-orm";
 
 export class ScheduleStorage {
   // Schedule Entries
@@ -66,9 +66,38 @@ export class ScheduleStorage {
     await db.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.isActive, true));
   }
   async clearScheduleForClass(classId: number): Promise<void> {
-    await db.update(scheduleEntries)
-      .set({ isActive: false })
-      .where(and(eq(scheduleEntries.isActive, true), eq(scheduleEntries.classId, classId)));
+    await db.transaction(async (tx) => {
+      // 1. Find all active joint lesson IDs that this class has entries for
+      const activeJoints = await tx.select({ jointLessonId: scheduleEntries.jointLessonId })
+        .from(scheduleEntries)
+        .where(and(
+          eq(scheduleEntries.isActive, true),
+          eq(scheduleEntries.classId, classId),
+          isNotNull(scheduleEntries.jointLessonId)
+        ));
+      
+      const jointIds = Array.from(new Set(activeJoints.map(j => j.jointLessonId).filter((id): id is number => id !== null)));
+      
+      // 2. Clear regular entries for this class
+      await tx.update(scheduleEntries)
+        .set({ isActive: false })
+        .where(and(
+          eq(scheduleEntries.isActive, true),
+          eq(scheduleEntries.classId, classId)
+        ));
+        
+      // 3. Clear joint lesson entries for all participating classes for the identified joint lessons
+      if (jointIds.length > 0) {
+        for (const jid of jointIds) {
+          await tx.update(scheduleEntries)
+            .set({ isActive: false })
+            .where(and(
+              eq(scheduleEntries.isActive, true),
+              eq(scheduleEntries.jointLessonId, jid)
+            ));
+        }
+      }
+    });
   }
 
   // Conflicts

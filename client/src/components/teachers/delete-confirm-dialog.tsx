@@ -18,7 +18,7 @@ export function DeleteConfirmDialog({
         <DialogHeader>
           <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-gray-600">{title}</p>
+        <p className="text-sm text-muted-foreground">{title}</p>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
           <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>

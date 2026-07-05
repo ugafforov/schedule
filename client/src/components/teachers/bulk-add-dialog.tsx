@@ -137,16 +137,16 @@ export function BulkAddTeachers({
         </DialogHeader>
 
         {/* Mode tabs */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-lg w-fit">
+        <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
           <button
             onClick={() => setMode("recommend")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "recommend" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "recommend" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
             <Wand2 className="h-3.5 w-3.5" /> DTS tavsiyasi
           </button>
           <button
             onClick={() => setMode("manual")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "manual" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${mode === "manual" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
             <Users className="h-3.5 w-3.5" /> Qo'lda kiritish
           </button>
@@ -166,13 +166,13 @@ export function BulkAddTeachers({
             <div className="space-y-3">
               {recsLoading ? (
                 <div className="space-y-2">
-                  {Array(4).fill(0).map((_, i) => <div key={i} className="h-12 bg-gray-100 animate-pulse rounded-lg" />)}
+                  {Array(4).fill(0).map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
                 </div>
               ) : vacancyRecs.length === 0 ? (
-                <div className="text-center py-8 border border-dashed border-gray-200 rounded-xl">
+                <div className="text-center py-8 border border-dashed border-border rounded-xl">
                   <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-gray-700">Barcha fanlar uchun o'qituvchilar yetarli</p>
-                  <p className="text-xs text-gray-400 mt-1">Sinflar va fanlar biriktirilgandan so'ng tavsiyalar paydo bo'ladi</p>
+                  <p className="text-sm font-medium text-foreground">Barcha fanlar uchun o'qituvchilar yetarli</p>
+                  <p className="text-xs text-muted-foreground mt-1">Sinflar va fanlar biriktirilgandan so'ng tavsiyalar paydo bo'ladi</p>
                 </div>
               ) : (
                 <>
@@ -192,7 +192,7 @@ export function BulkAddTeachers({
                           autoGenerateMutation.mutate();
                         }
                       }}
-                      className="bg-amber-600 hover:bg-amber-700 text-white h-8 text-xs px-3"
+                      className="bg-amber-600 hover:bg-amber-700 text-primary-foreground h-8 text-xs px-3"
                     >
                       <Zap className="mr-1.5 h-3.5 w-3.5" />
                       Bajarish
@@ -211,9 +211,9 @@ export function BulkAddTeachers({
                         <div key={rec.subjectId} className="flex items-center gap-3 px-3 py-2">
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: rec.subjectColor || "#3B82F6" }} />
                           <span className="text-sm font-medium text-gray-800 flex-1">{rec.subjectName}</span>
-                          <span className="text-xs text-gray-500">{rec.classCount} sinf · {rec.totalWeeklyHours} soat/hafta</span>
+                          <span className="text-xs text-muted-foreground">{rec.classCount} sinf · {rec.totalWeeklyHours} soat/hafta</span>
                           <div className="flex items-center gap-1">
-                            <span className="text-xs text-gray-500">Bor: <span className="font-semibold text-gray-700">{rec.existingTeachers}</span></span>
+                            <span className="text-xs text-muted-foreground">Bor: <span className="font-semibold text-foreground">{rec.existingTeachers}</span></span>
                             <ChevronRight className="h-3 w-3 text-gray-300" />
                             <span className="text-xs text-red-600">Kerak: <span className="font-bold">{rec.neededTeachers}</span></span>
                           </div>
@@ -241,14 +241,14 @@ export function BulkAddTeachers({
                 <div className="border border-emerald-200 bg-emerald-50 rounded-xl overflow-hidden">
                   <div className="px-3 py-2 border-b border-emerald-100 flex items-center justify-between">
                     <p className="text-xs font-semibold text-emerald-800">{generatedList.length} ta o'qituvchi qo'shiladi:</p>
-                    <button onClick={() => setGeneratedList([])} className="text-xs text-gray-400 hover:text-gray-600">Tozalash</button>
+                    <button onClick={() => setGeneratedList([])} className="text-xs text-muted-foreground hover:text-muted-foreground">Tozalash</button>
                   </div>
                   <div className="divide-y divide-emerald-100 max-h-44 overflow-y-auto">
                     {generatedList.map((item, i) => (
                       <div key={i} className="flex items-center gap-2 px-3 py-1.5">
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.subjectColor || "#3B82F6" }} />
                         <span className="text-sm text-gray-800 flex-1">{item.firstName} {item.lastName}</span>
-                        <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{item.subjectName}</span>
+                        <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{item.subjectName}</span>
                         <button onClick={() => removeGenerated(i)} className="text-gray-300 hover:text-red-400 ml-1">
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -270,9 +270,9 @@ export function BulkAddTeachers({
                   onChange={e => setManualText(e.target.value)}
                   placeholder={"Ona tili vakant\nMatematika vakant\nFizika vakant 1\nFizika vakant 2"}
                   rows={7}
-                  className="w-full rounded-lg border border-gray-200 p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                  className="w-full rounded-lg border border-border p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
                 />
-                <p className="text-xs text-gray-400">Har bir qatorda bitta o'qituvchi: <span className="font-mono bg-gray-100 px-1 rounded">Fan nomi vakant</span></p>
+                <p className="text-xs text-muted-foreground">Har bir qatorda bitta o'qituvchi: <span className="font-mono bg-muted px-1 rounded">Fan nomi vakant</span></p>
               </div>
               {manualParsed.length > 0 && (
                 <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
@@ -298,7 +298,7 @@ export function BulkAddTeachers({
           <Button
             onClick={handleCreate}
             disabled={loading || activeList.length === 0}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-primary hover:bg-primary/90"
           >
             {loading ? "Qo'shilmoqda..." : `${activeList.length} ta qo'shish`}
           </Button>

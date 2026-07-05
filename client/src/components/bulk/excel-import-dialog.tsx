@@ -159,13 +159,13 @@ export function ExcelImportDialog({ open, onClose, type }: ExcelImportDialogProp
               <FileSpreadsheet className="h-4 w-4" />
               <span>Andoza (Shablon) faylini yuklab oling</span>
             </div>
-            <Button variant="outline" size="sm" onClick={downloadTemplate} className="bg-white">
+            <Button variant="outline" size="sm" onClick={downloadTemplate} className="bg-card">
               Andozani yuklash
             </Button>
           </div>
 
           <div 
-            className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors cursor-pointer"
+            className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
             <input 
@@ -175,24 +175,24 @@ export function ExcelImportDialog({ open, onClose, type }: ExcelImportDialogProp
               accept=".xlsx, .xls" 
               className="hidden" 
             />
-            <Upload className="h-8 w-8 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm font-medium text-gray-700">
+            <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm font-medium text-foreground">
               {file ? file.name : "Faylni tanlash uchun bosing"}
             </p>
-            <p className="text-xs text-gray-500 mt-1">Faqat .xlsx yoki .xls fayllar</p>
+            <p className="text-xs text-muted-foreground mt-1">Faqat .xlsx yoki .xls fayllar</p>
           </div>
 
           {preview.length > 0 && (
-            <div className="border border-gray-100 rounded-lg overflow-hidden">
-              <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 text-xs font-semibold text-gray-600 flex justify-between">
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="bg-muted/50 px-3 py-2 border-b border-border text-xs font-semibold text-muted-foreground flex justify-between">
                 <span>Fayl mazmuni ({preview.length} ta qator ko'rsatilmoqda)</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-gray-50/50">
+                  <thead className="bg-muted/50/50">
                     <tr>
                       {Object.keys(preview[0] || {}).map((key) => (
-                        <th key={key} className="px-3 py-2 font-medium text-gray-500 whitespace-nowrap">{key}</th>
+                        <th key={key} className="px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">{key}</th>
                       ))}
                     </tr>
                   </thead>
@@ -200,7 +200,7 @@ export function ExcelImportDialog({ open, onClose, type }: ExcelImportDialogProp
                     {preview.map((row, i) => (
                       <tr key={i}>
                         {Object.values(row).map((val: any, j) => (
-                          <td key={j} className="px-3 py-1.5 text-gray-700 truncate max-w-[100px]">{String(val)}</td>
+                          <td key={j} className="px-3 py-1.5 text-foreground truncate max-w-[100px]">{String(val)}</td>
                         ))}
                       </tr>
                     ))}
@@ -216,7 +216,7 @@ export function ExcelImportDialog({ open, onClose, type }: ExcelImportDialogProp
           <Button 
             onClick={handleImport} 
             disabled={!file || isProcessing || importMutation.isPending}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {(isProcessing || importMutation.isPending) ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Yuklanmoqda...</>
