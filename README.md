@@ -8,7 +8,7 @@ O'zbekiston maktablari uchun dars jadvalini avtomatik yaratish va boshqarish tiz
 - **Backend**: Hono (Node.js) + Drizzle ORM
 - **Database**: Supabase (PostgreSQL)
 - **Auth**: Supabase Auth (email/password)
-- **Desktop**: Electron (ixtiyoriy)
+- **Platforma**: Web / PWA
 
 ## Ishga tushirish
 
@@ -62,11 +62,10 @@ npm start
 │   ├── routes/      # API endpointlar
 │   ├── services/    # Biznes logika
 │   ├── middleware/  # Auth middleware
-│   └── storage.ts   # Database layer
-├── shared/          # Umumiy types va schema
-│   ├── schema.ts    # Drizzle ORM schema
-│   └── curriculum.ts # O'quv reja (1-11 sinf)
-└── electron/        # Desktop app (ixtiyoriy)
+│   └── storage/     # Database layer
+└── shared/          # Umumiy types va schema
+    ├── schema.ts    # Drizzle ORM schema
+    └── curriculum.ts # O'quv reja (1-11 sinf)
 ```
 
 ## Asosiy xususiyatlar
@@ -75,4 +74,3 @@ npm start
 - O'qituvchilar, sinflar, fanlar, xonalar boshqaruvi
 - Ziddiyatlarni aniqlash (o'qituvchi/xona/sinf)
 - PWA — telefonga o'rnatish mumkin
-- Offline rejim (Electron)
