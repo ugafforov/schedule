@@ -17,8 +17,9 @@ export const PRIMARY_TEACHER_ALLOWED_SUBJECTS = [
  * Berilgan fan nomi boshlang'ich sinf o'qituvchisi uchun ruxsat etilganligini tekshiradi.
  */
 export function isPrimaryTeacherAllowedSubject(subjectName: string): boolean {
-  const name = subjectName.toLowerCase();
-  return PRIMARY_TEACHER_ALLOWED_SUBJECTS.some(s => name.includes(s));
+  const name = subjectName.toLowerCase().trim();
+  // startsWith — "Jismoniy tarbiya" ni "tarbiya" ga yanglish moslashdan saqlaydi
+  return PRIMARY_TEACHER_ALLOWED_SUBJECTS.some(s => name.startsWith(s));
 }
 
 export const ROOM_TYPE_LABELS: Record<string, string> = {
@@ -83,20 +84,24 @@ export const SUBJECT_METADATA: Record<string, { complexity: number; category: Su
   "musiqa": { complexity: 1, category: "dynamic" },
 };
 
-export function getSubjectComplexity(subjectName: string): number {
+// Eng uzun mos kalitni tanlaydi — "jismoniy tarbiya" "tarbiya"dan ustun bo'lishi uchun
+function findSubjectMetadata(subjectName: string) {
   const name = subjectName.toLowerCase().trim();
+  let best: { key: string; meta: { complexity: number; category: SubjectCategory } } | null = null;
   for (const [key, meta] of Object.entries(SUBJECT_METADATA)) {
-    if (name.includes(key)) return meta.complexity;
+    if (name.includes(key) && (!best || key.length > best.key.length)) {
+      best = { key, meta };
+    }
   }
-  return 7; // O'rtacha qiymat noma'lum fanlar uchun
+  return best?.meta ?? null;
+}
+
+export function getSubjectComplexity(subjectName: string): number {
+  return findSubjectMetadata(subjectName)?.complexity ?? 7; // O'rtacha qiymat noma'lum fanlar uchun
 }
 
 export function getSubjectCategory(subjectName: string): SubjectCategory {
-  const name = subjectName.toLowerCase().trim();
-  for (const [key, meta] of Object.entries(SUBJECT_METADATA)) {
-    if (name.includes(key)) return meta.category;
-  }
-  return "other";
+  return findSubjectMetadata(subjectName)?.category ?? "other";
 }
 
 /**

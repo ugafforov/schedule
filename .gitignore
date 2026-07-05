@@ -54,9 +54,13 @@ replit.md
 .agents/
 skills-lock.json
 
+# AI agentlar — shaxsiy fayllar (jamoaviy konfiglar commit qilinadi:
+# CLAUDE.md, AGENTS.md, .claude/, .mcp.json, .gemini/settings.json)
+CLAUDE.local.md
+.claude/settings.local.json
+.playwright-mcp/
+
 # Misc
 curriculum_layout.txt
 curriculum_text.txt
-.mcp.json
 mcp_config.json
-.gemini/
