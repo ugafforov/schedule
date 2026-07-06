@@ -10,13 +10,7 @@ class DatabaseStorage implements IStorage {
   private classes = new ClassStorage();
   private schedule = new ScheduleStorage();
 
-  // Core (Access Codes, Subjects, Rooms, Time Slots)
-  getAccessCodeByCode = this.core.getAccessCodeByCode.bind(this.core);
-  createAccessCode = this.core.createAccessCode.bind(this.core);
-  updateAccessCodeLastUsed = this.core.updateAccessCodeLastUsed.bind(this.core);
-  getAllAccessCodes = this.core.getAllAccessCodes.bind(this.core);
-  deleteAccessCode = this.core.deleteAccessCode.bind(this.core);
-
+  // Core (Subjects, Rooms, Time Slots, Curriculum)
   getSubjects = this.core.getSubjects.bind(this.core);
   createSubject = this.core.createSubject.bind(this.core);
   updateSubject = this.core.updateSubject.bind(this.core);
@@ -32,6 +26,15 @@ class DatabaseStorage implements IStorage {
   updateTimeSlot = this.core.updateTimeSlot.bind(this.core);
   deleteTimeSlot = this.core.deleteTimeSlot.bind(this.core);
   deleteAllTimeSlots = this.core.deleteAllTimeSlots.bind(this.core);
+
+  getCurriculumPlans = this.core.getCurriculumPlans.bind(this.core);
+  getActiveCurriculumPlan = this.core.getActiveCurriculumPlan.bind(this.core);
+  createCurriculumPlan = this.core.createCurriculumPlan.bind(this.core);
+  activateCurriculumPlan = this.core.activateCurriculumPlan.bind(this.core);
+  getCurriculumEntries = this.core.getCurriculumEntries.bind(this.core);
+  createCurriculumEntry = this.core.createCurriculumEntry.bind(this.core);
+  updateCurriculumEntry = this.core.updateCurriculumEntry.bind(this.core);
+  deleteCurriculumEntry = this.core.deleteCurriculumEntry.bind(this.core);
 
   // Teachers
   getTeachers = this.teachers.getTeachers.bind(this.teachers);

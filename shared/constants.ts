@@ -3,14 +3,17 @@
  * quyidagi fanlarga biriktirilishi mumkin bo'lgan fanlar ro'yxati.
  */
 export const PRIMARY_TEACHER_ALLOWED_SUBJECTS = [
-  "ona tili", 
-  "matematika", 
-  "o'qish savodxonligi", 
-  "tarbiya", 
+  "ona tili",
+  "matematika",
+  "o'qish savodxonligi",
+  "tarbiya",
   "sinf soati",
   "tabiiy fanlar",
   "tasviriy san'at",
-  "texnologiya"
+  "texnologiya",
+  // 133-son buyruq (10.04.2026): "Informatika va axborot texnologiyalari" 1-4-sinflarda
+  // boshlang'ich sinf o'qituvchilari tomonidan o'qitiladi (tushuntirish xati, 3-band).
+  "informatika",
 ];
 
 /**
@@ -20,6 +23,16 @@ export function isPrimaryTeacherAllowedSubject(subjectName: string): boolean {
   const name = subjectName.toLowerCase().trim();
   // startsWith — "Jismoniy tarbiya" ni "tarbiya" ga yanglish moslashdan saqlaydi
   return PRIMARY_TEACHER_ALLOWED_SUBJECTS.some(s => name.startsWith(s));
+}
+
+/**
+ * classes.grade matn maydonidan raqamli sinf darajasini oladi.
+ * "5", "5A", "5-A" kabi qiymatlarni to'g'ri qayta ishlaydi ("5A" uchun parseInt ham 5
+ * qaytaradi, lekin bu helper niyatni aniq ifodalaydi va noto'g'ri qiymatda 0 qaytaradi).
+ */
+export function parseGrade(grade: string | number | null | undefined): number {
+  const m = String(grade ?? "").match(/^\d+/);
+  return m ? parseInt(m[0], 10) : 0;
 }
 
 export const ROOM_TYPE_LABELS: Record<string, string> = {

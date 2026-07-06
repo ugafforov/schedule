@@ -1,6 +1,6 @@
 import {
   subjects, teachers, classes, rooms, timeSlots, scheduleEntries, scheduleConflicts,
-  accessCodes, teacherSubjects, classSubjects, teacherUnavailability,
+  teacherSubjects, classSubjects, teacherUnavailability,
   type Subject, type InsertSubject,
   type Teacher, type InsertTeacher,
   type TeacherUnavailability, type InsertTeacherUnavailability,
@@ -9,21 +9,16 @@ import {
   type TimeSlot, type InsertTimeSlot,
   type ScheduleEntry, type InsertScheduleEntry,
   type ScheduleConflict, type InsertScheduleConflict,
-  type AccessCode, type InsertAccessCode,
   type TeacherSubject, type InsertTeacherSubject,
   type ClassSubject, type InsertClassSubject,
   type JointLesson, type InsertJointLesson,
   type JointLessonClass, type InsertJointLessonClass,
   type JointLessonGroup, type InsertJointLessonGroup,
+  type CurriculumPlan, type InsertCurriculumPlan,
+  type CurriculumEntry, type InsertCurriculumEntry,
 } from "@shared/schema";
 
 export interface IStorage {
-  getAccessCodeByCode(code: string): Promise<AccessCode | undefined>;
-  createAccessCode(data: InsertAccessCode): Promise<AccessCode>;
-  updateAccessCodeLastUsed(code: string): Promise<void>;
-  getAllAccessCodes(): Promise<AccessCode[]>;
-  deleteAccessCode(id: number): Promise<boolean>;
-
   getSubjects(): Promise<Subject[]>;
   createSubject(data: InsertSubject): Promise<Subject>;
   updateSubject(id: number, data: Partial<InsertSubject>): Promise<Subject | undefined>;
@@ -81,6 +76,15 @@ export interface IStorage {
   createJointLesson(data: { subjectId: number; weeklyHours: number; classIds: number[]; groups: Array<{ groupName: string; teacherId: number; roomId?: number | null }> }): Promise<any>;
   updateJointLesson(id: number, data: { subjectId: number; weeklyHours: number; classIds: number[]; groups: Array<{ groupName: string; teacherId: number; roomId?: number | null }> }): Promise<any>;
   deleteJointLesson(id: number): Promise<boolean>;
+
+  getCurriculumPlans(): Promise<CurriculumPlan[]>;
+  getActiveCurriculumPlan(language: string): Promise<CurriculumPlan | undefined>;
+  createCurriculumPlan(data: InsertCurriculumPlan): Promise<CurriculumPlan>;
+  activateCurriculumPlan(id: number): Promise<CurriculumPlan | undefined>;
+  getCurriculumEntries(planId: number): Promise<CurriculumEntry[]>;
+  createCurriculumEntry(data: InsertCurriculumEntry): Promise<CurriculumEntry>;
+  updateCurriculumEntry(id: number, data: Partial<InsertCurriculumEntry>): Promise<CurriculumEntry | undefined>;
+  deleteCurriculumEntry(id: number): Promise<boolean>;
 
   getDashboardStats(): Promise<{
     totalClasses: number;

@@ -1,18 +1,10 @@
-import { pgTable, text, serial, integer, boolean, timestamp, time, real, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, time, real, index, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Access codes table for custom authentication
-export const accessCodes = pgTable("access_codes", {
-  id: serial("id").primaryKey(),
-  code: text("code").notNull().unique(),
-  ownerName: text("owner_name").notNull(),
-  role: text("role").notNull().default("teacher"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  lastUsed: timestamp("last_used"),
-});
+// Eslatma: eski access_codes jadvali (Supabase auth'dan oldingi autentifikatsiya)
+// koddan olib tashlandi — DB'dagi jadval tegilmagan, lekin ilova uni ishlatmaydi.
 
 // Subjects table
 export const subjects = pgTable("subjects", {
@@ -40,6 +32,8 @@ export const teachers = pgTable("teachers", {
   // Qaysi sinf darajalarida dars bera oladi: "primary" (1-4), "high" (5-11)
   // Ko'p qiymat: "primary,high" (barcha sinflar)
   gradeLevel: text("grade_level").default("high"),
+  // Avtomatik yaratilgan "vakant" (bo'sh o'rin) o'qituvchi — ism-matn heuristikasi o'rniga flag
+  isVacant: boolean("is_vacant").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
 });
 
@@ -174,6 +168,32 @@ export const scheduleConflicts = pgTable("schedule_conflicts", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Curriculum plans (DTS versiyalari) — har biri bitta rasmiy buyruqqa mos keladi.
+// Yangi o'quv yil/qonun yangilanganda yangi plan yaratiladi, eskisi isActive=false qilinadi.
+export const curriculumPlans = pgTable("curriculum_plans", {
+  id: serial("id").primaryKey(),
+  year: text("year").notNull(), // masalan "2025-2026"
+  orderNumber: text("order_number"), // masalan "121-son buyruq, 10.04.2025"
+  language: text("language").notNull(), // "uz" | "ru"
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Curriculum entries — bitta plan ichida grade x subject uchun haftalik soat.
+export const curriculumEntries = pgTable("curriculum_entries", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").references(() => curriculumPlans.id, { onDelete: "cascade" }).notNull(),
+  grade: integer("grade").notNull(),
+  subjectName: text("subject_name").notNull(),
+  codes: jsonb("codes").$type<string[]>().notNull().default([]),
+  keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
+  weeklyHours: real("weekly_hours").notNull(),
+  recommendedSpecialty: text("recommended_specialty"),
+}, (table) => ({
+  planIdIdx: index("curriculum_entries_plan_id_idx").on(table.planId),
+  planGradeIdx: index("curriculum_entries_plan_grade_idx").on(table.planId, table.grade),
+}));
+
 // User roles table
 export const userRoles = pgTable("user_roles", {
   id: serial("id").primaryKey(),
@@ -268,8 +288,15 @@ export const jointLessonGroupsRelations = relations(jointLessonGroups, ({ one })
   room: one(rooms, { fields: [jointLessonGroups.roomId], references: [rooms.id] }),
 }));
 
+export const curriculumPlansRelations = relations(curriculumPlans, ({ many }) => ({
+  entries: many(curriculumEntries),
+}));
+
+export const curriculumEntriesRelations = relations(curriculumEntries, ({ one }) => ({
+  plan: one(curriculumPlans, { fields: [curriculumEntries.planId], references: [curriculumPlans.id] }),
+}));
+
 // Insert schemas
-export const insertAccessCodeSchema = createInsertSchema(accessCodes).omit({ id: true, createdAt: true, lastUsed: true });
 export const insertSubjectSchema = createInsertSchema(subjects).omit({ id: true });
 export const insertTeacherSchema = createInsertSchema(teachers).omit({ id: true });
 export const insertTeacherUnavailabilitySchema = createInsertSchema(teacherUnavailability).omit({ id: true });
@@ -286,10 +313,10 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: tru
 export const insertJointLessonSchema = createInsertSchema(jointLessons).omit({ id: true, createdAt: true });
 export const insertJointLessonClassSchema = createInsertSchema(jointLessonClasses).omit({ id: true });
 export const insertJointLessonGroupSchema = createInsertSchema(jointLessonGroups).omit({ id: true });
+export const insertCurriculumPlanSchema = createInsertSchema(curriculumPlans).omit({ id: true, createdAt: true });
+export const insertCurriculumEntrySchema = createInsertSchema(curriculumEntries).omit({ id: true });
 
 // Types
-export type AccessCode = typeof accessCodes.$inferSelect;
-export type InsertAccessCode = z.infer<typeof insertAccessCodeSchema>;
 export type Subject = typeof subjects.$inferSelect;
 export type InsertSubject = z.infer<typeof insertSubjectSchema>;
 export type Teacher = typeof teachers.$inferSelect;
@@ -320,6 +347,10 @@ export type JointLessonClass = typeof jointLessonClasses.$inferSelect;
 export type InsertJointLessonClass = z.infer<typeof insertJointLessonClassSchema>;
 export type JointLessonGroup = typeof jointLessonGroups.$inferSelect;
 export type InsertJointLessonGroup = z.infer<typeof insertJointLessonGroupSchema>;
+export type CurriculumPlan = typeof curriculumPlans.$inferSelect;
+export type InsertCurriculumPlan = z.infer<typeof insertCurriculumPlanSchema>;
+export type CurriculumEntry = typeof curriculumEntries.$inferSelect;
+export type InsertCurriculumEntry = z.infer<typeof insertCurriculumEntrySchema>;
 
 
 // Login schema — Supabase Auth (email + password)

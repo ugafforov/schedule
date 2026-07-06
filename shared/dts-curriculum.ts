@@ -311,6 +311,40 @@ export const RUSSIAN_DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     keywords: ["tarbiya", "vospitanie"],
     hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
   },
+  // Faza 2 tuzatishi: bu 5 ta fan avvalgi RUSSIAN_DTS_CURRICULUM_2025'da umuman
+  // yo'q edi (yozishda unutilgan) — DTS_CURRICULUM_2025 (o'zbek) massividagi bilan
+  // bir xil soatlar bilan qo'shildi (rus tilida o'qiydigan sinflarda ham bu fanlar
+  // rasmiy ravishda o'tiladi, faqat darslik/til farq qiladi).
+  {
+    name: "Tarixdan hikoyalar",
+    codes: ["TARHIK"],
+    keywords: ["tarixdan hikoyalar"],
+    hours: { 5: 2 },
+  },
+  {
+    name: "Qadimgi dunyo tarixi",
+    codes: ["QADTARIX"],
+    keywords: ["qadimgi dunyo tarixi", "qadimgi dunyo"],
+    hours: { 6: 2 },
+  },
+  {
+    name: "O'zbekiston tarixi",
+    codes: ["UZBT"],
+    keywords: ["o'zbekiston tarixi"],
+    hours: { 7: 2, 8: 2, 9: 2, 10: 1, 11: 1 },
+  },
+  {
+    name: "Jahon tarixi",
+    codes: ["JTAR"],
+    keywords: ["jahon tarixi", "umumiy tarix"],
+    hours: { 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
+  },
+  {
+    name: "Davlat va huquq asoslari",
+    codes: ["DHQ", "HUQ"],
+    keywords: ["davlat va huquq", "huquq asoslari", "konstitutsiya"],
+    hours: { 8: 1, 9: 1, 10: 1, 11: 1 },
+  },
   {
     name: "Matematika",
     codes: ["MATH"],
@@ -420,6 +454,32 @@ export const RUSSIAN_DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 10: 2, 11: 2 },
   },
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2026-2027 o'quv yili — Maktabgacha va maktab ta'limi vazirining
+// 2026-yil 10-apreldagi 133-son buyrug'i ("Umumiy o'rta ta'lim muassasalari
+// uchun 2026-2027-o'quv yiliga mo'ljallangan tayanch o'quv rejalarni tasdiqlash
+// to'g'risida"). Manba PDF (1-ILOVA/2-ILOVA) matn qatlami dasturiy tekshirildi
+// (pdftotext -layout) va 2025-2026 bilan qator-baqator solishtirildi.
+//
+// Yagona farq: 4-sinfda "Informatika va axborot texnologiyalari" joriy etildi
+// (yangi: 1 soat) — buyruqning 4-bandi shuni talab qiladi. Buning evaziga
+// "Tabiiy fanlar (Science)" 4-sinfda 2 soatdan 1 soatga kamaydi (jami sinf
+// soati o'zgarmasligi uchun). Boshqa barcha fan/sinf/til bo'yicha soatlar
+// 2025-2026 bilan AYNAN bir xil (tekshirilgan). Jami haftalik soatlar
+// o'zgarmagan: 1=21, 2=24, 3=24, 4=24, 5=29, 6=30, 7=35, 8=33, 9=34, 10=31, 11=31.
+// ═══════════════════════════════════════════════════════════════════════════
+function applyGrade4InformatikaShift(entries: DtsCurriculumEntry[]): DtsCurriculumEntry[] {
+  return entries.map((e) => {
+    if (e.name === "Informatika va axborot texnologiyalari" || e.name === "Tabiiy fanlar (Science)") {
+      return { ...e, hours: { ...e.hours, 4: 1 } };
+    }
+    return { ...e, hours: { ...e.hours } };
+  });
+}
+
+export const DTS_CURRICULUM_2026: DtsCurriculumEntry[] = applyGrade4InformatikaShift(DTS_CURRICULUM_2025);
+export const RUSSIAN_DTS_CURRICULUM_2026: DtsCurriculumEntry[] = applyGrade4InformatikaShift(RUSSIAN_DTS_CURRICULUM_2025);
 
 // ── Matching function ─────────────────────────────────────────────────────────
 

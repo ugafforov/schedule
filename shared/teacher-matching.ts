@@ -1,5 +1,5 @@
 import type { Teacher } from "./schema";
-import { isPrimaryTeacherAllowedSubject } from "./constants";
+import { isPrimaryTeacherAllowedSubject, parseGrade } from "./constants";
 import { getSpecialty } from "./curriculum";
 
 const UNIVERSAL_SUBJECTS = [
@@ -52,7 +52,7 @@ export function scoreTeacherForSubject(
     : new Set(input.teacherSubjectIds);
 
   const language = ctx.language || "uz";
-  const gradeNum = parseInt(ctx.classGrade);
+  const gradeNum = parseGrade(ctx.classGrade);
   const requiredLevel = gradeNum >= 1 && gradeNum <= 4 ? "primary" : "high";
   const isPrimaryClass = requiredLevel === "primary";
   const isPrimarySubjectAllowed = isPrimaryTeacherAllowedSubject(ctx.subjectName);

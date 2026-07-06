@@ -286,7 +286,7 @@ function TeacherCard({
 }) {
   const teacherUnavail = (teacher as any).unavailability || [];
   const teacherSubs = (teacher as any).teacherSubjects || [];
-  const isVacant = teacher.lastName?.toLowerCase().includes("vakant") || teacher.firstName?.toLowerCase().includes("vakant");
+  const isVacant = teacher.isVacant;
 
   return (
     <Card className={`group hover:shadow-md transition-all duration-300 border-border rounded-2xl overflow-hidden bg-card ${isVacant ? 'border-l-4 border-l-amber-500/80 bg-amber-500/10' : ''}`}>
@@ -434,7 +434,7 @@ function TeacherRow({
 }) {
   const teacherSubs = (teacher as any).teacherSubjects || [];
   const teacherUnavail = (teacher as any).unavailability || [];
-  const isVacant = teacher.lastName?.toLowerCase().includes("vakant") || teacher.firstName?.toLowerCase().includes("vakant");
+  const isVacant = teacher.isVacant;
 
   return (
     <div className={`group grid grid-cols-[1.5fr_1fr_1fr_150px_100px] gap-4 items-center p-3 rounded-xl border border-border bg-card hover:shadow-sm transition-all ${isVacant ? 'border-l-4 border-l-amber-500/80 bg-amber-500/5' : ''}`}>

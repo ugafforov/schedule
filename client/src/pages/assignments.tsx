@@ -10,13 +10,19 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, GraduationCap, BookOpen, Users,
   Clock, ChevronRight, AlertCircle, CheckCircle2, Zap, Info, X,
-  BarChart3, UserCheck, UserX, ArrowRight, Loader2
+  BarChart3, UserCheck, UserX, ArrowRight, Loader2, FileSpreadsheet
 } from "lucide-react";
+import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
 
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Class, Subject, Teacher, ClassSubject } from "@shared/schema";
-import { getAutoAssignments } from "@/lib/dts-curriculum";
+
+interface AutoAssignResult {
+  assignments: Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>;
+  matchedNames: string[];
+  missingNames: string[];
+}
 
 type TeacherWithSubjects = Teacher & { subjectIds?: number[] };
 
@@ -115,19 +121,49 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
   teachers: TeacherWithSubjects[];
   teacherLoadMap: Map<number, number>;
 }) {
+  const grade = selectedClass ? parseInt(selectedClass.grade) : 0;
+  const language = (selectedClass as any)?.language || "uz";
+
+  const { data: result, isLoading } = useQuery<AutoAssignResult>({
+    queryKey: ["/api/curriculum/auto-assignments", grade, language, subjects.map((s) => s.id).join(",")],
+    queryFn: async () => {
+      const res = await apiRequest("POST", "/api/curriculum/auto-assignments", { grade, language, subjects });
+      return res.json();
+    },
+    enabled: open && !!selectedClass,
+  });
+
   if (!selectedClass) return null;
-  const grade = parseInt(selectedClass.grade);
-  const result = getAutoAssignments(grade, subjects, (selectedClass as any).language || "uz");
+
   const teacherSubjectMap = new Map<number, number[]>();
   for (const teacher of teachers) {
     teacherSubjectMap.set(teacher.id, teacher.subjectIds || []);
   }
-  const assignmentsWithTeachers = result.assignments.map((a) => {
+  const assignmentsWithTeachers = (result?.assignments || []).map((a) => {
     const subject = subjects.find((s) => s.id === a.subjectId);
     if (!subject) return a;
-    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap, selectedClass.grade, (selectedClass as any).language || "uz", a.weeklyHours);
+    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap, selectedClass.grade, language, a.weeklyHours);
     return { ...a, teacherId: teacher?.id ?? null };
   });
+
+  if (isLoading || !result) {
+    return (
+      <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-blue-600" />
+              DTS bo'yicha avtomatik biriktirish
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
@@ -1486,6 +1522,7 @@ function YukHisobi({ teachers }: { teachers: Teacher[] }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Biriktirishlar() {
   const [tab, setTab] = useState<"biriktirish" | "yuk">("biriktirish");
+  const [importOpen, setImportOpen] = useState(false);
   const { data: classes = [], isLoading: clsLoading } = useQuery<Class[]>({
     queryKey: ["/api/classes"],
     queryFn: async () => {
@@ -1523,12 +1560,19 @@ export default function Biriktirishlar() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-5 text-foreground">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Fan biriktirishlar</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Sinfga fan va o'qituvchi biriktirish · O'qituvchi yuki hisobi
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Fan biriktirishlar</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Sinfga fan va o'qituvchi biriktirish · O'qituvchi yuki hisobi
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => setImportOpen(true)}>
+          <FileSpreadsheet className="mr-1.5 h-4 w-4" /> Excel Import
+        </Button>
       </div>
+
+      <ExcelImportDialog open={importOpen} onClose={() => setImportOpen(false)} type="class-subjects" />
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">

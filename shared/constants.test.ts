@@ -6,7 +6,25 @@ import {
   getSubjectCategory,
   getSubjectComplexity,
   isPrimaryTeacherAllowedSubject,
+  parseGrade,
 } from "./constants";
+
+describe("parseGrade", () => {
+  it("oddiy raqamli qiymatlar", () => {
+    expect(parseGrade("5")).toBe(5);
+    expect(parseGrade(11)).toBe(11);
+  });
+  it("harfli qo'shimchalar bilan (masalan '5A', '5-A')", () => {
+    expect(parseGrade("5A")).toBe(5);
+    expect(parseGrade("10-B")).toBe(10);
+  });
+  it("noto'g'ri qiymatlarda 0 qaytaradi", () => {
+    expect(parseGrade("")).toBe(0);
+    expect(parseGrade(null)).toBe(0);
+    expect(parseGrade(undefined)).toBe(0);
+    expect(parseGrade("A5")).toBe(0);
+  });
+});
 
 describe("isPrimaryTeacherAllowedSubject", () => {
   it("boshlang'ich o'qituvchiga ruxsat etilgan fanlarni qabul qiladi", () => {
@@ -25,6 +43,10 @@ describe("isPrimaryTeacherAllowedSubject", () => {
 
   it("katta-kichik harfga sezgir emas", () => {
     expect(isPrimaryTeacherAllowedSubject("MATEMATIKA")).toBe(true);
+  });
+
+  it("133-son buyruq (2026-2027): Informatika 1-4-sinf boshlang'ich o'qituvchisiga ruxsat etiladi", () => {
+    expect(isPrimaryTeacherAllowedSubject("Informatika va axborot texnologiyalari")).toBe(true);
   });
 });
 

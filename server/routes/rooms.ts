@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { insertRoomSchema, rooms } from "@shared/schema";
 import { storage } from "../storage/index";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 
@@ -10,7 +10,7 @@ export const roomRoutes = new Hono()
 
   .get("/", async (c) => c.json(await storage.getRooms()))
 
-  .post("/", async (c) => {
+  .post("/", requireAdmin, async (c) => {
     const body = await c.req.json();
     const roomNumber = body.roomNumber || `R${Date.now().toString().slice(-4)}`;
     const data = insertRoomSchema.parse({
@@ -25,7 +25,7 @@ export const roomRoutes = new Hono()
     return c.json(await storage.createRoom(data), 201);
   })
 
-  .patch("/:id", async (c) => {
+  .patch("/:id", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const data = insertRoomSchema.partial().parse(await c.req.json());
     const result = await storage.updateRoom(id, data);
@@ -33,13 +33,13 @@ export const roomRoutes = new Hono()
     return c.json(result);
   })
 
-  .delete("/:id", async (c) => {
+  .delete("/:id", requireAdmin, async (c) => {
     await storage.deleteRoom(parseInt(c.req.param("id")));
     return c.body(null, 204);
   })
 
   // Bulk create
-  .post("/bulk", strictRateLimit, async (c) => {
+  .post("/bulk", requireAdmin, strictRateLimit, async (c) => {
     const { rooms: items } = await c.req.json();
     if (!Array.isArray(items) || items.length === 0) {
       return c.json({ message: "Xonalar ro'yxati bo'sh" }, 400);
@@ -57,7 +57,7 @@ export const roomRoutes = new Hono()
   })
 
   // Clear all
-  .post("/clear-all", strictRateLimit, async (c) => {
+  .post("/clear-all", requireAdmin, strictRateLimit, async (c) => {
     await db.update(rooms).set({ isActive: false });
     return c.json({ message: "Barcha xonalar muvaffaqiyatli tozalandi" });
   });

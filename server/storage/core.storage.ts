@@ -1,29 +1,13 @@
 import { db } from "../db";
-import { accessCodes, subjects, rooms, timeSlots, type InsertAccessCode, type AccessCode, type Subject, type InsertSubject, type Room, type InsertRoom, type TimeSlot, type InsertTimeSlot } from "@shared/schema";
+import {
+  subjects, rooms, timeSlots, curriculumPlans, curriculumEntries,
+  type Subject, type InsertSubject,
+  type Room, type InsertRoom, type TimeSlot, type InsertTimeSlot,
+  type CurriculumPlan, type InsertCurriculumPlan, type CurriculumEntry, type InsertCurriculumEntry,
+} from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 export class CoreStorage {
-  // Access Codes
-  async getAccessCodeByCode(code: string): Promise<AccessCode | undefined> {
-    const [r] = await db.select().from(accessCodes)
-      .where(and(eq(accessCodes.code, code), eq(accessCodes.isActive, true)));
-    return r;
-  }
-  async createAccessCode(data: InsertAccessCode): Promise<AccessCode> {
-    const [r] = await db.insert(accessCodes).values(data).returning();
-    return r;
-  }
-  async updateAccessCodeLastUsed(code: string): Promise<void> {
-    await db.update(accessCodes).set({ lastUsed: new Date() }).where(eq(accessCodes.code, code));
-  }
-  async getAllAccessCodes(): Promise<AccessCode[]> {
-    return db.select().from(accessCodes).where(eq(accessCodes.isActive, true));
-  }
-  async deleteAccessCode(id: number): Promise<boolean> {
-    const r = await db.update(accessCodes).set({ isActive: false }).where(eq(accessCodes.id, id));
-    return (r.rowCount || 0) > 0;
-  }
-
   // Subjects
   async getSubjects(): Promise<Subject[]> {
     return db.select().from(subjects).where(eq(subjects.isActive, true));
@@ -76,5 +60,46 @@ export class CoreStorage {
   }
   async deleteAllTimeSlots(): Promise<void> {
     await db.update(timeSlots).set({ isActive: false }).where(eq(timeSlots.isActive, true));
+  }
+
+  // Curriculum plans (DTS versiyalari)
+  async getCurriculumPlans(): Promise<CurriculumPlan[]> {
+    return db.select().from(curriculumPlans);
+  }
+  async getActiveCurriculumPlan(language: string): Promise<CurriculumPlan | undefined> {
+    const [r] = await db.select().from(curriculumPlans)
+      .where(and(eq(curriculumPlans.language, language), eq(curriculumPlans.isActive, true)));
+    return r;
+  }
+  async createCurriculumPlan(data: InsertCurriculumPlan): Promise<CurriculumPlan> {
+    const [r] = await db.insert(curriculumPlans).values(data).returning();
+    return r;
+  }
+  async activateCurriculumPlan(id: number): Promise<CurriculumPlan | undefined> {
+    const [plan] = await db.select().from(curriculumPlans).where(eq(curriculumPlans.id, id));
+    if (!plan) return undefined;
+    await db.update(curriculumPlans)
+      .set({ isActive: false })
+      .where(eq(curriculumPlans.language, plan.language));
+    const [r] = await db.update(curriculumPlans).set({ isActive: true })
+      .where(eq(curriculumPlans.id, id)).returning();
+    return r;
+  }
+
+  // Curriculum entries
+  async getCurriculumEntries(planId: number): Promise<CurriculumEntry[]> {
+    return db.select().from(curriculumEntries).where(eq(curriculumEntries.planId, planId));
+  }
+  async createCurriculumEntry(data: InsertCurriculumEntry): Promise<CurriculumEntry> {
+    const [r] = await db.insert(curriculumEntries).values(data).returning();
+    return r;
+  }
+  async updateCurriculumEntry(id: number, data: Partial<InsertCurriculumEntry>): Promise<CurriculumEntry | undefined> {
+    const [r] = await db.update(curriculumEntries).set(data).where(eq(curriculumEntries.id, id)).returning();
+    return r;
+  }
+  async deleteCurriculumEntry(id: number): Promise<boolean> {
+    const r = await db.delete(curriculumEntries).where(eq(curriculumEntries.id, id));
+    return (r.rowCount || 0) > 0;
   }
 }

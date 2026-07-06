@@ -18,16 +18,6 @@ const supabase = createClient(supabaseUrl!, supabaseServiceKey!, {
 });
 
 export const authMiddleware = createMiddleware(async (c, next) => {
-  // Bypassed: vaqtincha auth o'chirilgan
-  c.set("user", {
-    id: "dummy-admin-id",
-    email: "admin@example.com",
-    role: "admin",
-    firstName: "Mehmon",
-    lastName: "Admin",
-  });
-  return next();
-
   const authHeader = c.req.header("Authorization");
   const token = authHeader?.split(" ")[1];
 
@@ -79,4 +69,15 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     console.error("[auth] Token verify xatosi:", err?.message || err);
     return c.json({ message: "Auth server xatosi" }, 500);
   }
+});
+
+// authMiddleware'dan KEYIN ishlatiladi — faqat "admin" roliga ruxsat beradi.
+// O'qituvchi (teacher) ma'lumotlarni ko'rishi mumkin, lekin sinf/fan/o'qituvchi/xona
+// ro'yxatlarini yaratish/o'zgartirish/o'chirish faqat administratorga tegishli.
+export const requireAdmin = createMiddleware(async (c, next) => {
+  const user = c.get("user") as { role: string } | undefined;
+  if (user?.role !== "admin") {
+    return c.json({ message: "Bu amal faqat administratorga ruxsat etilgan" }, 403);
+  }
+  return next();
 });

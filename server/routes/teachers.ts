@@ -2,13 +2,13 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { insertTeacherSchema, teacherSubjects, classSubjects, teachers } from "@shared/schema";
 import { storage } from "../storage/index";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 import { eq, and, sql } from "drizzle-orm";
-import { autoGenerateTeachers, autoDistributeAll } from "../services/teacher.service";
-import { getSpecialty } from "../services/curriculum.service";
-import { UZBEK_CURRICULUM, RUSSIAN_CURRICULUM } from "@shared/curriculum";
+import { autoGenerateTeachers } from "../services/teacher.service";
+import { getSpecialty, getCurriculumForGrade } from "../services/curriculum.service";
+import { parseGrade } from "@shared/constants";
 
 // Bulk teacher validation schema
 const bulkTeacherSchema = z.object({
@@ -113,8 +113,7 @@ const getTeacherRecommendationLogic = async () => {
 
   for (const cls of allClasses) {
     const classLang = (cls as any).language || "uz";
-    const curriculum = classLang === "ru" ? RUSSIAN_CURRICULUM : UZBEK_CURRICULUM;
-    const gradeRequirements = curriculum[String(cls.grade)] || {};
+    const gradeRequirements = await getCurriculumForGrade(parseGrade(cls.grade), classLang);
     const dtsSubjects = Object.keys(gradeRequirements);
     const subjectsToAnalyze = new Set([
       ...dtsSubjects,
@@ -191,7 +190,7 @@ export const teacherRoutes = new Hono()
     return c.json(await storage.getTeacherUnavailability(parseInt(c.req.param("id"))));
   })
 
-  .post("/:id/unavailability", async (c) => {
+  .post("/:id/unavailability", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const { slots } = await c.req.json();
     console.log(`[API] Setting unavailability for teacher ${id}:`, slots);
@@ -204,7 +203,7 @@ export const teacherRoutes = new Hono()
     return c.json(await storage.getTeacherSubjects(parseInt(c.req.param("id"))));
   })
 
-  .put("/:id/subjects", async (c) => {
+  .put("/:id/subjects", requireAdmin, async (c) => {
     const { subjectIds } = await c.req.json();
     await storage.setTeacherSubjects(parseInt(c.req.param("id")), subjectIds || []);
     return c.json({ ok: true });
@@ -212,7 +211,7 @@ export const teacherRoutes = new Hono()
 
   .get("/", async (c) => c.json(await storage.getTeachers()))
 
-  .post("/", async (c) => {
+  .post("/", requireAdmin, async (c) => {
     const body = await c.req.json();
     const nameSlug = `${body.firstName || ""}${body.lastName || ""}`
       .replace(/\s+/g, "")
@@ -255,7 +254,7 @@ export const teacherRoutes = new Hono()
     return c.json(teacher, 201);
   })
 
-  .patch("/:id", async (c) => {
+  .patch("/:id", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
     const data = insertTeacherSchema.partial().parse(body);
@@ -267,7 +266,7 @@ export const teacherRoutes = new Hono()
     return c.json(result);
   })
 
-  .delete("/:id", async (c) => {
+  .delete("/:id", requireAdmin, async (c) => {
     const idParam = c.req.param("id");
     if (idParam === "all") {
       await db.update(teachers).set({ isActive: false });
@@ -282,13 +281,13 @@ export const teacherRoutes = new Hono()
   })
 
   // Clear all (soft delete)
-  .post("/clear-all", strictRateLimit, async (c) => {
+  .post("/clear-all", requireAdmin, strictRateLimit, async (c) => {
     await db.update(teachers).set({ isActive: false });
     return c.json({ message: "Barcha o'qituvchilar muvaffaqiyatli tozalandi" });
   })
 
   // Save (create or update)
-  .post("/save", async (c) => {
+  .post("/save", requireAdmin, async (c) => {
     const { id, firstName, lastName, department, specialization, phone, maxHoursPerWeek, subjectIds, unavailSlots, autoAssignToAll, gradeLevel } =
       await c.req.json();
 
@@ -326,7 +325,7 @@ export const teacherRoutes = new Hono()
   })
 
   // Bulk save
-  .post("/bulk-save", strictRateLimit, async (c) => {
+  .post("/bulk-save", requireAdmin, strictRateLimit, async (c) => {
     const body = await c.req.json();
     const validation = bulkTeacherSchema.safeParse(body);
     if (!validation.success) {
@@ -351,6 +350,9 @@ export const teacherRoutes = new Hono()
         lastName: tData.lastName,
         employeeId: tData.employeeId || `T_${Date.now()}_${Math.random().toString(36).slice(-4)}`,
         maxHoursPerWeek: tData.maxHoursPerWeek || 30,
+        // bulk-add-dialog.tsx "vakant ro'yxati" rejimida lastName="...vakant..." bilan
+        // yuboradi — bu yerda (yagona qo'lda-vakant-yaratish yo'li) flag to'g'ri o'rnatiladi.
+        isVacant: /vakant/i.test(tData.lastName),
         isActive: true,
         specialization,
       });
@@ -366,17 +368,52 @@ export const teacherRoutes = new Hono()
     return c.json({ message: `${results.length} ta o'qituvchi muvaffaqiyatli qo'shildi`, count: results.length }, 201);
   })
 
-  // Auto generate
-  .post("/auto-generate", strictRateLimit, async (c) => {
-    const result = await autoGenerateTeachers();
-    return c.json(result, 201);
+  // Bulk import (Excel) — qator-darajali xato hisoboti bilan
+  .post("/bulk-import", requireAdmin, strictRateLimit, async (c) => {
+    const { items } = await c.req.json();
+    if (!Array.isArray(items) || items.length === 0) {
+      return c.json({ message: "O'qituvchilar ro'yxati bo'sh" }, 400);
+    }
+    const existing = await storage.getTeachers();
+    const errors: Array<{ row: number; message: string }> = [];
+    let successCount = 0;
+    for (let i = 0; i < items.length; i++) {
+      try {
+        const item = items[i];
+        if (!item.firstName?.trim() || !item.lastName?.trim()) throw new Error("Ism yoki familiya bo'sh");
+        const dup = existing.find(
+          (t) => t.firstName.toLowerCase() === String(item.firstName).toLowerCase().trim()
+            && t.lastName.toLowerCase() === String(item.lastName).toLowerCase().trim()
+        );
+        if (dup) throw new Error(`"${item.firstName} ${item.lastName}" allaqachon mavjud`);
+        const slug = `${item.firstName}${item.lastName}`.replace(/\s+/g, "").toUpperCase().slice(0, 6);
+        const data = insertTeacherSchema.parse({
+          firstName: String(item.firstName).trim(),
+          lastName: String(item.lastName).trim(),
+          employeeId: item.employeeId || `T_${slug || "NEW"}_${Date.now().toString().slice(-4)}${i}`,
+          department: item.department || "",
+          specialization: item.specialization || "",
+          phone: item.phone || null,
+          maxHoursPerWeek: Number(item.maxHoursPerWeek) || 30,
+          gradeLevel: item.gradeLevel === "primary" ? "primary" : "high",
+          isActive: true,
+        });
+        existing.push(await storage.createTeacher(data));
+        successCount++;
+      } catch (e: any) {
+        errors.push({ row: i + 2, message: e.message || "Noma'lum xato" });
+      }
+    }
+    return c.json({ successCount, errors });
   })
 
-  // Teacher load analytics
-  .get("/load", async (c) => c.json(await getTeacherLoadLogic()))
-
-  // Teacher recommendation
-  .get("/recommendation", async (c) => c.json(await getTeacherRecommendationLogic()));
+  // Auto generate
+  .post("/auto-generate", requireAdmin, strictRateLimit, async (c) => {
+    const result = await autoGenerateTeachers();
+    return c.json(result, 201);
+  });
+// Eslatma: eski GET /load va /recommendation duplikatlari o'chirildi —
+// to'g'ri URLlar /api/teacher-load va /api/teacher-recommendation (quyidagi alohida routerlar).
 
 // ─── Alohida routelar — to'g'ri URL mapping uchun ────────────────────────────
 // Frontend: GET /api/teacher-load

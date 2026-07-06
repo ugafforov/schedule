@@ -18,10 +18,17 @@ import Darslar from "@/pages/lessons";
 import Biriktirishlar from "@/pages/assignments";
 import SettingsPage from "@/pages/settings";
 import JointLessons from "@/pages/joint-lessons";
+import CurriculumPage from "@/pages/curriculum";
 import Sidebar from "@/components/layout/sidebar";
 import Header from "@/components/layout/header";
 
-function ProtectedLayout({ children }: { children: React.ReactNode }) {
+function ProtectedLayout({
+  children,
+  requiredRole,
+}: {
+  children: React.ReactNode;
+  requiredRole?: "admin";
+}) {
   const { user, isLoading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -37,6 +44,7 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) return <Redirect to="/login" />;
+  if (requiredRole && user.role !== requiredRole) return <Redirect to="/" />;
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
@@ -65,16 +73,16 @@ function Router() {
         <ProtectedLayout><Timetables /></ProtectedLayout>
       </Route>
       <Route path="/teachers">
-        <ProtectedLayout><Teachers /></ProtectedLayout>
+        <ProtectedLayout requiredRole="admin"><Teachers /></ProtectedLayout>
       </Route>
       <Route path="/classes">
-        <ProtectedLayout><Classes /></ProtectedLayout>
+        <ProtectedLayout requiredRole="admin"><Classes /></ProtectedLayout>
       </Route>
       <Route path="/subjects">
-        <ProtectedLayout><Subjects /></ProtectedLayout>
+        <ProtectedLayout requiredRole="admin"><Subjects /></ProtectedLayout>
       </Route>
       <Route path="/rooms">
-        <ProtectedLayout><Rooms /></ProtectedLayout>
+        <ProtectedLayout requiredRole="admin"><Rooms /></ProtectedLayout>
       </Route>
       <Route path="/darslar">
         <ProtectedLayout><Darslar /></ProtectedLayout>
@@ -85,8 +93,11 @@ function Router() {
       <Route path="/joint-lessons">
         <ProtectedLayout><JointLessons /></ProtectedLayout>
       </Route>
+      <Route path="/curriculum">
+        <ProtectedLayout requiredRole="admin"><CurriculumPage /></ProtectedLayout>
+      </Route>
       <Route path="/settings">
-        <ProtectedLayout><SettingsPage /></ProtectedLayout>
+        <ProtectedLayout requiredRole="admin"><SettingsPage /></ProtectedLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>

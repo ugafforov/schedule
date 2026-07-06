@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
   Calendar, LayoutDashboard, Users, GraduationCap, BookOpen,
-  DoorOpen, LogOut, Settings, X, Clock, Link2
+  DoorOpen, LogOut, Settings, X, Clock, Link2, ScrollText
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -14,6 +14,7 @@ const navItems = [
   { href: "/rooms",          label: "Xonalar",        icon: DoorOpen },
   { href: "/darslar",        label: "Dars soatlari",  icon: Clock },
   { href: "/classes",        label: "Sinflar",        icon: GraduationCap },
+  { href: "/curriculum",     label: "O'quv reja (DTS)", icon: ScrollText },
   { href: "/biriktirishlar", label: "Biriktirishlar", icon: Link2 },
   { href: "/joint-lessons",  label: "Birlashtirilgan darslar", icon: Link2 },
 ];

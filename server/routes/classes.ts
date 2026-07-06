@@ -1,17 +1,16 @@
 import { Hono } from "hono";
 import { insertClassSchema, classes } from "@shared/schema";
 import { storage } from "../storage/index";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
-import { autoDistributeAll } from "../services/teacher.service";
 
 export const classRoutes = new Hono()
   .use(authMiddleware)
 
   .get("/", async (c) => c.json(await storage.getClasses()))
 
-  .post("/", async (c) => {
+  .post("/", requireAdmin, async (c) => {
     const body = await c.req.json();
     const name = body.name || `${body.grade || "1"}${body.section ? "-" + body.section : ""}`;
     const data = insertClassSchema.parse({
@@ -30,7 +29,7 @@ export const classRoutes = new Hono()
     return c.json(cls, 201);
   })
 
-  .patch("/:id", async (c) => {
+  .patch("/:id", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
     const data = insertClassSchema.partial().parse(body);
@@ -42,13 +41,13 @@ export const classRoutes = new Hono()
     return c.json(result);
   })
 
-  .delete("/:id", async (c) => {
+  .delete("/:id", requireAdmin, async (c) => {
     await storage.deleteClass(parseInt(c.req.param("id")));
     return c.body(null, 204);
   })
 
   // Bulk create
-  .post("/bulk", strictRateLimit, async (c) => {
+  .post("/bulk", requireAdmin, strictRateLimit, async (c) => {
     const { classes: items } = await c.req.json();
     if (!Array.isArray(items) || items.length === 0) {
       return c.json({ message: "Sinflar ro'yxati bo'sh" }, 400);
@@ -70,8 +69,42 @@ export const classRoutes = new Hono()
     return c.json(created, 201);
   })
 
+  // Bulk import (Excel) — qator-darajali xato hisoboti bilan
+  .post("/bulk-import", requireAdmin, strictRateLimit, async (c) => {
+    const { items } = await c.req.json();
+    if (!Array.isArray(items) || items.length === 0) {
+      return c.json({ message: "Sinflar ro'yxati bo'sh" }, 400);
+    }
+    const existing = await storage.getClasses();
+    const errors: Array<{ row: number; message: string }> = [];
+    let successCount = 0;
+    for (let i = 0; i < items.length; i++) {
+      try {
+        const item = items[i];
+        if (!item.grade) throw new Error("Sinf raqami (grade) bo'sh");
+        const name = item.name || `${item.grade}${item.section ? "-" + item.section : ""}`;
+        const dup = existing.find((cls) => cls.name.toLowerCase() === String(name).toLowerCase());
+        if (dup) throw new Error(`"${name}" sinfi allaqachon mavjud`);
+        const data = insertClassSchema.parse({
+          name,
+          grade: String(item.grade),
+          section: item.section || null,
+          language: item.language || "uz",
+          totalStudents: Number(item.totalStudents) || 25,
+          studyDays: item.studyDays || "1,2,3,4,5",
+          isActive: true,
+        });
+        existing.push(await storage.createClass(data));
+        successCount++;
+      } catch (e: any) {
+        errors.push({ row: i + 2, message: e.message || "Noma'lum xato" });
+      }
+    }
+    return c.json({ successCount, errors });
+  })
+
   // Bulk update study days
-  .post("/bulk-update-study-days", strictRateLimit, async (c) => {
+  .post("/bulk-update-study-days", requireAdmin, strictRateLimit, async (c) => {
     const { classIds, studyDays } = await c.req.json();
     if (!Array.isArray(classIds) || classIds.length === 0) {
       return c.json({ message: "Sinflar ro'yxati bo'sh" }, 400);
@@ -85,7 +118,7 @@ export const classRoutes = new Hono()
   })
 
   // Clear all
-  .post("/clear-all", strictRateLimit, async (c) => {
+  .post("/clear-all", requireAdmin, strictRateLimit, async (c) => {
     await db.update(classes).set({ isActive: false });
     return c.json({ message: "Barcha sinflar muvaffaqiyatli tozalandi" });
   })

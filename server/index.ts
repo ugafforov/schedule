@@ -22,7 +22,6 @@ import { serve } from "@hono/node-server";
 import { logger } from "hono/logger";
 import { cors } from "hono/cors";
 import { registerRoutes } from "./routes/index";
-import { seedAccessCodes } from "./seed";
 import { log, startDevServer, serveStaticFiles } from "./vite-adapter";
 import { bodyLimit } from "hono/body-limit";
 
@@ -85,8 +84,6 @@ app.onError((err, c) => {
 registerRoutes(app);
 
 (async () => {
-  await seedAccessCodes();
-
   const port = Number(process.env.PORT) || 5001;
   const isDev = process.env.NODE_ENV === "development";
   let server: any;

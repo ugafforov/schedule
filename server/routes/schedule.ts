@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { insertScheduleEntrySchema, scheduleEntries } from "@shared/schema";
 import { storage } from "../storage/index";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { generateSchedule } from "../services/schedule.service";
-import { autoDistributeAll, autoDistributeUnassignedOnly, autoDistributeAllForceReassign, autoAssignDtsForClasses } from "../services/teacher.service";
+import { autoDistributeUnassignedOnly, autoDistributeAllForceReassign, autoAssignDtsForClasses } from "../services/teacher.service";
 
 export const scheduleRoutes = new Hono().use(authMiddleware)
 
@@ -38,7 +38,7 @@ export const scheduleRoutes = new Hono().use(authMiddleware)
     await storage.deleteScheduleEntry(parseInt(c.req.param("id")));
     return c.body(null, 204);
   })
-  .delete("/", strictRateLimit, async (c) => {
+  .delete("/", requireAdmin, strictRateLimit, async (c) => {
     const { classId } = c.req.query();
     if (classId) {
       await storage.clearScheduleForClass(parseInt(classId));
@@ -51,7 +51,7 @@ export const scheduleRoutes = new Hono().use(authMiddleware)
 // ─── Alohida routelar (index.ts da to'g'ri URL bilan bog'lanadi) ──────────────
 
 export const generateScheduleRoute = new Hono().use(authMiddleware).use(strictRateLimit)
-  .post("/", async (c) => {
+  .post("/", requireAdmin, async (c) => {
     const body = await c.req.json();
     const result = await generateSchedule(body);
     return c.json(result);
@@ -83,21 +83,23 @@ export const classSubjectsRoute = new Hono().use(authMiddleware).use(strictRateL
   .get("/", async (c) => {
     return c.json(await storage.getAllClassSubjects());
   })
-  .post("/auto-distribute-all", async (c) => {
-    const result = await autoDistributeAll();
+  // Eslatma: eski autoDistributeAll funksiyasi autoDistributeUnassignedOnly bilan
+  // bayt-baytiga bir xil edi (faqat bo'sh fanlarni biriktiradi) — duplikat o'chirildi.
+  .post("/auto-distribute-all", requireAdmin, async (c) => {
+    const result = await autoDistributeUnassignedOnly();
     return c.json(result);
   })
-  .post("/auto-distribute-unassigned", async (c) => {
+  .post("/auto-distribute-unassigned", requireAdmin, async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const result = await autoDistributeUnassignedOnly(body.classIds);
     return c.json(result);
   })
-  .post("/auto-distribute-force-reassign", async (c) => {
+  .post("/auto-distribute-force-reassign", requireAdmin, async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const result = await autoDistributeAllForceReassign(body.classIds);
     return c.json(result);
   })
-  .post("/auto-assign-dts", async (c) => {
+  .post("/auto-assign-dts", requireAdmin, async (c) => {
     const body = await c.req.json().catch(() => ({}));
     if (!Array.isArray(body.classIds) || body.classIds.length === 0) {
       return c.json({ message: "classIds massivi kiritilishi shart" }, 400);
@@ -105,7 +107,7 @@ export const classSubjectsRoute = new Hono().use(authMiddleware).use(strictRateL
     const result = await autoAssignDtsForClasses(body.classIds);
     return c.json(result);
   })
-  .post("/clear-bulk", async (c) => {
+  .post("/clear-bulk", requireAdmin, async (c) => {
     const body = await c.req.json().catch(() => ({}));
     if (!Array.isArray(body.classIds) || body.classIds.length === 0) {
       return c.json({ message: "classIds massivi kiritilishi shart" }, 400);
@@ -115,7 +117,80 @@ export const classSubjectsRoute = new Hono().use(authMiddleware).use(strictRateL
     }
     return c.json({ message: `${body.classIds.length} ta sinf biriktirishlari tozalandi.` });
   })
-  .post("/bulk-assign", async (c) => {
+  // Bulk import (Excel): sinf/fan/o'qituvchi NOM bo'yicha moslashtirib class_subjects yozadi.
+  // Qator formati: { className, subjectName, teacherName?, weeklyHours? }
+  .post("/bulk-import", requireAdmin, async (c) => {
+    const { items } = await c.req.json();
+    if (!Array.isArray(items) || items.length === 0) {
+      return c.json({ message: "Qatorlar ro'yxati bo'sh" }, 400);
+    }
+    const [allClasses, allSubjects, allTeachers, allCS] = await Promise.all([
+      storage.getClasses(), storage.getSubjects(), storage.getTeachers(), storage.getAllClassSubjects(),
+    ]);
+    const errors: Array<{ row: number; message: string }> = [];
+    // classId -> yangilangan biriktirishlar ro'yxati (mavjudlarini saqlab)
+    const byClass = new Map<number, Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>>();
+    for (const cs of allCS) {
+      if (!byClass.has(cs.classId)) byClass.set(cs.classId, []);
+      byClass.get(cs.classId)!.push({ subjectId: cs.subjectId, teacherId: cs.teacherId, weeklyHours: cs.weeklyHours });
+    }
+    let successCount = 0;
+    const touchedClassIds = new Set<number>();
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const row = i + 2; // Excel sarlavha qatoridan keyin
+      try {
+        const clsName = String(item.className || "").trim().toLowerCase();
+        const cls = allClasses.find((x) => x.name.toLowerCase() === clsName);
+        if (!cls) throw new Error(`Sinf topilmadi: "${item.className}"`);
+
+        const subName = String(item.subjectName || "").trim().toLowerCase();
+        const sub = allSubjects.find((x) => x.name.toLowerCase() === subName)
+          || allSubjects.find((x) => x.name.toLowerCase().includes(subName) && subName.length >= 4);
+        if (!sub) throw new Error(`Fan topilmadi: "${item.subjectName}"`);
+
+        let teacherId: number | null = null;
+        if (item.teacherName && String(item.teacherName).trim()) {
+          const tName = String(item.teacherName).trim().toLowerCase();
+          const teacher = allTeachers.find(
+            (t) => `${t.firstName} ${t.lastName}`.toLowerCase() === tName
+              || `${t.lastName} ${t.firstName}`.toLowerCase() === tName
+          );
+          if (!teacher) throw new Error(`O'qituvchi topilmadi: "${item.teacherName}"`);
+          teacherId = teacher.id;
+        }
+
+        // Excel qatorida soat ko'rsatilmagan bo'lsa (0/bo'sh/NaN), mavjud biriktirishning
+        // hozirgi soatini SAQLAB qolamiz — aks holda faqat o'qituvchini yangilash uchun
+        // import qilingan qator sukut bo'yicha maxsus sozlangan soatni fan standartiga
+        // almashtirib, uni jimgina yo'qotib qo'yardi.
+        const importedHours = Number(item.weeklyHours);
+        const hasImportedHours = Number.isFinite(importedHours) && importedHours > 0;
+        if (!byClass.has(cls.id)) byClass.set(cls.id, []);
+        const list = byClass.get(cls.id)!;
+        const existing = list.find((x) => x.subjectId === sub.id);
+        if (existing) {
+          existing.teacherId = teacherId ?? existing.teacherId;
+          if (hasImportedHours) existing.weeklyHours = importedHours;
+        } else {
+          list.push({ subjectId: sub.id, teacherId, weeklyHours: hasImportedHours ? importedHours : (sub.weeklyHours || 2) });
+        }
+        touchedClassIds.add(cls.id);
+        successCount++;
+      } catch (e: any) {
+        errors.push({ row, message: e.message || "Noma'lum xato" });
+      }
+    }
+
+    for (const classId of Array.from(touchedClassIds)) {
+      await storage.setClassSubjects(classId, byClass.get(classId) || []);
+    }
+
+    return c.json({ successCount, errors });
+  })
+
+  .post("/bulk-assign", requireAdmin, async (c) => {
     const { subjectId, teacherId } = await c.req.json();
     if (!subjectId) return c.json({ message: "subjectId kiritilishi kerak" }, 400);
 

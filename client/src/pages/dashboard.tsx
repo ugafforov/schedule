@@ -181,9 +181,10 @@ export default function Dashboard() {
                       <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
-                          {c.conflictType === "room" ? "Xona ziddiyati" : 
-                           c.conflictType === "teacher" ? "O'qituvchi ziddiyati" : 
-                           c.conflictType === "unavailability" ? "Bandlik ziddiyati" : "Sinf ziddiyati"}
+                          {c.conflictType === "room" ? "Xona ziddiyati" :
+                           c.conflictType === "teacher" ? "O'qituvchi ziddiyati" :
+                           c.conflictType === "unavailability" ? "Bandlik ziddiyati" :
+                           c.conflictType === "schedule_overlap" ? "SanPiN/yuklama ziddiyati" : "Sinf ziddiyati"}
                         </p>
                         <p className="text-xs text-orange-600/90 dark:text-orange-400/90 mt-0.5 truncate">{c.description}</p>
                       </div>
