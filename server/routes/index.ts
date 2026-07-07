@@ -8,6 +8,7 @@ import { timeslotRoutes } from "./timeslots";
 import {
   scheduleRoutes,
   generateScheduleRoute,
+  checkFeasibilityRoute,
   scheduleConflictsRoute,
   classSubjectsRoute,
 } from "./schedule";
@@ -40,6 +41,8 @@ export function registerRoutes(app: Hono) {
   app.route("/api/schedule-entries", scheduleRoutes);
   // /api/generate-schedule → POST /  (eng qimmat operatsiya — qat'iy limit)
   app.route("/api/generate-schedule", generateScheduleRoute);
+  // /api/check-feasibility → POST /
+  app.route("/api/check-feasibility", checkFeasibilityRoute);
   // /api/schedule-conflicts → GET /
   app.route("/api/schedule-conflicts", scheduleConflictsRoute);
   // /api/class-subjects → POST /auto-distribute-all, /bulk-assign

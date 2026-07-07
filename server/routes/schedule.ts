@@ -5,7 +5,8 @@ import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
-import { generateSchedule } from "../services/schedule.service";
+import { generateSchedule, checkFeasibility } from "../services/schedule.service";
+import { getMaxHoursPerDay } from "@shared/constants";
 import { autoDistributeUnassignedOnly, autoDistributeAllForceReassign, autoAssignDtsForClasses } from "../services/teacher.service";
 
 export const scheduleRoutes = new Hono().use(authMiddleware)
@@ -54,6 +55,24 @@ export const generateScheduleRoute = new Hono().use(authMiddleware).use(strictRa
   .post("/", requireAdmin, async (c) => {
     const body = await c.req.json();
     const result = await generateSchedule(body);
+    return c.json(result);
+  });
+
+export const checkFeasibilityRoute = new Hono().use(authMiddleware)
+  .post("/", requireAdmin, async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const [allClasses, allClassSubjects, allTeachers, allRooms, allSubjects, allUnavailability, allSlots] =
+      await Promise.all([
+        storage.getClasses(), storage.getAllClassSubjects(), storage.getTeachers(),
+        storage.getRooms(), storage.getSubjects(), storage.getAllTeacherUnavailability(),
+        storage.getTimeSlots(),
+      ]);
+    const classes = body.classIds?.length
+      ? allClasses.filter((c: any) => body.classIds.includes(c.id))
+      : allClasses;
+    const activePerDay = new Set(allSlots.filter((s: any) => !s.isBreak && Number(s.dayOfWeek) === 1).map((s: any) => s.periodNumber)).size
+      || allSlots.filter((s: any) => !s.isBreak && Number(s.dayOfWeek) === (allSlots[0]?.dayOfWeek ?? 1)).length;
+    const result = checkFeasibility(classes, allClassSubjects, allTeachers, allRooms, allSubjects, allUnavailability, activePerDay);
     return c.json(result);
   });
 

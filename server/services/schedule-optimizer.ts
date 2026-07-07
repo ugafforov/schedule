@@ -142,3 +142,121 @@ export function attemptRelocations(params: {
 
   return plans;
 }
+
+export function minimizeGaps(params: {
+  schedule: Array<{ classId: number; teacherId: number; roomId: number; timeSlotId: number; weekType?: string | null; isActive?: boolean | null }>;
+  activeSlots: OptimizerSlot[];
+  slotPeriodMap: Map<number, number>;
+  slotDayMap: Map<number, number>;
+  isClassFree: (classId: number, slotId: number, weekType: WeekType) => boolean;
+  isTeacherFree: (teacherId: number, slotId: number, weekType: WeekType) => boolean;
+  isRoomFree: (roomId: number, slotId: number, weekType: WeekType) => boolean;
+  markClassBusy: (classId: number, slotId: number, weekType: WeekType) => void;
+  unmarkClassBusy: (classId: number, slotId: number, weekType: WeekType) => void;
+  markTeacherBusy: (teacherId: number, slotId: number, weekType: WeekType) => void;
+  unmarkTeacherBusy: (teacherId: number, slotId: number, weekType: WeekType) => void;
+  markRoomBusy: (roomId: number, slotId: number, weekType: WeekType) => void;
+  unmarkRoomBusy: (roomId: number, slotId: number, weekType: WeekType) => void;
+  maxIterations?: number;
+}): number {
+  const {
+    schedule, activeSlots, slotPeriodMap, slotDayMap,
+    isClassFree, isTeacherFree, isRoomFree,
+    markClassBusy, unmarkClassBusy, markTeacherBusy, unmarkTeacherBusy, markRoomBusy, unmarkRoomBusy,
+    maxIterations = 300,
+  } = params;
+
+  const slotsByDay = new Map<number, OptimizerSlot[]>();
+  for (const s of activeSlots) {
+    if (!slotsByDay.has(s.dayOfWeek)) slotsByDay.set(s.dayOfWeek, []);
+    slotsByDay.get(s.dayOfWeek)!.push(s);
+  }
+
+  let swaps = 0;
+  let improved = true;
+  let iteration = 0;
+
+  while (improved && iteration < maxIterations) {
+    improved = false;
+    iteration++;
+
+    const classDayPeriods = new Map<string, Map<number, number>>();
+    for (let i = 0; i < schedule.length; i++) {
+      const e = schedule[i];
+      const day = slotDayMap.get(e.timeSlotId);
+      const period = slotPeriodMap.get(e.timeSlotId);
+      if (day === undefined || period === undefined) continue;
+      const key = `${e.classId}_${day}`;
+      if (!classDayPeriods.has(key)) classDayPeriods.set(key, new Map());
+      classDayPeriods.get(key)!.set(period, i);
+    }
+
+    for (const [cdKey, periodMap] of Array.from(classDayPeriods.entries())) {
+      const periods = Array.from(periodMap.keys()).sort((a, b) => a - b);
+      if (periods.length < 2) continue;
+
+      let hasGap = false;
+      for (let i = 1; i < periods.length; i++) {
+        if (periods[i] - periods[i - 1] > 1) { hasGap = true; break; }
+      }
+      if (!hasGap) continue;
+
+      const gapPeriod = findFirstGap(periods);
+      if (gapPeriod === -1) continue;
+
+      const parts = cdKey.split("_");
+      const classId = parseInt(parts[0]);
+      const gapDay = parseInt(parts[1]);
+
+      const gapDaySlots = slotsByDay.get(gapDay) || [];
+      const gapSlot = gapDaySlots.find(s => slotPeriodMap.get(s.id) === gapPeriod);
+      if (!gapSlot) continue;
+
+      let didSwap = false;
+      for (const [otherCdKey, otherPeriodMap] of Array.from(classDayPeriods.entries())) {
+        if (didSwap) break;
+        if (!otherCdKey.startsWith(`${classId}_`)) continue;
+        const otherDay = parseInt(otherCdKey.split("_")[1]);
+        if (otherDay === gapDay) continue;
+
+        const otherPeriods = Array.from(otherPeriodMap.keys()).sort((a, b) => a - b);
+        if (otherPeriods.length === 0) continue;
+        const lastPeriod = otherPeriods[otherPeriods.length - 1];
+        const entryIdx = otherPeriodMap.get(lastPeriod);
+        if (entryIdx === undefined) continue;
+
+        const entry = schedule[entryIdx];
+        const wt = (entry.weekType || "always") as WeekType;
+
+        if (!isClassFree(classId, gapSlot.id, wt)) continue;
+        if (!isTeacherFree(entry.teacherId, gapSlot.id, wt)) continue;
+        if (!isRoomFree(entry.roomId, gapSlot.id, wt)) continue;
+
+        const oldSlotId = entry.timeSlotId;
+        unmarkClassBusy(entry.classId, oldSlotId, wt);
+        unmarkTeacherBusy(entry.teacherId, oldSlotId, wt);
+        unmarkRoomBusy(entry.roomId, oldSlotId, wt);
+
+        markClassBusy(entry.classId, gapSlot.id, wt);
+        markTeacherBusy(entry.teacherId, gapSlot.id, wt);
+        markRoomBusy(entry.roomId, gapSlot.id, wt);
+
+        entry.timeSlotId = gapSlot.id;
+        swaps++;
+        improved = true;
+        didSwap = true;
+      }
+    }
+  }
+
+  return swaps;
+}
+
+function findFirstGap(sortedPeriods: number[]): number {
+  for (let i = 1; i < sortedPeriods.length; i++) {
+    if (sortedPeriods[i] - sortedPeriods[i - 1] > 1) {
+      return sortedPeriods[i - 1] + 1;
+    }
+  }
+  return -1;
+}

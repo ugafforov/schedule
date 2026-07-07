@@ -27,7 +27,7 @@ vi.mock("../storage/index", () => ({
 }));
 
 import { storage } from "../storage/index";
-import { generateSchedule } from "./schedule.service";
+import { generateSchedule, checkFeasibility } from "./schedule.service";
 
 const DAYS = [1, 2, 3, 4, 5, 6];
 
@@ -104,6 +104,11 @@ describe("generateSchedule — Faza 0 baseline (regressiyani ushlash uchun)", ()
     expect(result.coverage).toBe(100);
     expect(result.skipped).toHaveLength(0);
     expect(result.count).toBe(14);
+    expect(result.feasibility).toBeDefined();
+    expect(result.feasibility.feasible).toBe(true);
+    expect(result.quality).toBeDefined();
+    expect(result.quality.score).toBeGreaterThan(0);
+    expect(result.quality.hardViolations).toBe(0);
   });
 
   it("bitta xona bo'lsa ham (band bo'lish ehtimoli yuqori) coverage kamaymaydi — 3 xona yetarli", async () => {
@@ -174,5 +179,100 @@ describe("generateSchedule — Faza 3.3 local search (retry-with-relaxation)", (
     expect(result.coverage).toBe(100);
     expect(result.skipped).toHaveLength(0);
     expect(result.count).toBe(2);
+  });
+});
+
+describe("checkFeasibility — mustaqil pre-check", () => {
+  it("sinf sloti yetarli bo'lmasa feasible=false qaytaradi", () => {
+    const result = checkFeasibility(
+      [{ id: 1, name: "5-A", grade: "5", studyDays: "1" }],
+      [{ classId: 1, subjectId: 1, teacherId: 10, weeklyHours: 8 }],
+      [{ id: 10, firstName: "Ali", lastName: "Valiyev", maxHoursPerWeek: 30 }],
+      [{ id: 1, roomType: "any" }],
+      [{ id: 1, name: "Matematika", requiredRoomType: "any" }],
+      [],
+      6,
+    );
+    expect(result.feasible).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0].type).toBe("class_overflow");
+    expect(result.errors[0].entity).toBe("5-A");
+  });
+
+  it("o'qituvchi yuklamasi ortiq bo'lsa feasible=false", () => {
+    const result = checkFeasibility(
+      [{ id: 1, name: "5-A", grade: "5", studyDays: "1,2,3,4,5,6" }],
+      [{ classId: 1, subjectId: 1, teacherId: 10, weeklyHours: 10 }],
+      [{ id: 10, firstName: "Ali", lastName: "Valiyev", maxHoursPerWeek: 5 }],
+      [{ id: 1, roomType: "any" }],
+      [{ id: 1, name: "Matematika", requiredRoomType: "any" }],
+      [],
+      6,
+    );
+    expect(result.feasible).toBe(false);
+    expect(result.errors.some(e => e.type === "teacher_overload")).toBe(true);
+    expect(result.errors[0].entity).toContain("Ali");
+  });
+
+  it("barcha parametrlar yetarli bo'lsa feasible=true", () => {
+    const result = checkFeasibility(
+      [{ id: 1, name: "5-A", grade: "5", studyDays: "1,2,3,4,5,6" }],
+      [{ classId: 1, subjectId: 1, teacherId: 10, weeklyHours: 5 }],
+      [{ id: 10, firstName: "Ali", lastName: "Valiyev", maxHoursPerWeek: 30 }],
+      [{ id: 1, roomType: "any" }],
+      [{ id: 1, name: "Matematika", requiredRoomType: "any" }],
+      [],
+      6,
+    );
+    expect(result.feasible).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("biriktirilmagan fan bo'lsa warning qaytaradi", () => {
+    const result = checkFeasibility(
+      [{ id: 1, name: "5-A", grade: "5", studyDays: "1,2,3,4,5,6" }],
+      [{ classId: 1, subjectId: 1, teacherId: null, weeklyHours: 3 }],
+      [],
+      [{ id: 1, roomType: "any" }],
+      [{ id: 1, name: "Matematika", requiredRoomType: "any" }],
+      [],
+      6,
+    );
+    expect(result.feasible).toBe(true);
+    expect(result.warnings.some(w => w.type === "unassigned")).toBe(true);
+  });
+});
+
+describe("generateSchedule — sifat hisoboti va gap penaltisi", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (storage.getScheduleEntries as any).mockResolvedValue([]);
+    (storage.createScheduleEntriesBulk as any).mockImplementation(async (entries: any[]) =>
+      entries.map((e: any, i: number) => ({ ...e, id: i + 1 }))
+    );
+    (storage.createConflict as any).mockResolvedValue({});
+    (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
+    (storage.getTeachers as any).mockResolvedValue([]);
+    (storage.getJointLessons as any).mockResolvedValue([]);
+  });
+
+  it("quality maydoni to'g'ri tuzilgan va score 0-100 oralig'ida", async () => {
+    (storage.getTimeSlots as any).mockResolvedValue(buildTimeSlots());
+    const fixture = buildFixture();
+    (storage.getClasses as any).mockResolvedValue(fixture.classes);
+    (storage.getRooms as any).mockResolvedValue(fixture.rooms);
+    (storage.getAllClassSubjects as any).mockResolvedValue(fixture.classSubjects);
+    (storage.getSubjects as any).mockResolvedValue(fixture.subjects);
+
+    const result = await generateSchedule({});
+
+    expect(result.quality).toBeDefined();
+    expect(result.quality.score).toBeGreaterThanOrEqual(0);
+    expect(result.quality.score).toBeLessThanOrEqual(100);
+    expect(typeof result.quality.classGaps).toBe("number");
+    expect(typeof result.quality.teacherGaps).toBe("number");
+    expect(typeof result.quality.spacingViolations).toBe("number");
+    expect(typeof result.quality.complexityViolations).toBe("number");
+    expect(result.quality.hardViolations).toBe(0);
   });
 });

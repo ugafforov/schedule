@@ -4,7 +4,7 @@ import { scheduleEntries, timeSlots, type InsertScheduleEntry, type ScheduleEntr
 import { eq, and } from "drizzle-orm";
 import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory, getMaxDailyComplexity } from "@shared/constants";
 import { DomainError } from "../errors";
-import { attemptRelocations, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
+import { attemptRelocations, minimizeGaps, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
 
 const DAYS = [1, 2, 3, 4, 5, 6];
 const DAY_NAMES = ["", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
@@ -73,9 +73,19 @@ export async function ensureTimeSlots() {
   return existing;
 }
 
-// Bir yoki bir nechta sinf (birlashtirilgan dars holatida) uchun yumshoq cheklov
-// penaltisini hisoblaydi — avval joint va oddiy dars uchun deyarli aynan bir xil
-// kod ikki joyda takrorlangan edi.
+function wouldCreateGap(periodsUsed: Set<number> | undefined, newPeriod: number): boolean {
+  if (!periodsUsed || periodsUsed.size === 0) return false;
+  const all = new Set(Array.from(periodsUsed));
+  all.add(newPeriod);
+  const arr = Array.from(all);
+  const min = Math.min(...arr);
+  const max = Math.max(...arr);
+  for (let p = min + 1; p < max; p++) {
+    if (!all.has(p)) return true;
+  }
+  return false;
+}
+
 function computeSoftPenalties(
   classIds: number[],
   subjectId: number,
@@ -91,6 +101,8 @@ function computeSoftPenalties(
   subjectDailyCount: Map<string, number>,
   classDailyComplexity: Map<string, number>,
   subjectDaysUsed: Map<string, Set<number>>,
+  classPeriodsUsed: Map<string, Set<number>>,
+  studyDaysCount: number,
 ): { conflicts: number; reasons: string[] } {
   let conflicts = 0;
   const reasons: string[] = [];
@@ -116,16 +128,37 @@ function computeSoftPenalties(
       reasons.push(`Sinf (${cid}) uchun kunlik aqliy zo'riqish chegarasi (SanPiN) oshib ketdi`);
     }
 
-    // "Spacing effect": shu fan kecha yoki ertaga allaqachon bo'lsa, ketma-ket kunga
-    // qo'yishni kamroq tavsiya qilamiz (xotirada saqlash uchun kunora joylashtirish yaxshiroq)
     const usedDays = subjectDaysUsed.get(`${cid}_${subjectId}`);
     if (usedDays && (usedDays.has(day - 1) || usedDays.has(day + 1))) {
       conflicts += 15;
       reasons.push(`Sinf (${cid}) uchun "${subjectId}"-fan ketma-ket kunlarga qo'yildi (kunora tavsiya etiladi)`);
     }
+
+    // S6: Sinf jadvalida "oyna" (gap) paydo bo'lishini jarimalaymiz
+    if (wouldCreateGap(classPeriodsUsed.get(cdKey), periodNumber)) {
+      conflicts += 20;
+      reasons.push(`Sinf (${cid}) jadvalida kun ichida bo'sh oraliq (oyna) paydo bo'ladi`);
+    }
+
+    // S11: Haftalik murakkablik balansi
+    if (studyDaysCount > 1) {
+      const allDayTotals: number[] = [];
+      for (let d = 1; d <= 6; d++) {
+        allDayTotals.push(classDailyComplexity.get(`${cid}_${d}`) || 0);
+      }
+      const thisDayTotal = allDayTotals[day - 1] + complexity * loadVal;
+      allDayTotals[day - 1] = thisDayTotal;
+      const avg = allDayTotals.reduce((a, b) => a + b, 0) / studyDaysCount;
+      if (avg > 0) {
+        const deviation = Math.abs(thisDayTotal - avg);
+        if (deviation > avg * 0.3) {
+          conflicts += Math.round(deviation * 2);
+          reasons.push(`Sinf (${cid}) haftalik murakkablik balansi buzildi`);
+        }
+      }
+    }
   }
 
-  // SanPiN category tavsiyalari — sinfdan qat'i nazar, faqat vaqt sloti asosida
   if (category === "dynamic" && periodNumber <= 3) {
     conflicts += (4 - periodNumber) * 10;
     reasons.push(`Yengil fanlar tushdan keyin (4, 5, 6-darslarga) qo'yilishi tavsiya etiladi`);
@@ -138,14 +171,130 @@ function computeSoftPenalties(
   return { conflicts, reasons };
 }
 
+export interface FeasibilityError {
+  type: "class_overflow" | "teacher_overload" | "room_shortage" | "unassigned";
+  entity: string;
+  demand: number;
+  supply: number;
+  message: string;
+}
+
+export interface FeasibilityResult {
+  feasible: boolean;
+  errors: FeasibilityError[];
+  warnings: Array<{ type: string; message: string }>;
+}
+
+export function checkFeasibility(
+  classes: Array<{ id: number; name: string; grade: string; studyDays: string }>,
+  classSubjects: Array<{ classId: number; subjectId: number; teacherId: number | null; weeklyHours: number }>,
+  teachers: Array<{ id: number; firstName: string; lastName: string; maxHoursPerWeek: number | null }>,
+  rooms: Array<{ id: number; roomType: string }>,
+  subjects: Array<{ id: number; name: string; requiredRoomType: string }>,
+  unavailability: Array<{ teacherId: number }>,
+  activeSlotsPerDay: number,
+): FeasibilityResult {
+  const errors: FeasibilityError[] = [];
+  const warnings: Array<{ type: string; message: string }> = [];
+
+  const subjectMap = new Map(subjects.map(s => [s.id, s]));
+
+  for (const cls of classes) {
+    const studyDays = (cls.studyDays || "1,2,3,4,5").split(",");
+    const maxPerDay = getMaxHoursPerDay(cls.grade);
+    const totalSlots = studyDays.length * maxPerDay;
+    const totalRequired = classSubjects
+      .filter(cs => cs.classId === cls.id)
+      .reduce((sum, cs) => sum + cs.weeklyHours, 0);
+    if (totalRequired > totalSlots) {
+      errors.push({
+        type: "class_overflow",
+        entity: cls.name,
+        demand: totalRequired,
+        supply: totalSlots,
+        message: `${cls.name}: ${totalRequired} soat kerak, lekin ${totalSlots} slot mavjud`,
+      });
+    }
+  }
+
+  const teacherDemand = new Map<number, number>();
+  for (const cs of classSubjects) {
+    if (cs.teacherId) {
+      teacherDemand.set(cs.teacherId, (teacherDemand.get(cs.teacherId) || 0) + cs.weeklyHours);
+    }
+  }
+  const teacherUnavailCounts = new Map<number, number>();
+  for (const u of unavailability) {
+    teacherUnavailCounts.set(u.teacherId, (teacherUnavailCounts.get(u.teacherId) || 0) + 1);
+  }
+  for (const t of teachers) {
+    const demand = teacherDemand.get(t.id) || 0;
+    if (demand === 0) continue;
+    const maxCapacity = t.maxHoursPerWeek || 30;
+    const unavailCount = teacherUnavailCounts.get(t.id) || 0;
+    const totalSlotsForTeacher = activeSlotsPerDay * 6;
+    const realCapacity = Math.min(maxCapacity, totalSlotsForTeacher - unavailCount);
+    const name = `${t.firstName} ${t.lastName}`.trim();
+    if (demand > realCapacity) {
+      errors.push({
+        type: "teacher_overload",
+        entity: name,
+        demand,
+        supply: realCapacity,
+        message: `${name}: ${demand} soat talab, lekin ${realCapacity} slot mavjud`,
+      });
+    } else if (demand > realCapacity * 0.85) {
+      warnings.push({
+        type: "teacher_overload",
+        message: `${name}: yuklamasi yuqori (${demand}/${realCapacity})`,
+      });
+    }
+  }
+
+  const roomTypes = ["lab", "computer", "gym", "music", "art"] as const;
+  for (const rt of roomTypes) {
+    const roomCount = rooms.filter(r => r.roomType === rt).length;
+    if (roomCount === 0) continue;
+    let demandSlots = 0;
+    for (const cs of classSubjects) {
+      const sub = subjectMap.get(cs.subjectId);
+      if (sub && sub.requiredRoomType === rt) {
+        demandSlots += cs.weeklyHours;
+      }
+    }
+    if (demandSlots === 0) continue;
+    const supplySlots = roomCount * activeSlotsPerDay * 6;
+    if (demandSlots > supplySlots) {
+      errors.push({
+        type: "room_shortage",
+        entity: rt,
+        demand: demandSlots,
+        supply: supplySlots,
+        message: `${rt}: ${demandSlots} soat kerak, ${roomCount} xona × ${activeSlotsPerDay * 6} slot = ${supplySlots} slot`,
+      });
+    } else if (demandSlots > supplySlots * 0.80) {
+      warnings.push({
+        type: "room_shortage",
+        message: `${rt} xonasi sig'imi: ${demandSlots}/${supplySlots} (80%+)`,
+      });
+    }
+  }
+
+  const unassigned = classSubjects.filter(cs => !cs.teacherId);
+  if (unassigned.length > 0) {
+    warnings.push({
+      type: "unassigned",
+      message: `${unassigned.length} ta fan-sinf juftligiga o'qituvchi biriktirilmagan`,
+    });
+  }
+
+  return { feasible: errors.length === 0, errors, warnings };
+}
+
 export interface GenerateScheduleOptions {
   classIds?: number[];
   clearExisting?: boolean;
 }
-
-// These are no longer needed as we use SanPiN curve from constants directly, but we keep them for backward compatibility if needed, or remove them.
-const DAY_QUALITY: Record<number, number> = { 2: 10, 3: 10, 4: 9, 1: 7, 5: 6 };
-const PERIOD_QUALITY: Record<number, number> = { 2: 10, 3: 10, 4: 10, 1: 7, 5: 7, 6: 5 };
 
 export async function generateSchedule(options: GenerateScheduleOptions) {
   const { classIds, clearExisting } = options;
@@ -185,6 +334,12 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
 
   if (targetClasses.length === 0) throw new DomainError("Sinflar mavjud emas.");
   if (allRooms.length === 0) throw new DomainError("Xonalar mavjud emas.");
+
+  const periodsPerDay = new Set(activeSlots.filter(s => Number(s.dayOfWeek) === 1).map(s => s.periodNumber)).size
+    || activeSlots.filter(s => Number(s.dayOfWeek) === activeSlots[0]?.dayOfWeek).length;
+  const feasibility = checkFeasibility(
+    targetClasses, allClassSubjects, allTeachers, allRooms, allSubjects, allUnavailability, periodsPerDay,
+  );
 
   const unavailSet = new Set<string>(
     allUnavailability.map((u) => `${u.teacherId}_${u.dayOfWeek}_${u.periodNumber}`)
@@ -339,8 +494,22 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     };
   });
 
-  // Sort lessons by complexity (hardest first to place them in best slots)
-  precomputedLessons.sort((a, b) => b.grade - a.grade || b.complexity - a.complexity);
+  const teacherUnavailCount = new Map<number, number>();
+  for (const u of allUnavailability) {
+    teacherUnavailCount.set(u.teacherId, (teacherUnavailCount.get(u.teacherId) || 0) + 1);
+  }
+  precomputedLessons.sort((a, b) => {
+    const jointA = (a.isJoint ? 1 : 0) + (a.teacherId2 ? 1 : 0);
+    const jointB = (b.isJoint ? 1 : 0) + (b.teacherId2 ? 1 : 0);
+    if (jointB !== jointA) return jointB - jointA;
+    const specA = a.reqType !== "any" ? 1 : 0;
+    const specB = b.reqType !== "any" ? 1 : 0;
+    if (specB !== specA) return specB - specA;
+    const tightA = teacherUnavailCount.get(a.teacherId) || 0;
+    const tightB = teacherUnavailCount.get(b.teacherId) || 0;
+    if (tightB !== tightA) return tightB - tightA;
+    return b.grade - a.grade || b.complexity - a.complexity;
+  });
 
   const teacherBusy = new Set<string>();
   const roomBusy = new Set<string>();
@@ -348,10 +517,10 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   const classDailyCount = new Map<string, number>();
   const subjectDailyCount = new Map<string, number>();
   const classDailyComplexity = new Map<string, number>();
-  // "Spacing effect" uchun: ${classId}_${subjectId} -> shu fan allaqachon joylashgan kunlar to'plami
   const subjectDaysUsed = new Map<string, Set<number>>();
-  // Xona barqarorligi uchun: ${teacherId}_${day} -> o'qituvchi shu kuni ishlatgan (oxirgi) xona
   const teacherDayRoom = new Map<string, number>();
+  const classPeriodsUsed = new Map<string, Set<number>>();
+  const teacherPeriodsUsed = new Map<string, Set<number>>();
 
   // Helpers to check and set week-type aware busy states
   function isEntityBusy(
@@ -433,9 +602,17 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       subjectDaysUsed.get(sdaysKey)!.add(Number(day));
 
       teacherDayRoom.set(`${e.teacherId}_${day}`, e.roomId);
+
+      const cpKey = `${e.classId}_${day}`;
+      if (!classPeriodsUsed.has(cpKey)) classPeriodsUsed.set(cpKey, new Set());
+      classPeriodsUsed.get(cpKey)!.add(Number(slot.periodNumber));
+
+      const tpKey = `${e.teacherId}_${day}`;
+      if (!teacherPeriodsUsed.has(tpKey)) teacherPeriodsUsed.set(tpKey, new Set());
+      teacherPeriodsUsed.get(tpKey)!.add(Number(slot.periodNumber));
     }
   }
-  
+
   const roomsByType = new Map<string, typeof allRooms>();
   roomsByType.set("any", allRooms);
   for (const r of allRooms) {
@@ -551,13 +728,20 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
 
         if (!roomsOk) continue;
 
-        // Calculate soft conflicts (penalties)
         const loadVal = lesson.weekType === "always" ? 1 : 0.5;
-        const { conflicts, reasons } = computeSoftPenalties(
+        const jStudyDaysCount = (lesson.studyDays || "1,2,3,4,5,6").split(",").length;
+        let { conflicts, reasons } = computeSoftPenalties(
           lesson.classIds, lesson.subjectId, lesson.grade, lesson.complexity, lesson.category,
           day, slot.periodNumber, loadVal, lesson.maxDaily, lesson.maxSameSubject,
           classDailyCount, subjectDailyCount, classDailyComplexity, subjectDaysUsed,
+          classPeriodsUsed, jStudyDaysCount,
         );
+        for (const g of lesson.groups) {
+          if (wouldCreateGap(teacherPeriodsUsed.get(`${g.teacherId}_${day}`), slot.periodNumber)) {
+            conflicts += 15;
+            reasons.push("O'qituvchi jadvalida oyna paydo bo'ladi");
+          }
+        }
 
         if (conflicts < leastConflicts) {
           leastConflicts = conflicts;
@@ -625,13 +809,18 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           }
         }
 
-        // Calculate soft conflicts (penalties)
         const loadVal = lesson.weekType === "always" ? 1 : 0.5;
-        const { conflicts, reasons } = computeSoftPenalties(
+        const sStudyDaysCount = (lesson.studyDays || "1,2,3,4,5").split(",").length;
+        let { conflicts, reasons } = computeSoftPenalties(
           [lesson.classId], lesson.subjectId, lesson.grade, lesson.complexity, lesson.category,
           day, slot.periodNumber, loadVal, lesson.maxDaily, lesson.maxSameSubject,
           classDailyCount, subjectDailyCount, classDailyComplexity, subjectDaysUsed,
+          classPeriodsUsed, sStudyDaysCount,
         );
+        if (wouldCreateGap(teacherPeriodsUsed.get(`${lesson.teacherId}_${day}`), slot.periodNumber)) {
+          conflicts += 15;
+          reasons.push("O'qituvchi jadvalida oyna paydo bo'ladi");
+        }
 
         if (conflicts < leastConflicts) {
           leastConflicts = conflicts;
@@ -675,9 +864,18 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           if (!subjectDaysUsed.has(sdaysKey)) subjectDaysUsed.set(sdaysKey, new Set());
           subjectDaysUsed.get(sdaysKey)!.add(day);
         }
+        for (const cid of lesson.classIds) {
+          const cpKey = `${cid}_${day}`;
+          if (!classPeriodsUsed.has(cpKey)) classPeriodsUsed.set(cpKey, new Set());
+          classPeriodsUsed.get(cpKey)!.add(bestSlot.periodNumber);
+        }
         for (let i = 0; i < lesson.groups.length; i++) {
           const roomObj = bestRoom1[i];
-          if (roomObj?.id) teacherDayRoom.set(`${lesson.groups[i].teacherId}_${day}`, roomObj.id);
+          const tid = lesson.groups[i].teacherId;
+          if (roomObj?.id) teacherDayRoom.set(`${tid}_${day}`, roomObj.id);
+          const tpKey = `${tid}_${day}`;
+          if (!teacherPeriodsUsed.has(tpKey)) teacherPeriodsUsed.set(tpKey, new Set());
+          teacherPeriodsUsed.get(tpKey)!.add(bestSlot.periodNumber);
         }
 
         // Create schedule entries: C classes * G groups
@@ -732,6 +930,18 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         subjectDaysUsed.get(sdaysKey)!.add(day);
         teacherDayRoom.set(`${lesson.teacherId}_${day}`, r1Obj.id);
         if (lesson.teacherId2 && bestRoom2) teacherDayRoom.set(`${lesson.teacherId2}_${day}`, bestRoom2.id);
+
+        const cpKey = `${lesson.classId}_${day}`;
+        if (!classPeriodsUsed.has(cpKey)) classPeriodsUsed.set(cpKey, new Set());
+        classPeriodsUsed.get(cpKey)!.add(bestSlot.periodNumber);
+        const tpKey = `${lesson.teacherId}_${day}`;
+        if (!teacherPeriodsUsed.has(tpKey)) teacherPeriodsUsed.set(tpKey, new Set());
+        teacherPeriodsUsed.get(tpKey)!.add(bestSlot.periodNumber);
+        if (lesson.teacherId2) {
+          const tp2Key = `${lesson.teacherId2}_${day}`;
+          if (!teacherPeriodsUsed.has(tp2Key)) teacherPeriodsUsed.set(tp2Key, new Set());
+          teacherPeriodsUsed.get(tp2Key)!.add(bestSlot.periodNumber);
+        }
 
         const entry1: InsertScheduleEntry = { 
           classId: lesson.classId, 
@@ -869,12 +1079,111 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       reason: "Barcha slotlar band yoki mos xona topilmadi",
     }));
 
-  console.log(`[Greedy] Finished. Placed ${placedLessons}/${precomputedLessons.length} lessons. Skipped: ${skippedLessons.length}. Conflicts: ${generatedConflicts.length}`);
+  // --- Faza 2.2: Gap minimizatsiya (post-processing) ---
+  const slotPeriodMap = new Map(activeSlots.map(s => [s.id, Number(s.periodNumber)]));
+  const slotDayMap = new Map(activeSlots.map(s => [s.id, Number(s.dayOfWeek)]));
+  const optimizerSlotsForGap = activeSlots.map(s => ({ id: s.id, dayOfWeek: Number(s.dayOfWeek) }));
+  const slotByIdGap = new Map(activeSlots.map(s => [s.id, s]));
+  const isTeacherFreeForGap = (teacherId: number, slotId: number, weekType: "always" | "surat" | "mahraj") => {
+    if (isEntityBusy(teacherBusy, teacherId, slotId, weekType)) return false;
+    const sl = slotByIdGap.get(slotId);
+    if (sl && unavailSet.has(`${teacherId}_${sl.dayOfWeek}_${sl.periodNumber}`)) return false;
+    return true;
+  };
+  const gapSwaps = minimizeGaps({
+    schedule: finalSchedule,
+    activeSlots: optimizerSlotsForGap,
+    slotPeriodMap,
+    slotDayMap,
+    isClassFree: (classId, slotId, weekType) => !isEntityBusy(classBusy, classId, slotId, weekType),
+    isTeacherFree: isTeacherFreeForGap,
+    isRoomFree: (roomId, slotId, weekType) => !isEntityBusy(roomBusy, roomId, slotId, weekType),
+    markClassBusy: (classId, slotId, weekType) => markEntityBusy(classBusy, classId, slotId, weekType),
+    unmarkClassBusy: (classId, slotId, weekType) => unmarkEntityBusy(classBusy, classId, slotId, weekType),
+    markTeacherBusy: (teacherId, slotId, weekType) => markEntityBusy(teacherBusy, teacherId, slotId, weekType),
+    unmarkTeacherBusy: (teacherId, slotId, weekType) => unmarkEntityBusy(teacherBusy, teacherId, slotId, weekType),
+    markRoomBusy: (roomId, slotId, weekType) => markEntityBusy(roomBusy, roomId, slotId, weekType),
+    unmarkRoomBusy: (roomId, slotId, weekType) => unmarkEntityBusy(roomBusy, roomId, slotId, weekType),
+  });
+  if (gapSwaps > 0) {
+    console.log(`[GapMinimize] ${gapSwaps} ta swap bajarildi.`);
+  }
+
+  // --- Faza 3: Post-validatsiya ---
+  const hardViolations = validateSchedule(finalSchedule, activeSlots, unavailSet);
+  if (hardViolations.length > 0) {
+    console.error(`[PostValidation] ${hardViolations.length} ta qat'iy shart buzilishi aniqlandi:`, hardViolations);
+  }
+
+  // --- Sifat hisoboti ---
+  let classGaps = 0;
+  let teacherGaps = 0;
+  const finalClassPeriods = new Map<string, Set<number>>();
+  const finalTeacherPeriods = new Map<string, Set<number>>();
+  let spacingViolations = 0;
+  let complexityViolations = 0;
+  const finalSubjectDays = new Map<string, Set<number>>();
+
+  for (const entry of finalSchedule) {
+    const sl = slotByIdGap.get(entry.timeSlotId);
+    if (!sl) continue;
+    const day = Number(sl.dayOfWeek);
+    const period = Number(sl.periodNumber);
+
+    const cpKey = `${entry.classId}_${day}`;
+    if (!finalClassPeriods.has(cpKey)) finalClassPeriods.set(cpKey, new Set());
+    finalClassPeriods.get(cpKey)!.add(period);
+
+    const tpKey = `${entry.teacherId}_${day}`;
+    if (!finalTeacherPeriods.has(tpKey)) finalTeacherPeriods.set(tpKey, new Set());
+    finalTeacherPeriods.get(tpKey)!.add(period);
+
+    const sub = subjectMap.get(entry.subjectId);
+    if (sub) {
+      const cat = getSubjectCategory(sub.name);
+      if (cat === "dynamic" && period <= 3) complexityViolations++;
+      if (cat === "mental" && period >= 5) complexityViolations++;
+    }
+
+    const sdKey = `${entry.classId}_${entry.subjectId}`;
+    if (!finalSubjectDays.has(sdKey)) finalSubjectDays.set(sdKey, new Set());
+    finalSubjectDays.get(sdKey)!.add(day);
+  }
+
+  for (const periods of Array.from(finalClassPeriods.values())) {
+    const arr = Array.from(periods).sort((a, b) => a - b);
+    for (let i = 1; i < arr.length; i++) {
+      classGaps += arr[i] - arr[i - 1] - 1;
+    }
+  }
+  for (const periods of Array.from(finalTeacherPeriods.values())) {
+    const arr = Array.from(periods).sort((a, b) => a - b);
+    for (let i = 1; i < arr.length; i++) {
+      teacherGaps += arr[i] - arr[i - 1] - 1;
+    }
+  }
+  for (const days of Array.from(finalSubjectDays.values())) {
+    const sorted = Array.from(days).sort((a, b) => a - b);
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] - sorted[i - 1] === 1) spacingViolations++;
+    }
+  }
+
+  const qualityScore = Math.max(0, Math.round(
+    100
+    - skippedLessons.length * 10
+    - hardViolations.length * 50
+    - classGaps * 2
+    - teacherGaps * 1
+    - complexityViolations * 1.5
+    - spacingViolations * 1
+  ));
+
+  console.log(`[Greedy] Finished. Placed ${placedLessons}/${precomputedLessons.length} lessons. Skipped: ${skippedLessons.length}. Quality: ${qualityScore}/100`);
 
   if (finalSchedule.length > 0) {
     const insertedEntries = await storage.createScheduleEntriesBulk(finalSchedule);
-    
-    // Conflict'larni content-matching orqali to'g'ri entry ga bog'lash
+
     if (generatedConflicts.length > 0) {
       const entryByKey = new Map<string, ScheduleEntry>();
       for (const e of insertedEntries) {
@@ -905,8 +1214,97 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     coverage,
     skipped: skippedLessons,
     success: true,
-    stats: { steps: precomputedLessons.length, timeMs: Date.now() - startTime }
+    stats: { steps: precomputedLessons.length, timeMs: Date.now() - startTime },
+    feasibility,
+    quality: {
+      score: qualityScore,
+      classGaps,
+      teacherGaps,
+      spacingViolations,
+      complexityViolations,
+      hardViolations: hardViolations.length,
+    },
   };
+}
+
+function validateSchedule(
+  entries: InsertScheduleEntry[],
+  slots: Array<{ id: number; dayOfWeek: number; periodNumber: number }>,
+  unavailSet: Set<string>,
+): Array<{ type: string; detail: string }> {
+  const violations: Array<{ type: string; detail: string }> = [];
+  const slotMap = new Map(slots.map(s => [s.id, s]));
+
+  type WkType = "always" | "surat" | "mahraj";
+  function wkConflict(a: string, b: string) {
+    if (a === "always" || b === "always") return true;
+    return a === b;
+  }
+
+  const teacherSlotEntries = new Map<string, Array<{ idx: number; wt: WkType }>>();
+  const classSlotEntries = new Map<string, Array<{ idx: number; wt: WkType }>>();
+  const roomSlotEntries = new Map<string, Array<{ idx: number; wt: WkType }>>();
+
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const wt = (e.weekType || "always") as WkType;
+
+    const tKey = `${e.teacherId}_${e.timeSlotId}`;
+    if (!teacherSlotEntries.has(tKey)) teacherSlotEntries.set(tKey, []);
+    teacherSlotEntries.get(tKey)!.push({ idx: i, wt });
+
+    const cKey = `${e.classId}_${e.timeSlotId}`;
+    if (!classSlotEntries.has(cKey)) classSlotEntries.set(cKey, []);
+    classSlotEntries.get(cKey)!.push({ idx: i, wt });
+
+    const rKey = `${e.roomId}_${e.timeSlotId}`;
+    if (!roomSlotEntries.has(rKey)) roomSlotEntries.set(rKey, []);
+    roomSlotEntries.get(rKey)!.push({ idx: i, wt });
+
+    const slot = slotMap.get(e.timeSlotId);
+    if (slot && unavailSet.has(`${e.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`)) {
+      violations.push({ type: "unavail_violation", detail: `O'qituvchi ${e.teacherId} band vaqtda darsga qo'yilgan (slot ${e.timeSlotId})` });
+    }
+  }
+
+  for (const [key, group] of Array.from(teacherSlotEntries.entries())) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        if (wkConflict(group[i].wt, group[j].wt)) {
+          const jl1 = entries[group[i].idx].jointLessonId;
+          const jl2 = entries[group[j].idx].jointLessonId;
+          if (jl1 && jl2 && jl1 === jl2) continue;
+          violations.push({ type: "teacher_clash", detail: `O'qituvchi to'qnashuvi: ${key}` });
+        }
+      }
+    }
+  }
+  for (const [key, group] of Array.from(classSlotEntries.entries())) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        if (wkConflict(group[i].wt, group[j].wt)) {
+          const jl1 = entries[group[i].idx].jointLessonId;
+          const jl2 = entries[group[j].idx].jointLessonId;
+          if (jl1 && jl2 && jl1 === jl2) continue;
+          violations.push({ type: "class_clash", detail: `Sinf to'qnashuvi: ${key}` });
+        }
+      }
+    }
+  }
+  for (const [key, group] of Array.from(roomSlotEntries.entries())) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        if (wkConflict(group[i].wt, group[j].wt)) {
+          const jl1 = entries[group[i].idx].jointLessonId;
+          const jl2 = entries[group[j].idx].jointLessonId;
+          if (jl1 && jl2 && jl1 === jl2) continue;
+          violations.push({ type: "room_clash", detail: `Xona to'qnashuvi: ${key}` });
+        }
+      }
+    }
+  }
+
+  return violations;
 }
 
 export async function saveTimeSlotsFromRows(rowsRaw: any[]) {
