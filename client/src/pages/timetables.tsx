@@ -410,11 +410,51 @@ function DroppableSidebar({
 // --- Main Component ---
 
 export default function Timetables() {
-  const [, setLocation] = useLocation();
-  const [viewMode, setViewMode] = useState<ViewMode>("class");
-  const [selectedClassId, setSelectedClassId] = useState<number | "all">("all");
-  const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
+  const [location, setLocation] = useLocation();
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const qViewMode = searchParams.get("viewMode");
+    return (qViewMode === "teacher" ? "teacher" : "class") as ViewMode;
+  });
+  const [selectedClassId, setSelectedClassId] = useState<number | "all">(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const qClassId = searchParams.get("classId");
+    return qClassId ? parseInt(qClassId) : "all";
+  });
+  const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const qTeacherId = searchParams.get("teacherId");
+    return qTeacherId ? parseInt(qTeacherId) : null;
+  });
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const qViewMode = searchParams.get("viewMode");
+    const qClassId = searchParams.get("classId");
+    const qTeacherId = searchParams.get("teacherId");
+
+    if (qViewMode === "teacher") {
+      setViewMode("teacher");
+    } else {
+      setViewMode("class");
+    }
+
+    if (qClassId) {
+      setSelectedClassId(parseInt(qClassId));
+    } else if (!qTeacherId) {
+      setSelectedClassId("all");
+    }
+
+    if (qTeacherId) {
+      setSelectedTeacherId(parseInt(qTeacherId));
+    } else {
+      setSelectedTeacherId(null);
+    }
+  }, [location]);
   const [showGenerator, setShowGenerator] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [generateTarget, setGenerateTarget] = useState<{classIds?: number[]} | null>(null);
+  const [entryToDelete, setEntryToDelete] = useState<number | null>(null);
   const [clearExisting, setClearExisting] = useState(true);
   const [editEntry, setEditEntry] = useState<ScheduleEntry | null>(null);
   const [editForm, setEditForm] = useState<{ subjectId: number; teacherId: number; roomId: number; weekType: string } | null>(null);
@@ -1537,7 +1577,7 @@ export default function Timetables() {
           <Button
             variant="outline" size="sm"
             className="text-red-500 border-red-500/20 hover:bg-red-500/10"
-            onClick={() => clearMutation.mutate()}
+            onClick={() => setShowClearConfirm(true)}
             disabled={clearMutation.isPending}
           >
             <Trash2 className="mr-1.5 h-4 w-4" />Tozalash
@@ -1594,7 +1634,13 @@ export default function Timetables() {
 
             <div className="flex items-center space-x-3">
               <Button
-                onClick={() => generateMutation.mutate({})}
+                onClick={() => {
+                  if (clearExisting) {
+                    setGenerateTarget({});
+                  } else {
+                    generateMutation.mutate({});
+                  }
+                }}
                 disabled={generateMutation.isPending || classes.length === 0 || rooms.length === 0}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
@@ -1603,7 +1649,13 @@ export default function Timetables() {
                   : <><Wand2 className="mr-2 h-4 w-4" />Barcha sinflar uchun jadval yaratish</>}
               </Button>
               {selectedClassId !== "all" && viewMode === "class" && (
-                <Button variant="outline" onClick={() => generateMutation.mutate({ classIds: [selectedClassId as number] })} disabled={generateMutation.isPending} className="border-border">
+                <Button variant="outline" onClick={() => {
+                  if (clearExisting) {
+                    setGenerateTarget({ classIds: [selectedClassId as number] });
+                  } else {
+                    generateMutation.mutate({ classIds: [selectedClassId as number] });
+                  }
+                }} disabled={generateMutation.isPending} className="border-border">
                   Faqat "{classes.find(c => c.id === selectedClassId)?.name}" sinfi uchun
                 </Button>
               )}
@@ -1633,7 +1685,7 @@ export default function Timetables() {
                 {generatorResult.warnings?.length > 0 && (
                   <div className="mt-2 space-y-1">
                     {generatorResult.warnings.map((w: string, i: number) => (
-                      <div key={i} className="flex items-center space-x-1.5 text-xs text-amber-700">
+                      <div key={i} className="flex items-center space-x-1.5 text-xs text-amber-700 dark:text-amber-400">
                         <AlertTriangle className="h-3 w-3 flex-shrink-0" />
                         <span>{w}</span>
                       </div>
@@ -2019,7 +2071,7 @@ export default function Timetables() {
                                         setEditEntry(entry);
                                         setEditForm({ subjectId: entry.subjectId, teacherId: entry.teacherId, roomId: entry.roomId, weekType: entry.weekType });
                                       }}
-                                      onDelete={() => deleteEntryMutation.mutate(entry.id)}
+                                      onDelete={() => setEntryToDelete(entry.id)}
                                     />
                                   );
 
@@ -2079,7 +2131,7 @@ export default function Timetables() {
                                         setEditEntry(entry);
                                         setEditForm({ subjectId: entry.subjectId, teacherId: entry.teacherId, roomId: entry.roomId, weekType: entry.weekType });
                                       }}
-                                      onDelete={() => deleteEntryMutation.mutate(entry.id)}
+                                      onDelete={() => setEntryToDelete(entry.id)}
                                     />
                                   );
                                 });
@@ -2239,6 +2291,91 @@ export default function Timetables() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Clear Confirmation Dialog */}
+      <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dars jadvalini tozalash</DialogTitle>
+          </DialogHeader>
+          <div className="py-3">
+            <p className="text-sm text-muted-foreground">
+              Haftalik dars jadvalining barcha yozuvlarini butunlay o'chirib tashlamoqchimisiz? Ushbu amalni ortga qaytarib bo'lmaydi.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClearConfirm(false)}>
+              Bekor qilish
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                clearMutation.mutate();
+                setShowClearConfirm(false);
+              }}
+              disabled={clearMutation.isPending}
+            >
+              Tozalash
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generate Confirmation Dialog */}
+      <Dialog open={generateTarget !== null} onOpenChange={(v) => !v && setGenerateTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Jadval yaratishni tasdiqlash</DialogTitle>
+          </DialogHeader>
+          <div className="py-3">
+            <p className="text-sm text-muted-foreground">
+              Joriy dars jadvali tozalab tashlanib, yangidan yaratiladi. Ushbu amalni ortga qaytarib bo'lmaydi. Rozimisiz?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenerateTarget(null)}>Bekor qilish</Button>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              onClick={() => {
+                if (generateTarget) {
+                  generateMutation.mutate(generateTarget);
+                }
+                setGenerateTarget(null);
+              }}
+            >
+              Tasdiqlash
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single Entry Delete Dialog */}
+      <Dialog open={entryToDelete !== null} onOpenChange={(v) => !v && setEntryToDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Darsni o'chirish</DialogTitle>
+          </DialogHeader>
+          <div className="py-3">
+            <p className="text-sm text-muted-foreground">
+              Ushbu dars jadvaldan olib tashlanib, zaxiraga (yetishmayotgan soatlar ro'yxatiga) o'tadi. O'chirasizmi?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEntryToDelete(null)}>Bekor qilish</Button>
+            <Button 
+              variant="destructive"
+              onClick={() => {
+                if (entryToDelete !== null) {
+                  deleteEntryMutation.mutate(entryToDelete);
+                }
+                setEntryToDelete(null);
+              }}
+            >
+              O'chirish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Floating preview for select-to-place */}
       {selectedSubjectToPlace && (

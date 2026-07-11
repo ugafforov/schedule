@@ -20,6 +20,7 @@ export const classRoutes = new Hono()
       language: body.language || "uz",
       totalStudents: body.totalStudents || 25,
       studyDays: body.studyDays || "1,2,3,4,5",
+      defaultRoomId: body.defaultRoomId !== undefined ? body.defaultRoomId : null,
       isActive: true,
     });
     const cls = await storage.createClass(data);

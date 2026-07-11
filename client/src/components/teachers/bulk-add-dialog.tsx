@@ -176,10 +176,10 @@ export function BulkAddTeachers({
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100 mb-2">
+                  <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-2">
                     <div className="flex-1">
                       <h4 className="text-sm font-semibold text-amber-900">To'liq avtomatik taqsimlash</h4>
-                      <p className="text-[10px] text-amber-700">Barcha vakant o'qituvchilarni yaratish va darslarga biriktirish.</p>
+                      <p className="text-[10px] text-amber-700 dark:text-amber-400">Barcha vakant o'qituvchilarni yaratish va darslarga biriktirish.</p>
                     </div>
                     <Button 
                       size="sm"
@@ -198,9 +198,9 @@ export function BulkAddTeachers({
                       Bajarish
                     </Button>
                   </div>
-                  <div className="border border-amber-100 bg-amber-50 rounded-xl overflow-hidden">
-                    <div className="px-3 py-2 border-b border-amber-100 flex items-center justify-between">
-                      <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5">
+                  <div className="border border-amber-500/20 bg-amber-500/10 rounded-xl overflow-hidden">
+                    <div className="px-3 py-2 border-b border-amber-500/20 flex items-center justify-between">
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                         <AlertCircle className="h-3.5 w-3.5" />
                         {vacancyRecs.length} ta fanda jami {totalVacancies} ta o'qituvchi vakant
                       </p>
@@ -217,7 +217,7 @@ export function BulkAddTeachers({
                             <ChevronRight className="h-3 w-3 text-gray-300" />
                             <span className="text-xs text-red-600">Kerak: <span className="font-bold">{rec.neededTeachers}</span></span>
                           </div>
-                          <Badge variant="outline" className="text-xs border-red-200 text-red-700 bg-red-50">
+                          <Badge variant="outline" className="text-xs border-red-500/20 text-red-700 dark:text-red-400 bg-red-500/10">
                             +{rec.vacancies} vakant
                           </Badge>
                         </div>
@@ -228,7 +228,7 @@ export function BulkAddTeachers({
                   <Button
                     variant="outline"
                     onClick={generateFromRecs}
-                    className="w-full border-dashed border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400"
+                    className="w-full border-dashed border-blue-300 text-blue-700 dark:text-blue-400 hover:bg-blue-500/10 hover:border-blue-400"
                   >
                     <Wand2 className="mr-2 h-4 w-4" />
                     {totalVacancies} ta vakant o'qituvchi ro'yxatini yaratish
@@ -238,9 +238,9 @@ export function BulkAddTeachers({
 
               {/* Generated list preview */}
               {generatedList.length > 0 && (
-                <div className="border border-emerald-200 bg-emerald-50 rounded-xl overflow-hidden">
-                  <div className="px-3 py-2 border-b border-emerald-100 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-emerald-800">{generatedList.length} ta o'qituvchi qo'shiladi:</p>
+                <div className="border border-emerald-500/20 bg-emerald-500/10 rounded-xl overflow-hidden">
+                  <div className="px-3 py-2 border-b border-emerald-500/20 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">{generatedList.length} ta o'qituvchi qo'shiladi:</p>
                     <button onClick={() => setGeneratedList([])} className="text-xs text-muted-foreground hover:text-muted-foreground">Tozalash</button>
                   </div>
                   <div className="divide-y divide-emerald-100 max-h-44 overflow-y-auto">
@@ -275,11 +275,11 @@ export function BulkAddTeachers({
                 <p className="text-xs text-muted-foreground">Har bir qatorda bitta o'qituvchi: <span className="font-mono bg-muted px-1 rounded">Fan nomi vakant</span></p>
               </div>
               {manualParsed.length > 0 && (
-                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
-                  <p className="text-xs font-medium text-emerald-700 mb-2">{manualParsed.length} ta o'qituvchi:</p>
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                  <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-2">{manualParsed.length} ta o'qituvchi:</p>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {manualParsed.map((p, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs text-emerald-800">
+                      <div key={i} className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
                         <div className="w-5 h-5 bg-emerald-200 rounded-full flex items-center justify-center flex-shrink-0 text-[10px] font-bold">
                           {p.firstName[0]}
                         </div>

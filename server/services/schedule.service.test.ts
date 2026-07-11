@@ -276,3 +276,73 @@ describe("generateSchedule — sifat hisoboti va gap penaltisi", () => {
     expect(result.quality.hardViolations).toBe(0);
   });
 });
+
+describe("generateSchedule — room constraints", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (storage.getTimeSlots as any).mockResolvedValue(buildTimeSlots());
+    (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
+    (storage.getTeachers as any).mockResolvedValue([]);
+    (storage.getJointLessons as any).mockResolvedValue([]);
+    (storage.getScheduleEntries as any).mockResolvedValue([]);
+    (storage.createScheduleEntriesBulk as any).mockImplementation(async (entries: any[]) =>
+      entries.map((e, i) => ({ ...e, id: i + 1 }))
+    );
+    (storage.createConflict as any).mockResolvedValue({});
+  });
+
+  it("sinfning defaultRoomId'si bo'lsa darslar o'sha xonaga qo'yiladi", async () => {
+    const classes = [
+      { id: 1, name: "5-A", grade: "5", language: "uz", studyDays: "1,2,3,4,5,6", totalStudents: 25, isActive: true, defaultRoomId: 2 },
+    ];
+    const rooms = [
+      { id: 1, name: "101", capacity: 30, roomType: "any", isActive: true },
+      { id: 2, name: "102", capacity: 30, roomType: "any", isActive: true },
+    ];
+    const subjects = [
+      { id: 1, name: "Matematika", code: "MATH", requiredRoomType: "any", isActive: true },
+    ];
+    const classSubjects = [
+      { id: 1, classId: 1, subjectId: 1, teacherId: 10, teacherId2: null, weeklyHours: 2 },
+    ];
+
+    (storage.getClasses as any).mockResolvedValue(classes);
+    (storage.getRooms as any).mockResolvedValue(rooms);
+    (storage.getAllClassSubjects as any).mockResolvedValue(classSubjects);
+    (storage.getSubjects as any).mockResolvedValue(subjects);
+
+    const result = await generateSchedule({});
+    expect(result.count).toBe(2);
+    const mockCalls = (storage.createScheduleEntriesBulk as any).mock.calls;
+    const entries = mockCalls[0][0];
+    expect(entries.every((e: any) => e.classId === 1 && e.roomId === 2)).toBe(true);
+  });
+
+  it("fanning maxsus roomId'si bo'lsa sinf defaultRoomId'sidan ustun turadi", async () => {
+    const classes = [
+      { id: 1, name: "5-A", grade: "5", language: "uz", studyDays: "1,2,3,4,5,6", totalStudents: 25, isActive: true, defaultRoomId: 2 },
+    ];
+    const rooms = [
+      { id: 1, name: "101", capacity: 30, roomType: "any", isActive: true },
+      { id: 2, name: "102", capacity: 30, roomType: "any", isActive: true },
+    ];
+    const subjects = [
+      { id: 1, name: "Matematika", code: "MATH", requiredRoomType: "any", isActive: true },
+    ];
+    // classSubject has roomId: 1 which overrides class defaultRoomId: 2
+    const classSubjects = [
+      { id: 1, classId: 1, subjectId: 1, teacherId: 10, teacherId2: null, weeklyHours: 2, roomId: 1 },
+    ];
+
+    (storage.getClasses as any).mockResolvedValue(classes);
+    (storage.getRooms as any).mockResolvedValue(rooms);
+    (storage.getAllClassSubjects as any).mockResolvedValue(classSubjects);
+    (storage.getSubjects as any).mockResolvedValue(subjects);
+
+    const result = await generateSchedule({});
+    expect(result.count).toBe(2);
+    const mockCalls = (storage.createScheduleEntriesBulk as any).mock.calls;
+    const entries = mockCalls[0][0];
+    expect(entries.every((e: any) => e.classId === 1 && e.roomId === 1)).toBe(true);
+  });
+});

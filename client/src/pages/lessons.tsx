@@ -183,10 +183,10 @@ function EditDialog({ row, open, onClose, onSave }: {
             </div>
           </div>
           {d > 0
-            ? <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+            ? <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 rounded-lg px-3 py-2">
                 <CheckCircle className="h-4 w-4" />Davomiyligi: <strong>{d} daqiqa</strong>
               </div>
-            : <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+            : <div className="flex items-center gap-2 text-sm text-red-600 bg-red-500/10 rounded-lg px-3 py-2">
                 <AlertTriangle className="h-4 w-4" />Vaqt noto'g'ri
               </div>
           }
@@ -233,7 +233,7 @@ function AddDialog({ open, onClose, onAdd }: {
               <Input type="time" value={end} onChange={e => setEnd(e.target.value)} className="font-mono" />
             </div>
           </div>
-          {d > 0 && <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+          {d > 0 && <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 rounded-lg px-3 py-2">
             <CheckCircle className="h-4 w-4" />Davomiyligi: <strong>{d} daqiqa</strong>
           </div>}
         </div>

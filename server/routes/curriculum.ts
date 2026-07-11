@@ -1,8 +1,11 @@
 import { Hono } from "hono";
-import { insertCurriculumPlanSchema, insertCurriculumEntrySchema } from "@shared/schema";
+import { insertCurriculumPlanSchema, insertCurriculumEntrySchema, curriculumEntries } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { getAutoAssignments } from "../services/curriculum.service";
+import { db } from "../db";
+import { and, eq } from "drizzle-orm";
+import { UZBEK_CURRICULUM, RUSSIAN_CURRICULUM, getSpecialty } from "@shared/curriculum";
 
 export const curriculumRoutes = new Hono()
   .use(authMiddleware)
@@ -92,4 +95,46 @@ export const curriculumRoutes = new Hono()
     }
     const result = await getAutoAssignments(grade, subjects, language || "uz");
     return c.json(result);
+  })
+
+  // Berilgan sinf uchun o'quv rejasini DTS bo'yicha tiklash
+  .post("/plans/:id/entries/reset-grade", requireAdmin, async (c) => {
+    const planId = parseInt(c.req.param("id"));
+    const { grade } = await c.req.json();
+    if (!grade) {
+      return c.json({ message: "Sinf (grade) kiritilishi shart" }, 400);
+    }
+
+    const plan = (await storage.getCurriculumPlans()).find((p) => p.id === planId);
+    if (!plan) return c.json({ message: "Plan topilmadi" }, 404);
+
+    const std = plan.language === "ru" ? RUSSIAN_CURRICULUM : UZBEK_CURRICULUM;
+    const standardCurriculum = std[grade.toString()];
+    if (!standardCurriculum) {
+      return c.json({ message: "Ushbu sinf uchun DTS standarti topilmadi" }, 400);
+    }
+
+    // Delete existing entries for this plan and grade
+    await db.delete(curriculumEntries)
+      .where(
+        and(
+          eq(curriculumEntries.planId, planId),
+          eq(curriculumEntries.grade, grade)
+        )
+      );
+
+    // Insert DTS standard entries
+    for (const [subjectName, hours] of Object.entries(standardCurriculum)) {
+      await storage.createCurriculumEntry({
+        planId,
+        grade: Number(grade),
+        subjectName,
+        weeklyHours: Number(hours),
+        codes: [],
+        keywords: [subjectName.toLowerCase()],
+        recommendedSpecialty: getSpecialty(subjectName, grade.toString(), plan.language),
+      });
+    }
+
+    return c.json({ message: "Sinf o'quv rejasi DTS bo'yicha muvaffaqiyatli tiklandi" });
   });

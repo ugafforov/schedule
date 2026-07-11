@@ -42,7 +42,7 @@ export interface IStorage {
   deleteClass(id: number): Promise<boolean>;
 
   getClassSubjects(classId: number): Promise<ClassSubject[]>;
-  setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>): Promise<void>;
+  setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; roomId?: number | null; weeklyHours: number }>): Promise<void>;
   getAllClassSubjects(): Promise<ClassSubject[]>;
 
   getRooms(): Promise<Room[]>;

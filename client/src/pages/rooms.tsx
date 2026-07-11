@@ -54,12 +54,12 @@ function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; ti
 }
 
 const ROOM_TYPE_DISPLAY: Record<string, { icon: any; bg: string; color: string; badge: string }> = {
-  classroom: { icon: BookOpen,     bg: "bg-blue-50",   color: "text-blue-600",   badge: "bg-blue-100 text-blue-700 border-blue-200" },
-  lab:       { icon: FlaskConical, bg: "bg-green-50",  color: "text-green-600",  badge: "bg-green-100 text-green-700 border-green-200" },
-  gym:       { icon: Dumbbell,     bg: "bg-orange-50", color: "text-orange-600", badge: "bg-orange-100 text-orange-700 border-orange-200" },
-  computer:  { icon: Monitor,      bg: "bg-purple-50", color: "text-purple-600", badge: "bg-purple-100 text-purple-700 border-purple-200" },
-  music:     { icon: Music,        bg: "bg-pink-50",   color: "text-pink-600",   badge: "bg-pink-100 text-pink-700 border-pink-200" },
-  art:       { icon: Palette,      bg: "bg-yellow-50", color: "text-yellow-600", badge: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+  classroom: { icon: BookOpen,     bg: "bg-blue-500/10",   color: "text-blue-600",   badge: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20" },
+  lab:       { icon: FlaskConical, bg: "bg-green-500/10",  color: "text-green-600",  badge: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20" },
+  gym:       { icon: Dumbbell,     bg: "bg-orange-500/10", color: "text-orange-600", badge: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20" },
+  computer:  { icon: Monitor,      bg: "bg-purple-500/10", color: "text-purple-600", badge: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20" },
+  music:     { icon: Music,        bg: "bg-pink-500/10",   color: "text-pink-600",   badge: "bg-pink-500/10 text-pink-700 dark:text-pink-400 border-pink-500/20" },
+  art:       { icon: Palette,      bg: "bg-yellow-500/10", color: "text-yellow-600", badge: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20" },
 };
 const getTypeDisplay = (type: string) => ROOM_TYPE_DISPLAY[type] || ROOM_TYPE_DISPLAY.classroom;
 
@@ -139,7 +139,7 @@ function BulkAddRooms({ open, onClose, onSuccess }: { open: boolean; onClose: ()
                 const Icon = info.icon;
                 return (
                   <button key={value} type="button" onClick={() => setRoomType(value)}
-                    className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all ${roomType === value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-border hover:border-border text-muted-foreground"}`}>
+                    className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all ${roomType === value ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400" : "border-border hover:border-border text-muted-foreground"}`}>
                     <Icon className={`h-4 w-4 ${roomType === value ? "text-blue-600" : "text-muted-foreground"}`} />
                     <span className="leading-tight text-center">{ROOM_TYPE_LABELS[value]}</span>
                   </button>
@@ -187,6 +187,184 @@ function BulkAddRooms({ open, onClose, onSuccess }: { open: boolean; onClose: ()
   );
 }
 
+/* ── Room Recommendation Dialog ──────────────────────────────────────────── */
+function RoomRecommendationDialog({ open, onClose, shifts, setShifts, reserve, setReserve, data, isLoading, existingRooms = [] }: any) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const bulkCreateMutation = useMutation({
+    mutationFn: async (roomsToCreate: any[]) => {
+      await apiRequest("POST", "/api/rooms/bulk", { rooms: roomsToCreate });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/rooms"] });
+      qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({ title: "Muvaffaqiyat", description: "Barcha yetishmayotgan xonalar muvaffaqiyatli qo'shildi!" });
+      onClose();
+    },
+    onError: (e: any) => {
+      toast({ title: "Xatolik", description: e.message || "Xonalarni qo'shib bo'lmadi", variant: "destructive" });
+    }
+  });
+
+  const shortages = data?.recommendations?.filter((r: any) => r.shortage > 0) || [];
+  const hasShortages = shortages.length > 0;
+
+  const handleAddMissingRooms = () => {
+    if (!data?.recommendations) return;
+    
+    const existingNumbers = new Set(existingRooms.map((r: any) => r.roomNumber.toLowerCase().trim()));
+    const newRoomsToCreate: any[] = [];
+    
+    const prefixes: Record<string, string> = {
+      classroom: "1", // Floor 1
+      computer: "2",  // Floor 2
+      gym: "3",       // Floor 3 / Gym
+      lab: "4",       // Floor 4 / Lab
+      music: "5",     // Floor 5
+      art: "6"        // Floor 6
+    };
+
+    for (const r of data.recommendations) {
+      if (r.shortage <= 0) continue;
+      
+      const typeLabel = ROOM_TYPE_LABELS[r.roomType] || r.roomType;
+      let countCreated = 0;
+      let suffix = 1;
+      const basePrefix = prefixes[r.roomType] || "9";
+
+      while (countCreated < r.shortage) {
+        const roomNum = `${basePrefix}${suffix.toString().padStart(2, "0")}`;
+        if (!existingNumbers.has(roomNum.toLowerCase())) {
+          newRoomsToCreate.push({
+            name: `${typeLabel} ${roomNum}`,
+            roomNumber: roomNum,
+            roomType: r.roomType,
+            capacity: r.roomType === "gym" ? 50 : (r.roomType === "classroom" ? 30 : 24),
+            building: "Asosiy bino",
+            floor: basePrefix,
+            isActive: true
+          });
+          existingNumbers.add(roomNum.toLowerCase());
+          countCreated++;
+        }
+        suffix++;
+      }
+    }
+
+    if (newRoomsToCreate.length > 0) {
+      bulkCreateMutation.mutate(newRoomsToCreate);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <LayoutGrid className="h-5 w-5 text-indigo-500" /> Xonalar ehtiyoji tahlili
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4 py-2">
+          <div className="flex items-center gap-4 p-3 bg-muted/40 rounded-lg border border-border">
+            <div className="space-y-1 flex-1">
+              <Label className="text-xs text-muted-foreground">Smenalar soni</Label>
+              <Select value={shifts.toString()} onValueChange={v => setShifts(parseInt(v))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 smena</SelectItem>
+                  <SelectItem value="2">2 smena</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 flex-1">
+              <Label className="text-xs text-muted-foreground">Zaxira foizi (%)</Label>
+              <Select value={reserve.toString()} onValueChange={v => setReserve(parseInt(v))}>
+                <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">0% (Zaxirasiz)</SelectItem>
+                  <SelectItem value="10">10%</SelectItem>
+                  <SelectItem value="15">15%</SelectItem>
+                  <SelectItem value="20">20%</SelectItem>
+                  <SelectItem value="25">25%</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 flex-1">
+              <Label className="text-xs text-muted-foreground">Bir xona imkoniyati</Label>
+              <div className="h-8 flex items-center px-3 border border-border rounded-md bg-card text-sm font-medium">
+                {data?.totalCapacityPerRoom || 0} soat/hafta
+              </div>
+            </div>
+          </div>
+
+          <div className="border border-border rounded-lg overflow-hidden">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-muted text-muted-foreground text-[11px] uppercase">
+                <tr>
+                  <th className="px-4 py-2">Xona turi</th>
+                  <th className="px-4 py-2 text-center">Jami soat</th>
+                  <th className="px-4 py-2 text-center">Mavjud</th>
+                  <th className="px-4 py-2 text-center text-blue-600 dark:text-blue-400">Tavsiya</th>
+                  <th className="px-4 py-2 text-center">Holat</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {isLoading ? (
+                  <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">Yuklanmoqda...</td></tr>
+                ) : data?.recommendations?.map((r: any) => {
+                  const info = ROOM_TYPE_DISPLAY[r.roomType] || ROOM_TYPE_DISPLAY.classroom;
+                  const Icon = info.icon;
+                  const isShortage = r.shortage > 0;
+                  return (
+                    <tr key={r.roomType} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-2 flex items-center gap-2">
+                        <div className={`p-1 rounded ${info.bg} ${info.color}`}><Icon className="h-4 w-4" /></div>
+                        <span className="font-medium">{ROOM_TYPE_LABELS[r.roomType] || r.roomType}</span>
+                      </td>
+                      <td className="px-4 py-2 text-center font-mono">{r.requiredHours}</td>
+                      <td className="px-4 py-2 text-center font-mono">{r.available}</td>
+                      <td className="px-4 py-2 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{r.needed}</td>
+                      <td className="px-4 py-2">
+                        <div className="flex justify-center">
+                          {isShortage ? (
+                            <Badge variant="destructive" className="bg-red-500/10 text-red-600 hover:bg-red-500/20 shadow-none border-red-500/20">
+                              {r.shortage} ta yetishmayapti
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                              Yetarli
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+          <div>
+            {hasShortages && (
+              <Button 
+                onClick={handleAddMissingRooms} 
+                disabled={bulkCreateMutation.isPending}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
+              >
+                {bulkCreateMutation.isPending ? "Yaratilmoqda..." : "Yetishmayotgan barcha xonalarni yaratish"}
+              </Button>
+            )}
+          </div>
+          <Button variant="outline" onClick={onClose}>Yopish</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ── Main page ───────────────────────────────────────────────────────────── */
 export default function Rooms() {
   const [search, setSearch] = useState("");
@@ -197,12 +375,25 @@ export default function Rooms() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [clearOpen, setClearOpen] = useState(false);
+  
+  const [analyzeOpen, setAnalyzeOpen] = useState(false);
+  const [analyzeShifts, setAnalyzeShifts] = useState(1);
+  const [analyzeReserve, setAnalyzeReserve] = useState(15);
 
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const { data: rooms = [], isLoading } = useQuery<Room[]>({
     queryKey: ["/api/rooms"],
+  });
+
+  const { data: recommendationData, isLoading: isRecommendationLoading } = useQuery({
+    queryKey: ["/api/rooms/recommendation", analyzeShifts, analyzeReserve],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/rooms/recommendation?shifts=${analyzeShifts}&reservePercent=${analyzeReserve}`);
+      return res.json();
+    },
+    enabled: analyzeOpen, // only fetch when modal is open
   });
 
   const upsertMutation = useMutation({
@@ -292,6 +483,10 @@ export default function Rooms() {
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Barchasini tozalash
+          </Button>
+          <Button variant="outline" onClick={() => setAnalyzeOpen(true)} className="border-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/30">
+            <LayoutGrid className="mr-2 h-4 w-4 text-indigo-500" />
+            Ehtiyoj tahlili
           </Button>
           <Button variant="outline" onClick={() => setBulkOpen(true)} className="border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/30">
             <Zap className="mr-2 h-4 w-4 text-amber-500" />
@@ -485,9 +680,9 @@ export default function Rooms() {
                   const Icon = info.icon;
                   return (
                     <button key={value} type="button" onClick={() => setForm(p => ({ ...p, roomType: value }))}
-                      className={`flex items-center space-x-2 p-2.5 rounded-lg border transition-all text-left ${form.roomType === value ? "border-blue-500 bg-blue-50" : "border-border hover:border-border hover:bg-muted/50"}`}>
+                      className={`flex items-center space-x-2 p-2.5 rounded-lg border transition-all text-left ${form.roomType === value ? "border-blue-500 bg-blue-500/10" : "border-border hover:border-border hover:bg-muted/50"}`}>
                       <Icon className={`h-4 w-4 ${form.roomType === value ? "text-blue-600" : "text-muted-foreground"}`} />
-                      <span className={`text-sm font-medium ${form.roomType === value ? "text-blue-700" : "text-muted-foreground"}`}>{ROOM_TYPE_LABELS[value]}</span>
+                      <span className={`text-sm font-medium ${form.roomType === value ? "text-blue-700 dark:text-blue-400" : "text-muted-foreground"}`}>{ROOM_TYPE_LABELS[value]}</span>
                     </button>
                   );
                 })}
@@ -524,6 +719,17 @@ export default function Rooms() {
           if (deleteId !== null) deleteMutation.mutate(deleteId);
           setDeleteId(null);
         }}
+      />
+      <RoomRecommendationDialog 
+        open={analyzeOpen} 
+        onClose={() => setAnalyzeOpen(false)} 
+        shifts={analyzeShifts} 
+        setShifts={setAnalyzeShifts} 
+        reserve={analyzeReserve} 
+        setReserve={setAnalyzeReserve} 
+        data={recommendationData} 
+        isLoading={isRecommendationLoading} 
+        existingRooms={rooms}
       />
     </div>
   );

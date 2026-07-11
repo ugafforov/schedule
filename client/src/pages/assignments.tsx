@@ -10,13 +10,14 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, GraduationCap, BookOpen, Users,
   Clock, ChevronRight, AlertCircle, CheckCircle2, Zap, Info, X,
-  BarChart3, UserCheck, UserX, ArrowRight, Loader2, FileSpreadsheet
+  BarChart3, UserCheck, UserX, ArrowRight, Loader2, FileSpreadsheet, DoorOpen, ChevronDown
 } from "lucide-react";
 import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Class, Subject, Teacher, ClassSubject } from "@shared/schema";
+import type { Class, Subject, Teacher, ClassSubject, Room } from "@shared/schema";
 
 interface AutoAssignResult {
   assignments: Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>;
@@ -30,6 +31,7 @@ type TeacherWithSubjects = Teacher & { subjectIds?: number[] };
 interface Assignment {
   subjectId: number;
   teacherId: number | null;
+  roomId: number | null;
   weeklyHours: number;
 }
 
@@ -54,12 +56,12 @@ interface TeacherLoadData {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const GRADE_COLORS = [
-  "bg-blue-100 text-blue-700", "bg-green-100 text-green-700",
-  "bg-purple-100 text-purple-700", "bg-orange-100 text-orange-700",
-  "bg-pink-100 text-pink-700", "bg-cyan-100 text-cyan-700",
-  "bg-red-100 text-red-700", "bg-yellow-100 text-yellow-700",
-  "bg-teal-100 text-teal-700", "bg-indigo-100 text-indigo-700",
-  "bg-rose-100 text-rose-700",
+  "bg-blue-500/10 text-blue-700 dark:text-blue-400", "bg-green-500/10 text-green-700 dark:text-green-400",
+  "bg-purple-500/10 text-purple-700 dark:text-purple-400", "bg-orange-500/10 text-orange-700 dark:text-orange-400",
+  "bg-pink-500/10 text-pink-700 dark:text-pink-400", "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",
+  "bg-red-500/10 text-red-700 dark:text-red-400", "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+  "bg-teal-500/10 text-teal-700 dark:text-teal-400", "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400",
+  "bg-rose-500/10 text-rose-700 dark:text-rose-400",
 ];
 const gradeColor = (g: string) => GRADE_COLORS[(parseInt(g) - 1) % GRADE_COLORS.length] || GRADE_COLORS[0];
 
@@ -67,6 +69,7 @@ function mapClassSubjectsToAssignments(data: ClassSubject[] | undefined): Assign
   return (data || []).map((a) => ({
     subjectId: a.subjectId,
     teacherId: a.teacherId ?? null,
+    roomId: (a as any).roomId ?? null,
     weeklyHours: a.weeklyHours,
   }));
 }
@@ -78,9 +81,9 @@ function loadColor(pct: number) {
   return "bg-emerald-500";
 }
 function loadBg(pct: number) {
-  if (pct >= 100) return "text-red-700 bg-red-50 border-red-200";
-  if (pct >= 80) return "text-amber-700 bg-amber-50 border-amber-200";
-  return "text-emerald-700 bg-emerald-50 border-emerald-200";
+  if (pct >= 100) return "text-red-700 dark:text-red-400 bg-red-500/10 border-red-500/20";
+  if (pct >= 80) return "text-amber-700 dark:text-amber-400 bg-amber-500/10 border-amber-500/20";
+  return "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
 }
 
 function ClearAssignmentsDialog({
@@ -141,9 +144,9 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
   }
   const assignmentsWithTeachers = (result?.assignments || []).map((a) => {
     const subject = subjects.find((s) => s.id === a.subjectId);
-    if (!subject) return a;
+    if (!subject) return { ...a, roomId: null };
     const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap, selectedClass.grade, language, a.weeklyHours);
-    return { ...a, teacherId: teacher?.id ?? null };
+    return { ...a, teacherId: teacher?.id ?? null, roomId: null };
   });
 
   if (isLoading || !result) {
@@ -173,7 +176,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
             DTS bo'yicha avtomatik biriktirish
           </DialogTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            №121-buyruq (10.04.2025) — <span className="font-semibold text-foreground">{selectedClass.name}</span> uchun
+            №133-buyruq (10.04.2026) — <span className="font-semibold text-foreground">{selectedClass.name}</span> uchun
           </p>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto min-h-0 space-y-3">
@@ -187,10 +190,10 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
                 {result.assignments.map((a, i) => {
                   const sub = subjects.find(s => s.id === a.subjectId);
                   return (
-                    <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-emerald-100 bg-emerald-50/60">
+                    <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-emerald-500/20 bg-emerald-50/60">
                       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sub?.color || "#3B82F6" }} />
                       <span className="flex-1 text-sm text-gray-800 truncate">{sub?.name}</span>
-                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full whitespace-nowrap">
                         {a.weeklyHours} soat/hafta
                       </span>
                     </div>
@@ -207,13 +210,13 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
               </div>
               <div className="space-y-1">
                 {result.missingNames.map((name, i) => (
-                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-amber-100 bg-amber-50/60">
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-50/60">
                     <X className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
                     <span className="text-sm text-muted-foreground">{name}</span>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-amber-700 mt-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              <p className="text-xs text-amber-700 dark:text-amber-400 mt-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
                 Topilmagan fanlarni avval <strong>Fanlar</strong> sahifasida DTS orqali qo'shing.
               </p>
             </div>
@@ -225,9 +228,9 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
               <p className="text-xs text-muted-foreground mt-1">Avval <strong>Fanlar</strong> sahifasida DTS fanlarini qo'shing.</p>
             </div>
           )}
-          <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+          <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
             <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700">
+            <p className="text-xs text-blue-700 dark:text-blue-400">
               Mavjud o'qituvchi biriktirishlari saqlanadi. Faqat bo'sh fanlarga mos o'qituvchi avtomatik tanlanadi.
             </p>
           </div>
@@ -312,11 +315,11 @@ function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
           )}
           
           {eligibleTeachers.length === 0 && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-xs font-semibold text-amber-800">Bu fanni o'qitadigan o'qituvchi topilmadi</p>
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Bu fanni o'qitadigan o'qituvchi topilmadi</p>
                   <p className="text-xs text-amber-600 mt-1">
                     Avval "O'qituvchilar" sahifasida o'qituvchi qo'shing va unga <strong>{subject.subjectName}</strong> fanini biriktiring.
                   </p>
@@ -349,9 +352,9 @@ function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
               </p>
             )}
           </div>
-          <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+          <div className="flex items-start gap-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
             <AlertCircle className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700">
+            <p className="text-xs text-blue-700 dark:text-blue-400">
               Bu amal <strong>{subject.subjectName}</strong> fanini o'tadigan barcha{" "}
               <strong>{subject.totalClasses} ta sinfdagi</strong> biriktirishni almashtiradi.
             </p>
@@ -377,9 +380,23 @@ function BulkAssignDialog({ open, onClose, subject, teachers, onConfirm }: {
 }
 
 // ─── Tab 1: Class-based assignments ───────────────────────────────────────────
-function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; subjects: Subject[]; teachers: TeacherWithSubjects[] }) {
+function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class[]; subjects: Subject[]; teachers: TeacherWithSubjects[]; rooms: Room[] }) {
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const updateClassRoomMutation = useMutation({
+    mutationFn: async (data: { defaultRoomId: number | null }) => {
+      if (!selectedClassId) return;
+      await apiRequest("PATCH", `/api/classes/${selectedClassId}`, data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/classes"] });
+      toast({ title: "Muvaffaqiyat", description: "Sinfning asosiy xonasi yangilandi" });
+    },
+    onError: (e: any) => {
+      toast({ title: "Xatolik", description: e.message || "Xona saqlanmadi", variant: "destructive" });
+    }
+  });
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [selectedClassIds, setSelectedClassIds] = useState<number[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -664,7 +681,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
   };
 
   const addRow = () => {
-    setAssignments(p => [...p, { subjectId: 0, teacherId: null, weeklyHours: 2 }]);
+    setAssignments(p => [...p, { subjectId: 0, teacherId: null, roomId: selectedClass?.defaultRoomId || null, weeklyHours: 2 }]);
     setIsDirty(true);
   };
   
@@ -768,7 +785,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                     Barchasini tanlash
                   </label>
                   {selectedClassIds.length > 0 && (
-                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full ml-auto">
+                    <span className="text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded-full ml-auto">
                       {selectedClassIds.length} tanlandi
                     </span>
                   )}
@@ -827,7 +844,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
           <Card className="border border-border shadow-sm h-full flex flex-col">
             <CardHeader className="pb-3 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center">
+                <div className="w-9 h-9 bg-blue-500/10 rounded-xl flex items-center justify-center">
                   <GraduationCap className="h-4 w-4 text-blue-600" />
                 </div>
                 <div>
@@ -855,10 +872,10 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
               {/* Bulk operations buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* DTS assign */}
-                <Card className="border border-blue-100 bg-blue-50/20 hover:border-blue-200 transition-all shadow-none rounded-xl">
+                <Card className="border border-blue-500/20 bg-blue-50/20 hover:border-blue-500/20 transition-all shadow-none rounded-xl">
                   <CardContent className="p-4 flex flex-col h-full justify-between gap-4">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-blue-700 font-semibold text-sm">
+                      <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 font-semibold text-sm">
                         <Zap className="h-4 w-4 text-blue-500" />
                         DTS biriktirish
                       </div>
@@ -878,10 +895,10 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                 </Card>
 
                 {/* auto-distribute unassigned */}
-                <Card className="border border-green-100 bg-green-50/20 hover:border-green-200 transition-all shadow-none rounded-xl">
+                <Card className="border border-green-500/20 bg-green-50/20 hover:border-green-500/20 transition-all shadow-none rounded-xl">
                   <CardContent className="p-4 flex flex-col h-full justify-between gap-4">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-green-700 font-semibold text-sm">
+                      <div className="flex items-center gap-1.5 text-green-700 dark:text-green-400 font-semibold text-sm">
                         <Zap className="h-4 w-4 text-green-500" />
                         Faqat bo'sh fanlarni biriktirish
                       </div>
@@ -901,10 +918,10 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                 </Card>
 
                 {/* auto-distribute force reassign */}
-                <Card className="border border-amber-100 bg-amber-50/20 hover:border-amber-200 transition-all shadow-none rounded-xl">
+                <Card className="border border-amber-500/20 bg-amber-50/20 hover:border-amber-500/20 transition-all shadow-none rounded-xl">
                   <CardContent className="p-4 flex flex-col h-full justify-between gap-4">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-amber-700 font-semibold text-sm">
+                      <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold text-sm">
                         <AlertCircle className="h-4 w-4 text-amber-500" />
                         Barcha fanlarni qayta biriktirish
                       </div>
@@ -924,10 +941,10 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                 </Card>
 
                 {/* clear bulk */}
-                <Card className="border border-red-100 bg-red-50/20 hover:border-red-200 transition-all shadow-none rounded-xl">
+                <Card className="border border-red-500/20 bg-red-50/20 hover:border-red-500/20 transition-all shadow-none rounded-xl">
                   <CardContent className="p-4 flex flex-col h-full justify-between gap-4">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-red-700 font-semibold text-sm">
+                      <div className="flex items-center gap-1.5 text-red-700 dark:text-red-400 font-semibold text-sm">
                         <Trash2 className="h-4 w-4 text-red-500" />
                         Tez tozalash
                       </div>
@@ -961,51 +978,89 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
           </Card>
         ) : (
           <Card className="border border-border shadow-sm bg-card text-card-foreground h-full flex flex-col">
-            <CardHeader className="pb-3 flex-shrink-0">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardHeader className="pb-4 pt-5 px-6 flex-shrink-0 border-b border-border bg-muted/10 dark:bg-muted/5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-blue-500/10 rounded-xl flex items-center justify-center">
-                    <GraduationCap className="h-4 w-4 text-primary" />
+                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+                    <GraduationCap className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <CardTitle className="text-base font-semibold">{selectedClass?.name}</CardTitle>
-                    <p className="text-xs text-muted-foreground">{selectedClass?.grade}-sinf · {selectedClass?.totalStudents || 0} o'quvchi</p>
+                    <CardTitle className="text-lg font-bold tracking-tight text-foreground">{selectedClass?.name}</CardTitle>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                      <span className="font-medium">{selectedClass?.grade}-sinf</span>
+                      <span className="text-muted-foreground/40">•</span>
+                      <span>{selectedClass?.totalStudents || 0} o'quvchi</span>
+                      <span className="text-muted-foreground/40">•</span>
+                      <div className="inline-flex items-center gap-1.5 bg-background dark:bg-muted/20 border border-border/80 px-2 py-0.5 rounded-md shadow-sm">
+                        <DoorOpen className="h-3.5 w-3.5 text-muted-foreground/80" />
+                        <Select 
+                          value={selectedClass?.defaultRoomId ? String(selectedClass.defaultRoomId) : "none"} 
+                          onValueChange={async (v) => {
+                            const defaultRoomId = v === "none" ? null : parseInt(v);
+                            await updateClassRoomMutation.mutateAsync({ defaultRoomId });
+                          }}
+                        >
+                          <SelectTrigger className="h-5 px-1 py-0 text-[11px] border-transparent hover:bg-muted/40 shadow-none w-[110px] text-foreground focus:ring-0">
+                            <SelectValue placeholder="Asosiy xona" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none"><span className="text-muted-foreground/60">Asosiy xona yo'q</span></SelectItem>
+                            {rooms.map(r => (
+                              <SelectItem key={r.id} value={String(r.id)}>
+                                {r.name} ({r.roomNumber})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className="text-xs text-blue-600 dark:text-blue-400 border-blue-500/20 bg-blue-500/10">
-                    <Clock className="h-3 w-3 mr-1" /> Jami: {totalHours} soat/h
+                  <Badge variant="outline" className="text-xs font-semibold text-blue-600 dark:text-blue-400 border-blue-500/20 bg-blue-500/10 h-8 px-2.5 shadow-sm">
+                    <Clock className="h-3.5 w-3.5 mr-1 text-blue-500" /> Jami: {totalHours} soat/h
                   </Badge>
                   {saveStatus === "saving" && (
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saqlanmoqda...
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground px-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> Saqlanmoqda...
                     </span>
                   )}
                   {saveStatus === "saved" && (
-                    <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+                    <span className="flex items-center gap-1.5 text-xs text-emerald-500 px-2 font-medium">
                       <CheckCircle2 className="h-3.5 w-3.5" /> Saqlandi
                     </span>
                   )}
                   {saveStatus === "error" && (
-                    <span className="flex items-center gap-1.5 text-xs text-red-500">
+                    <span className="flex items-center gap-1.5 text-xs text-red-500 px-2 font-medium">
                       <AlertCircle className="h-3.5 w-3.5" /> Xatolik
                     </span>
                   )}
-                  <Button variant="outline" size="sm" onClick={() => setAutoDialogOpen(true)}
-                    className="h-8 border-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10" disabled={assignLoading}>
-                    <Zap className="mr-1.5 h-3.5 w-3.5 text-blue-500" /> DTS biriktirish
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setAutoDistributeUnassignedOpen(true)}
-                    className="h-8 border-green-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10" disabled={assignLoading}>
-                    <Zap className="mr-1.5 h-3.5 w-3.5 text-green-500" /> Faqat bo'sh fanlarni biriktirish
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setAutoDistributeForceOpen(true)}
-                    className="h-8 border-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10" disabled={assignLoading}>
-                    <Zap className="mr-1.5 h-3.5 w-3.5 text-amber-500" /> Barcha fanlarni qayta biriktirish
-                  </Button>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 border-primary/20 text-primary hover:bg-primary/5 font-medium shadow-none" disabled={assignLoading}>
+                        <Zap className="mr-1.5 h-3.5 w-3.5 text-primary" /> Avtomatik dars biriktirish <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-popover border border-border text-popover-foreground shadow-lg rounded-xl p-1 min-w-[240px]">
+                      <DropdownMenuItem onClick={() => setAutoDialogOpen(true)} className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg hover:bg-accent text-sm">
+                        <Zap className="h-4 w-4 text-blue-500" />
+                        <span>DTS bo'yicha biriktirish</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setAutoDistributeUnassignedOpen(true)} className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg hover:bg-accent text-sm">
+                        <Zap className="h-4 w-4 text-green-500" />
+                        <span>Faqat bo'sh fanlarni biriktirish</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setAutoDistributeForceOpen(true)} className="flex items-center gap-2 cursor-pointer py-2 px-2.5 rounded-lg hover:bg-accent text-sm">
+                        <Zap className="h-4 w-4 text-amber-500" />
+                        <span>Barcha fanlarni qayta biriktirish</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
                   <Button variant="outline" size="sm" onClick={() => setClearOpen(true)}
-                    className="h-8 border-red-500/20 text-red-500 hover:bg-red-500/10" disabled={assignLoading || assignments.length === 0}>
-                    <Trash2 className="mr-1.5 h-3.5 w-3.5 text-red-500" /> Tez tozalash
+                    className="h-8 border-red-500/20 text-red-500 hover:bg-red-500/10 font-medium shadow-none" disabled={assignLoading || assignments.length === 0}>
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5 text-red-500" /> Tozalash
                   </Button>
                 </div>
               </div>
@@ -1028,26 +1083,30 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                     </div>
                   ) : (
                     <>
-                      <div className="grid grid-cols-[2fr_2fr_80px_36px] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        <span>Fan</span><span>O'qituvchi</span><span className="text-center">Soat/hafta</span><span />
+                      <div className="grid grid-cols-[2.2fr_2fr_1.5fr_90px_40px] gap-3 px-4 py-2 text-xs font-semibold text-muted-foreground/80 tracking-wide border-b border-border/40">
+                        <span>FAN</span>
+                        <span>O'QITUVCHI</span>
+                        <span>XONA</span>
+                        <span className="text-center">SOAT/HAFTA</span>
+                        <span />
                       </div>
-                      <div className="space-y-2">
+                      <div className="border border-border rounded-xl divide-y divide-border/60 bg-card overflow-hidden shadow-sm">
                         {assignments.map((a, i) => {
                           const sub = subjects.find(s => s.id === a.subjectId);
                           const hasConflict = assignments.some((b, j) => j !== i && b.subjectId === a.subjectId && a.subjectId !== 0);
                           return (
-                            <div key={i} className={`grid grid-cols-[2fr_2fr_80px_36px] gap-2 items-center p-2 rounded-xl border transition-colors ${hasConflict ? "border-red-500/20 bg-red-500/10 text-foreground" : "border-border bg-card hover:border-primary/50 text-foreground"}`}>
+                            <div key={i} className={`grid grid-cols-[2.2fr_2fr_1.5fr_90px_40px] gap-3 items-center p-2.5 transition-colors ${hasConflict ? "bg-red-500/5 text-foreground" : "hover:bg-muted/30 text-foreground"}`}>
                               <Select value={a.subjectId ? String(a.subjectId) : ""} onValueChange={v => updateRow(i, "subjectId", parseInt(v))}>
-                                <SelectTrigger className="h-9 text-sm border-border bg-muted/20 text-foreground">
+                                <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
                                   <SelectValue placeholder="Fan tanlang">
-                                    {sub ? <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || "#3B82F6" }} />{sub.name}</span> : null}
+                                    {sub ? <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || "#3B82F6" }} />{sub.name}</span> : null}
                                   </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                   {subjects.map(s => (
                                     <SelectItem key={s.id} value={String(s.id)}>
                                       <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#3B82F6" }} />{s.name}
+                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color || "#3B82F6" }} />{s.name}
                                       </span>
                                     </SelectItem>
                                   ))}
@@ -1055,7 +1114,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                               </Select>
 
                               <Select value={a.teacherId ? String(a.teacherId) : "none"} onValueChange={v => updateRow(i, "teacherId", v === "none" ? null : parseInt(v))}>
-                                <SelectTrigger className="h-9 text-sm border-border bg-muted/20 text-foreground">
+                                <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
                                   <SelectValue placeholder="O'qituvchi (ixtiyoriy)" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1068,7 +1127,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                                       <SelectItem key={t.id} value={String(t.id)}>
                                         <span className="flex items-center justify-between gap-3 w-full">
                                           <span>{t.firstName} {t.lastName}</span>
-                                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${pct >= 100 ? "bg-red-500/10 text-red-500 border border-red-500/20" : pct >= 80 ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : "bg-muted text-muted-foreground"}`}>
+                                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${pct >= 100 ? "bg-red-500/10 text-red-500 border border-red-500/20" : pct >= 80 ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : "bg-muted text-muted-foreground"}`}>
                                             {hours}/{max}h
                                           </span>
                                         </span>
@@ -1078,12 +1137,42 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                                 </SelectContent>
                               </Select>
 
+                              <Select value={a.roomId ? String(a.roomId) : "default"} onValueChange={v => updateRow(i, "roomId", v === "default" ? null : parseInt(v))}>
+                                <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
+                                  <SelectValue placeholder="Sinf xonasi">
+                                    {a.roomId ? (
+                                      rooms.find(r => r.id === a.roomId)?.name
+                                    ) : selectedClass?.defaultRoomId ? (
+                                      <span className="text-muted-foreground/80">
+                                        {rooms.find(r => r.id === selectedClass.defaultRoomId)?.name} (Asosiy)
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground/50">Asosiy xona yo'q</span>
+                                    )}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="default">
+                                    <span className="text-muted-foreground/60">
+                                      {selectedClass?.defaultRoomId 
+                                        ? `Asosiy: ${rooms.find(r => r.id === selectedClass.defaultRoomId)?.name || ""}` 
+                                        : "Asosiy xona yo'q"}
+                                    </span>
+                                  </SelectItem>
+                                  {rooms.map(r => (
+                                    <SelectItem key={r.id} value={String(r.id)}>
+                                      {r.name} ({r.roomNumber})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+
                               <Input type="number" min={1} max={10} value={a.weeklyHours}
                                 onChange={e => updateRow(i, "weeklyHours", Math.max(1, parseInt(e.target.value) || 1))}
-                                className="h-9 text-sm text-center border-border bg-muted/20 text-foreground" />
+                                className="h-8 text-xs text-center border-border bg-background text-foreground shadow-none w-16 mx-auto" />
 
-                              <button onClick={() => removeRow(i)} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground/60 hover:text-red-500 hover:bg-red-500/10 transition-colors mx-auto">
-                                <Trash2 className="h-3.5 w-3.5" />
+                              <button onClick={() => removeRow(i)} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-colors mx-auto">
+                                <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
                           );
@@ -1092,7 +1181,7 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
                     </>
                   )}
 
-                  <Button variant="outline" onClick={addRow} className="mt-3 w-full border-dashed border-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 h-9">
+                  <Button variant="outline" onClick={addRow} className="mt-3.5 w-full border-dashed border-primary/30 text-primary hover:bg-primary/5 h-9 font-medium shadow-none">
                     <Plus className="mr-2 h-4 w-4" /> Fan qo'shish
                   </Button>
 
@@ -1166,8 +1255,8 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
             <p className="text-sm text-muted-foreground">
               <strong>Ehtiyot!</strong> Barcha fanlar qayta taqsimlaniadi. Biriktirilgan o'qituvchilar o'zgarib ketishi mumkin.
             </p>
-            <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
-              <p className="text-xs text-amber-700">
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
                 Bu amal faqat to'liq qayta tashkil qilish kerak bo'lganda ishlating.
               </p>
             </div>
@@ -1239,8 +1328,8 @@ function ClassAssignTab({ classes, subjects, teachers }: { classes: Class[]; sub
             <p className="text-sm text-muted-foreground">
               <strong>Ehtiyot bo'ling!</strong> Tanlangan <strong>{selectedClassIds.length} ta sinfdagi</strong> barcha fan va o'qituvchi biriktirishlari o'chirilib, boshidan qayta taqsimlanadi.
             </p>
-            <div className="p-3 rounded-lg bg-amber-50 border border-amber-100">
-              <p className="text-xs text-amber-700">
+            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
                 Ushbu amal tanlangan sinflardagi mavjud barcha o'qituvchi tayinlovlarini butunlay o'zgartirib yuborishi mumkin.
               </p>
             </div>
@@ -1539,6 +1628,9 @@ export default function Biriktirishlar() {
   const { data: subjects = [] } = useQuery<Subject[]>({
     queryKey: ["/api/subjects"],
   });
+  const { data: rooms = [] } = useQuery<Room[]>({
+    queryKey: ["/api/rooms"],
+  });
   const { data: teachers = [] } = useQuery<TeacherWithSubjects[]>({
     queryKey: ["/api/teachers"],
     queryFn: async () => {
@@ -1596,7 +1688,7 @@ export default function Biriktirishlar() {
       {clsLoading ? (
         <div className="space-y-3">{Array(3).fill(0).map((_, i) => <div key={i} className="h-20 bg-muted animate-pulse rounded-xl" />)}</div>
       ) : tab === "biriktirish" ? (
-        <ClassAssignTab classes={classes} subjects={subjects} teachers={teachers} />
+        <ClassAssignTab classes={classes} subjects={subjects} teachers={teachers} rooms={rooms} />
       ) : (
         <YukHisobi teachers={teachers} />
       )}

@@ -41,7 +41,7 @@ shared/schema.ts, constants.ts, curriculum.ts, teacher-matching.ts
 docs/domain/                            Domen bilimi (DTS, SanPiN)
 ```
 
-Ogohlantirish: `client/src/pages/timetables.tsx` (~2300 satr) va `assignments.tsx` (~1600 satr) juda katta — toʻliq oʻqimasdan, kerakli funksiyani qidirib toping.
+Ogohlantirish: `client/src/pages/timetables.tsx` va `assignments.tsx` juda katta — toʻliq oʻqimasdan, kerakli funksiyani Grep bilan qidirib toping.
 `scratch/` va `dist/` ni oʻzgartirmang.
 
 ## Muhit oʻzgaruvchilari
@@ -102,6 +102,12 @@ app.route("/api/teacher-load", teacherLoadRoute) → /api/teacher-load/      ✅
 gradeLevel="primary" (1-4 sinf) oʻqituvchilar faqat oʻz sinfiga va faqat ruxsat etilgan fanlarga biriktiriladi.
 - Qoida manbasi: `shared/constants.ts` — `PRIMARY_TEACHER_ALLOWED_SUBJECTS`, `isPrimaryTeacherAllowedSubject()`
 - Qoʻllanish: `shared/teacher-matching.ts`, `client/src/pages/assignments.tsx` (`pickTeacherForSubject`), `server/services/teacher.service.ts` (`autoDistributeAll`)
+
+### 6. UI Ranglar (Dark Mode qo'llab-quvvatlashi)
+UI komponentlar (badge, kartochka, active state, hover) yozayotganda **hech qachon** `bg-blue-50`, `hover:bg-red-100`, `text-green-700` kabi och fonlarni "hardcoded" bermang, ular Dark Modeda oqish/ko'rinmas bo'lib qoladi.
+- Och fon o'rniga opacity ishlating: `bg-blue-500/10` yoki semantic ranglar: `bg-muted`, `bg-accent`.
+- Yozuvlar o'qilishi uchun doim dark variantni bering: `text-blue-700 dark:text-blue-400`.
+- Chegaralar (border) uchun opacity ishlating: `border-blue-500/20`.
 
 ## Noodatiy API URLlar
 

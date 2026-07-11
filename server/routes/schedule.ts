@@ -1,10 +1,10 @@
 import { Hono } from "hono";
-import { insertScheduleEntrySchema, scheduleEntries } from "@shared/schema";
+import { insertScheduleEntrySchema, scheduleEntries, scheduleConflicts } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 import { generateSchedule, checkFeasibility } from "../services/schedule.service";
 import { getMaxHoursPerDay } from "@shared/constants";
 import { autoDistributeUnassignedOnly, autoDistributeAllForceReassign, autoAssignDtsForClasses } from "../services/teacher.service";
@@ -85,7 +85,21 @@ export const scheduleConflictsRoute = new Hono().use(authMiddleware)
     }
 
     try {
-      const allConflicts = await storage.getUnresolvedConflicts();
+      const allConflicts = await db
+        .select({
+          id: scheduleConflicts.id,
+          conflictType: scheduleConflicts.conflictType,
+          description: scheduleConflicts.description,
+          scheduleEntry1Id: scheduleConflicts.scheduleEntry1Id,
+          scheduleEntry2Id: scheduleConflicts.scheduleEntry2Id,
+          severity: scheduleConflicts.severity,
+          isResolved: scheduleConflicts.isResolved,
+          classId: scheduleEntries.classId,
+          teacherId: scheduleEntries.teacherId,
+        })
+        .from(scheduleConflicts)
+        .leftJoin(scheduleEntries, eq(scheduleConflicts.scheduleEntry1Id, scheduleEntries.id))
+        .where(eq(scheduleConflicts.isResolved, false));
       return c.json(allConflicts);
     } catch (err) {
       console.error("Fetch conflicts error:", err);

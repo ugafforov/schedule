@@ -494,7 +494,7 @@ export function getAutoAssignments(
   dbSubjects: Array<{ id: number; name: string; code: string }>,
   language: string = "uz"
 ): AutoAssignResult {
-  const curriculum = language === "ru" ? RUSSIAN_DTS_CURRICULUM_2025 : DTS_CURRICULUM_2025;
+  const curriculum = language === "ru" ? RUSSIAN_DTS_CURRICULUM_2026 : DTS_CURRICULUM_2026;
   const gradeEntries = curriculum.filter((e) => grade in e.hours);
   const assignments: AutoAssignResult["assignments"] = [];
   const matchedNames: string[] = [];

@@ -11,19 +11,19 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square, LayoutGrid, List, FileSpreadsheet, Calendar } from "lucide-react";
 
 import { apiRequest } from "@/lib/queryClient";
-import type { Class, Subject, Teacher } from "@shared/schema";
+import type { Class, Subject, Teacher, Room } from "@shared/schema";
 import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
 import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 interface SubjectAssignment { subjectId: number; teacherId: number | null; teacherId2: number | null; weeklyHours: number; }
-interface ClassFormData { name: string; grade: string; section: string; language: string; totalStudents: number; studyDays: string; subjects: SubjectAssignment[]; }
+interface ClassFormData { name: string; grade: string; section: string; language: string; totalStudents: number; studyDays: string; defaultRoomId: number | null; subjects: SubjectAssignment[]; }
 
-const EMPTY_FORM: ClassFormData = { name: "", grade: "", section: "", language: "uz", totalStudents: 25, studyDays: "1,2,3,4,5", subjects: [] };
+const EMPTY_FORM: ClassFormData = { name: "", grade: "", section: "", language: "uz", totalStudents: 25, studyDays: "1,2,3,4,5", defaultRoomId: null, subjects: [] };
 const GRADE_COLORS = [
-  "bg-blue-100 text-blue-700", "bg-green-100 text-green-700", "bg-purple-100 text-purple-700",
-  "bg-orange-100 text-orange-700", "bg-pink-100 text-pink-700", "bg-cyan-100 text-cyan-700",
-  "bg-red-100 text-red-700", "bg-yellow-100 text-yellow-700",
+  "bg-blue-500/10 text-blue-700 dark:text-blue-400", "bg-green-500/10 text-green-700 dark:text-green-400", "bg-purple-500/10 text-purple-700 dark:text-purple-400",
+  "bg-orange-500/10 text-orange-700 dark:text-orange-400", "bg-pink-500/10 text-pink-700 dark:text-pink-400", "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",
+  "bg-red-500/10 text-red-700 dark:text-red-400", "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
 ];
 const ALL_GRADES = ["1","2","3","4","5","6","7","8","9","10","11"];
 
@@ -130,7 +130,7 @@ function BulkAddDialog({ open, onClose, onSuccess }: { open: boolean; onClose: (
                 return (
                   <button key={g} onClick={() => toggleGrade(g)}
                     className={`w-12 h-10 rounded-lg border-2 text-sm font-bold transition-all ${
-                      sel ? "border-blue-500 bg-blue-50 text-blue-700" : "border-border text-muted-foreground hover:border-border"
+                      sel ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400" : "border-border text-muted-foreground hover:border-border"
                     }`}>{g}</button>
                 );
               })}
@@ -207,6 +207,9 @@ export default function Classes() {
   });
   const { data: teachers = [] } = useQuery<Teacher[]>({
     queryKey: ["/api/teachers"],
+  });
+  const { data: rooms = [] } = useQuery<Room[]>({
+    queryKey: ["/api/rooms"],
   });
 
   const upsertMutation = useMutation({
@@ -298,7 +301,7 @@ export default function Classes() {
     } catch (e) {
       console.error("Error fetching class subjects:", e);
     }
-    setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", language: (cls as any).language || "uz", totalStudents: cls.totalStudents || 25, studyDays: (cls as any).studyDays || "1,2,3,4,5", subjects: subs });
+    setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", language: (cls as any).language || "uz", totalStudents: cls.totalStudents || 25, studyDays: (cls as any).studyDays || "1,2,3,4,5", defaultRoomId: cls.defaultRoomId || null, subjects: subs });
     setActiveTab("info"); setOpen(true);
   };
 
@@ -606,6 +609,22 @@ export default function Classes() {
                   <SelectContent>
                     <SelectItem value="1,2,3,4,5">5 kunlik (Dushanba - Juma)</SelectItem>
                     <SelectItem value="1,2,3,4,5,6">6 kunlik (Dushanba - Shanba)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">Asosiy xona (ixtiyoriy)</Label>
+                <Select value={form.defaultRoomId ? String(form.defaultRoomId) : "none"} onValueChange={v => setForm(p => ({ ...p, defaultRoomId: v === "none" ? null : parseInt(v) }))}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Asosiy xonani tanlang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none"><span className="text-muted-foreground/60">Asosiy xona yo'q</span></SelectItem>
+                    {rooms.map(r => (
+                      <SelectItem key={r.id} value={String(r.id)}>
+                        {r.name} ({r.roomNumber})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

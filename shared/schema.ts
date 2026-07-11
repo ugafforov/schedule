@@ -56,6 +56,7 @@ export const classes = pgTable("classes", {
   section: text("section"),
   language: text("language").notNull().default("uz"), // 'uz', 'ru'
   classTeacherId: integer("class_teacher_id").references(() => teachers.id),
+  defaultRoomId: integer("default_room_id").references(() => rooms.id, { onDelete: "set null" }),
   totalStudents: integer("total_students").default(30),
   studyDays: text("study_days").notNull().default("1,2,3,4,5"), // "1,2,3,4,5" or "1,2,3,4,5,6"
   isActive: boolean("is_active").notNull().default(true),
@@ -100,6 +101,7 @@ export const classSubjects = pgTable("class_subjects", {
   subjectId: integer("subject_id").references(() => subjects.id, { onDelete: "cascade" }).notNull(),
   teacherId: integer("teacher_id").references(() => teachers.id),
   teacherId2: integer("teacher_id_2").references(() => teachers.id),
+  roomId: integer("room_id").references(() => rooms.id, { onDelete: "set null" }),
   weeklyHours: real("weekly_hours").notNull().default(2),
 }, (table) => ({
   classIdIdx: index("class_subjects_class_id_idx").on(table.classId),
@@ -238,11 +240,14 @@ export const subjectsRelations = relations(subjects, ({ many }) => ({
 
 export const classesRelations = relations(classes, ({ one, many }) => ({
   classTeacher: one(teachers, { fields: [classes.classTeacherId], references: [teachers.id] }),
+  defaultRoom: one(rooms, { fields: [classes.defaultRoomId], references: [rooms.id] }),
   classSubjects: many(classSubjects),
   scheduleEntries: many(scheduleEntries),
 }));
 
 export const roomsRelations = relations(rooms, ({ many }) => ({
+  defaultClasses: many(classes),
+  classSubjects: many(classSubjects),
   scheduleEntries: many(scheduleEntries),
 }));
 
@@ -259,6 +264,7 @@ export const classSubjectsRelations = relations(classSubjects, ({ one }) => ({
   class: one(classes, { fields: [classSubjects.classId], references: [classes.id] }),
   subject: one(subjects, { fields: [classSubjects.subjectId], references: [subjects.id] }),
   teacher: one(teachers, { fields: [classSubjects.teacherId], references: [teachers.id] }),
+  room: one(rooms, { fields: [classSubjects.roomId], references: [rooms.id] }),
 }));
 
 export const scheduleEntriesRelations = relations(scheduleEntries, ({ one }) => ({

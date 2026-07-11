@@ -105,14 +105,14 @@ export function InlineEdit({
           <>
             <button
               onClick={handleSave}
-              className="p-0.5 hover:bg-green-100 rounded text-green-600 flex-shrink-0"
+              className="p-0.5 hover:bg-green-500/10 rounded text-green-600 flex-shrink-0"
               title="Saqlash"
             >
               <Check className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={handleCancel}
-              className="p-0.5 hover:bg-red-100 rounded text-red-600 flex-shrink-0"
+              className="p-0.5 hover:bg-red-500/10 rounded text-red-600 flex-shrink-0"
               title="Bekor qilish"
             >
               <X className="h-3.5 w-3.5" />
@@ -126,7 +126,7 @@ export function InlineEdit({
   return (
     <div
       onClick={() => setIsEditing(true)}
-      className={`cursor-pointer hover:bg-blue-50 rounded px-1.5 py-0.5 transition-colors group flex items-center gap-1 min-w-0 ${className}`}
+      className={`cursor-pointer hover:bg-blue-500/10 rounded px-1.5 py-0.5 transition-colors group flex items-center gap-1 min-w-0 ${className}`}
       title="Tahrirlash uchun bosing"
     >
       <span className="truncate">{value || <span className="text-muted-foreground italic">{placeholder || "—"}</span>}</span>
@@ -213,7 +213,7 @@ export function InlineSelect({
                   key={option.value}
                   onClick={() => handleSelect(option.value)}
                   className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted/50 flex items-center gap-2 ${
-                    option.value === value ? "bg-blue-50 text-blue-700" : "text-foreground"
+                    option.value === value ? "bg-blue-500/10 text-blue-700 dark:text-blue-400" : "text-foreground"
                   }`}
                 >
                   {Icon && <Icon className="h-3.5 w-3.5" />}
@@ -230,7 +230,7 @@ export function InlineSelect({
   return (
     <div
       onClick={() => setIsEditing(true)}
-      className={`cursor-pointer hover:bg-blue-50 rounded px-1.5 py-0.5 transition-colors group flex items-center gap-1.5 min-w-0 ${className}`}
+      className={`cursor-pointer hover:bg-blue-500/10 rounded px-1.5 py-0.5 transition-colors group flex items-center gap-1.5 min-w-0 ${className}`}
       title="O'zgartirish uchun bosing"
     >
       {SelectedIcon && <SelectedIcon className="h-3.5 w-3.5 flex-shrink-0" />}

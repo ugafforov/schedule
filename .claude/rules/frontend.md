@@ -5,23 +5,8 @@ paths:
 
 # Frontend qoidalari
 
-## API soʻrovlar
-Faqat `apiRequest` (`@/lib/queryClient`) — toʻgʻridan-toʻgʻri `fetch()` emas (token qoʻshilmaydi):
-```typescript
-useQuery({ queryKey: ["/api/teachers"] });                 // oddiy GET
-queryFn: async () => {                                     // parametrli GET
-  const res = await apiRequest("GET", `/api/schedule-entries?weekStart=${weekStart}`);
-  return res.json();
-}
-await apiRequest("POST", "/api/rooms", data);              // mutatsiya
-```
-
-## Routing — Wouter (React Router emas)
-```typescript
-import { useLocation } from "wouter";
-const [, setLocation] = useLocation();
-setLocation("/teachers");
-```
+## API soʻrovlar va Routing
+Qoidalar AGENTS.md ("Muhim qoidalar" #1-2) da — apiRequest() va Wouter. Shu yerda takrorlanmaydi.
 
 ## UI
 - shadcn/ui komponentlar: `@/components/ui/*`; Tailwind + `cn()` (`@/lib/utils`)
@@ -30,4 +15,4 @@ setLocation("/teachers");
 - Foydalanuvchiga koʻrinadigan barcha matnlar oʻzbek tilida
 
 ## Ehtiyot
-`timetables.tsx` (~2300 satr) va `assignments.tsx` (~1600 satr) juda katta — toʻliq oʻqimasdan Grep bilan kerakli funksiyani toping. UI oʻzgarishini Playwright MCP skrinshoti bilan tekshiring (`/verify-ui`).
+`timetables.tsx` va `assignments.tsx` juda katta — toʻliq oʻqimasdan Grep bilan kerakli funksiyani toping. UI oʻzgarishini Playwright MCP skrinshoti bilan tekshiring (`/verify-ui`).

@@ -27,17 +27,17 @@ export default function Dashboard() {
   const dayStr = days[today.getDay()];
 
   const statCards = [
-    { label: "Sinflar", value: stats?.totalClasses ?? "—", icon: GraduationCap, color: "text-blue-600", bg: "bg-blue-50", href: "/classes" },
-    { label: "O'qituvchilar", value: stats?.totalTeachers ?? "—", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50", href: "/teachers" },
-    { label: "Fanlar", value: stats?.totalSubjects ?? "—", icon: BookOpen, color: "text-violet-600", bg: "bg-violet-50", href: "/subjects" },
-    { label: "Xonalar", value: stats?.totalRooms ?? "—", icon: DoorOpen, color: "text-orange-600", bg: "bg-orange-50", href: "/rooms" },
+    { label: "Sinflar", value: stats?.totalClasses ?? "—", icon: GraduationCap, color: "text-blue-600", bg: "bg-blue-500/10", href: "/classes" },
+    { label: "O'qituvchilar", value: stats?.totalTeachers ?? "—", icon: Users, color: "text-emerald-600", bg: "bg-emerald-500/10", href: "/teachers" },
+    { label: "Fanlar", value: stats?.totalSubjects ?? "—", icon: BookOpen, color: "text-violet-600", bg: "bg-violet-500/10", href: "/subjects" },
+    { label: "Xonalar", value: stats?.totalRooms ?? "—", icon: DoorOpen, color: "text-orange-600", bg: "bg-orange-500/10", href: "/rooms" },
   ];
 
   const quickActions = [
-    { icon: Wand2, label: "Jadval yaratish", description: "Avtomatik dars jadvalini yarating", color: "text-blue-600", bg: "bg-blue-50", href: "/timetables" },
-    { icon: Users, label: "O'qituvchi qo'shish", description: "Yangi o'qituvchini ro'yxatga olish", color: "text-emerald-600", bg: "bg-emerald-50", href: "/teachers" },
-    { icon: GraduationCap, label: "Sinf qo'shish", description: "Yangi sinf yaratish", color: "text-violet-600", bg: "bg-violet-50", href: "/classes" },
-    { icon: BookOpen, label: "Fan qo'shish", description: "Yangi fan qo'shish", color: "text-orange-600", bg: "bg-orange-50", href: "/subjects" },
+    { icon: Wand2, label: "Jadval yaratish", description: "Avtomatik dars jadvalini yarating", color: "text-blue-600", bg: "bg-blue-500/10", href: "/timetables" },
+    { icon: Users, label: "O'qituvchi qo'shish", description: "Yangi o'qituvchini ro'yxatga olish", color: "text-emerald-600", bg: "bg-emerald-500/10", href: "/teachers" },
+    { icon: GraduationCap, label: "Sinf qo'shish", description: "Yangi sinf yaratish", color: "text-violet-600", bg: "bg-violet-500/10", href: "/classes" },
+    { icon: BookOpen, label: "Fan qo'shish", description: "Yangi fan qo'shish", color: "text-orange-600", bg: "bg-orange-500/10", href: "/subjects" },
   ];
 
   return (
@@ -177,10 +177,28 @@ export default function Dashboard() {
               ) : conflicts.length > 0 ? (
                 <div className="space-y-2">
                   {conflicts.slice(0, 4).map((c: any) => (
-                    <div key={c.id} className="flex items-start space-x-2.5 p-2.5 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        if (c.conflictType === "teacher" || c.conflictType === "unavailability") {
+                          if (c.teacherId) {
+                            setLocation(`/timetables?viewMode=teacher&teacherId=${c.teacherId}`);
+                          } else {
+                            setLocation(`/timetables`);
+                          }
+                        } else {
+                          if (c.classId) {
+                            setLocation(`/timetables?viewMode=class&classId=${c.classId}`);
+                          } else {
+                            setLocation(`/timetables`);
+                          }
+                        }
+                      }}
+                      className="w-full flex items-start text-left space-x-2.5 p-2.5 bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/15 rounded-lg transition-all group"
+                    >
                       <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                        <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 group-hover:underline">
                           {c.conflictType === "room" ? "Xona ziddiyati" :
                            c.conflictType === "teacher" ? "O'qituvchi ziddiyati" :
                            c.conflictType === "unavailability" ? "Bandlik ziddiyati" :
@@ -188,7 +206,7 @@ export default function Dashboard() {
                         </p>
                         <p className="text-xs text-orange-600/90 dark:text-orange-400/90 mt-0.5 truncate">{c.description}</p>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
@@ -213,10 +231,10 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="space-y-2">
               {[
-                { label: "O'qituvchilar", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50", href: "/teachers", value: stats?.totalTeachers },
-                { label: "Sinflar", icon: GraduationCap, color: "text-blue-600", bg: "bg-blue-50", href: "/classes", value: stats?.totalClasses },
-                { label: "Fanlar", icon: BookOpen, color: "text-violet-600", bg: "bg-violet-50", href: "/subjects", value: stats?.totalSubjects },
-                { label: "Xonalar", icon: DoorOpen, color: "text-orange-600", bg: "bg-orange-50", href: "/rooms", value: stats?.totalRooms },
+                { label: "O'qituvchilar", icon: Users, color: "text-emerald-600", bg: "bg-emerald-500/10", href: "/teachers", value: stats?.totalTeachers },
+                { label: "Sinflar", icon: GraduationCap, color: "text-blue-600", bg: "bg-blue-500/10", href: "/classes", value: stats?.totalClasses },
+                { label: "Fanlar", icon: BookOpen, color: "text-violet-600", bg: "bg-violet-500/10", href: "/subjects", value: stats?.totalSubjects },
+                { label: "Xonalar", icon: DoorOpen, color: "text-orange-600", bg: "bg-orange-500/10", href: "/rooms", value: stats?.totalRooms },
               ].map(item => {
                 const Icon = item.icon;
                 return (

@@ -363,6 +363,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     jointLessonId?: number;
     classIds?: number[];
     groups?: Array<{ groupName: string; teacherId: number; roomId?: number | null }>;
+    roomId?: number | null;
+    defaultRoomId?: number | null;
   }
 
   const lessonsToSchedule: LessonRequirement[] = [];
@@ -401,6 +403,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           grade: parseInt(String(cls.grade)),
           studyDays: cls.studyDays || "1,2,3,4,5",
           weekType: "always",
+          roomId: (cs as any).roomId || null,
+          defaultRoomId: cls.defaultRoomId || null,
         });
       }
       
@@ -420,6 +424,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           grade: parseInt(String(cls.grade)),
           studyDays: cls.studyDays || "1,2,3,4,5",
           weekType,
+          roomId: (cs as any).roomId || null,
+          defaultRoomId: cls.defaultRoomId || null,
         });
       }
     }
@@ -794,16 +800,36 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         let room1 = null, room2 = null;
         if (!lesson.teacherId2) {
           if (suitableRooms.length > 0) {
-            // Xona barqarorligi: o'qituvchi shu kuni allaqachon ishlatgan xona bo'sh bo'lsa, o'shani afzal ko'ramiz
-            const preferredRoomId = teacherDayRoom.get(`${lesson.teacherId}_${day}`);
-            room1 = suitableRooms.find(r => r.id === preferredRoomId) || suitableRooms[0];
+            const targetRoomId = (lesson as any).roomId || (lesson.reqType === "any" ? (lesson as any).defaultRoomId : null);
+            if (targetRoomId) {
+              const matchedRoom = suitableRooms.find(r => r.id === targetRoomId);
+              if (matchedRoom) {
+                room1 = matchedRoom;
+              } else {
+                continue; // Assigned/default room is busy or not suitable!
+              }
+            } else {
+              // Xona barqarorligi: o'qituvchi shu kuni allaqachon ishlatgan xona bo'sh bo'lsa, o'shani afzal ko'ramiz
+              const preferredRoomId = teacherDayRoom.get(`${lesson.teacherId}_${day}`);
+              room1 = suitableRooms.find(r => r.id === preferredRoomId) || suitableRooms[0];
+            }
           } else {
             continue; // No free suitable room
           }
         } else {
           if (suitableRooms.length >= 2) {
-            room1 = suitableRooms[0];
-            room2 = suitableRooms[1];
+            const targetRoomId = (lesson as any).roomId || (lesson.reqType === "any" ? (lesson as any).defaultRoomId : null);
+            if (targetRoomId) {
+              const matchedRoom = suitableRooms.find(r => r.id === targetRoomId);
+              if (matchedRoom) {
+                room1 = matchedRoom;
+                room2 = suitableRooms.find(r => r.id !== targetRoomId) || null;
+              }
+            }
+            if (!room1 || !room2) {
+              room1 = suitableRooms[0];
+              room2 = suitableRooms[1];
+            }
           } else {
             continue; // Not enough free suitable rooms for split lesson
           }
@@ -1005,7 +1031,11 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       const lesson = p.lesson;
       const studyDays = lesson.studyDays ? lesson.studyDays.split(",").map(Number) : [1, 2, 3, 4, 5];
       const candidateRooms = roomsByType.get(lesson.reqType) || roomsByType.get("any") || [];
-      const roomCandidates = candidateRooms.filter((r) => r.capacity >= lesson.classStudents).map((r) => r.id);
+      const targetRoomId = (lesson as any).roomId || (lesson.reqType === "any" ? (lesson as any).defaultRoomId : null);
+      let roomCandidates = candidateRooms.filter((r) => r.capacity >= lesson.classStudents).map((r) => r.id);
+      if (targetRoomId) {
+        roomCandidates = roomCandidates.filter(rid => rid === targetRoomId);
+      }
       return {
         skippedIndex: p.idx,
         classId: lesson.classId,

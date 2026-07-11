@@ -1,5 +1,5 @@
 /**
- * 2025-2026-o'quv yili uchun tayanch o'quv reja (Uzbek schools)
+ * 2026-2027-o'quv yili uchun tayanch o'quv reja (Uzbek schools)
  * Based on 1-ILOVA
  */
 export const UZBEK_CURRICULUM: Record<string, Record<string, number>> = {
@@ -51,7 +51,8 @@ export const UZBEK_CURRICULUM: Record<string, Record<string, number>> = {
     "Chet tili": 2,
     "Tarbiya": 1,
     "Matematika": 5,
-    "Tabiiy fanlar (Science)": 2,
+    "Informatika va axborot texnologiyalari": 1,
+    "Tabiiy fanlar (Science)": 1,
     "Musiqa madaniyati": 1,
     "Tasviriy san'at": 1,
     "Texnologiya": 1,
@@ -190,7 +191,7 @@ export const UZBEK_CURRICULUM: Record<string, Record<string, number>> = {
 };
 
 /**
- * 2025-2026-o'quv yili uchun tayanch o'quv reja (Russian schools)
+ * 2026-2027-o'quv yili uchun tayanch o'quv reja (Russian schools)
  * Based on 2-ILOVA
  */
 export const RUSSIAN_CURRICULUM: Record<string, Record<string, number>> = {
@@ -242,7 +243,8 @@ export const RUSSIAN_CURRICULUM: Record<string, Record<string, number>> = {
     "Chet tili": 2,
     "Tarbiya": 1,
     "Matematika": 5,
-    "Tabiiy fanlar (Science)": 2,
+    "Informatika va axborot texnologiyalari": 1,
+    "Tabiiy fanlar (Science)": 1,
     "Musiqa madaniyati": 1,
     "Tasviriy san'at": 1,
     "Texnologiya": 1,

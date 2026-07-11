@@ -198,7 +198,7 @@ function UnavailabilityDialog({
                 key={day} 
                 type="button"
                 onClick={() => handleBulkToggle("day", dIdx + 1)}
-                className="h-9 flex items-center justify-center font-bold text-[11px] text-muted-foreground hover:text-blue-600 hover:bg-blue-50 uppercase tracking-widest bg-muted/50/50 rounded-t-xl transition-all cursor-pointer border border-transparent hover:border-blue-100"
+                className="h-9 flex items-center justify-center font-bold text-[11px] text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 uppercase tracking-widest bg-muted/50/50 rounded-t-xl transition-all cursor-pointer border border-transparent hover:border-blue-500/20"
               >
                 {day}
               </button>
@@ -209,7 +209,7 @@ function UnavailabilityDialog({
                 <button 
                   type="button"
                   onClick={() => handleBulkToggle("period", period)}
-                  className="h-14 flex flex-col justify-center pr-4 border-r-2 border-border text-right hover:bg-blue-50 transition-all cursor-pointer group rounded-l-xl"
+                  className="h-14 flex flex-col justify-center pr-4 border-r-2 border-border text-right hover:bg-blue-500/10 transition-all cursor-pointer group rounded-l-xl"
                 >
                   <span className="font-bold text-[11px] text-muted-foreground group-hover:text-blue-600 uppercase tracking-tighter leading-none">
                     {period}-soat
@@ -687,14 +687,14 @@ export default function Teachers() {
         </div>
         <div className="flex items-center gap-2">
           {teachers.length > 0 && (
-            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100" onClick={() => setClearing(true)}>
+            <Button variant="outline" size="sm" className="text-red-600 dark:text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-400 hover:bg-red-500/10 border-red-500/20" onClick={() => setClearing(true)}>
               <Trash2 className="h-4 w-4 mr-1.5" /> Hammasini o'chirish
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setExcelImportOpen(true)} className="border-emerald-100 text-emerald-700 hover:bg-emerald-50">
+          <Button variant="outline" size="sm" onClick={() => setExcelImportOpen(true)} className="border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10">
             <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Excel Import
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)} className="border-blue-100 text-blue-700 hover:bg-blue-50">
+          <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)} className="border-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10">
             <Zap className="h-4 w-4 mr-1.5 text-amber-500" /> Ko'p qo'shish
           </Button>
         </div>
@@ -824,14 +824,54 @@ export default function Teachers() {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border">
-          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-            <Users className="h-8 w-8 text-muted-foreground/30" />
+        teachers.length === 0 ? (
+          <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border max-w-xl mx-auto shadow-sm">
+            <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
+              <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="text-lg font-bold text-foreground">O'qituvchilar ro'yxati bo'sh</h3>
+            <p className="text-muted-foreground max-w-md mx-auto mt-2 text-sm leading-relaxed">
+              Dars jadvalini shakllantirish uchun o'qituvchilarni qo'shing. Excel fayldan yuklashingiz yoki dars yuklamalari bo'yicha vakantlarni avtomatik yaratishingiz mumkin.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3 justify-center">
+              {totalVacancies > 0 && (
+                <Button 
+                  onClick={() => setAutoGenerateConfirmOpen(true)} 
+                  className="bg-amber-600 hover:bg-amber-700 text-primary-foreground font-medium rounded-xl h-10 px-4 gap-2 border border-transparent shadow-sm"
+                >
+                  <Zap className="h-4 w-4 fill-white" />
+                  Vakantlarni avtomatik qo'shish
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                onClick={() => setExcelImportOpen(true)} 
+                className="border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl h-10 px-4 gap-2"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel Import
+              </Button>
+              <Button 
+                onClick={() => setOpen(true)}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl h-10 px-4 gap-2 shadow-sm"
+              >
+                <Plus className="h-4 w-4" />
+                O'qituvchi qo'shish
+              </Button>
+            </div>
           </div>
-          <h3 className="text-lg font-medium text-foreground">Hech qanday o'qituvchi topilmadi</h3>
-          <p className="text-muted-foreground max-w-sm mx-auto mt-1">Qidiruv kriteriyasini o'zgartiring yoki yangi o'qituvchi qo'shing.</p>
-          <Button variant="outline" className="mt-6 border-border hover:bg-muted text-foreground" onClick={() => setSearch("")}>Barcha o'qituvchilar</Button>
-        </div>
+        ) : (
+          <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border max-w-xl mx-auto shadow-sm">
+            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
+              <Search className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <h3 className="text-lg font-bold text-foreground">Hech qanday o'qituvchi topilmadi</h3>
+            <p className="text-muted-foreground max-w-md mx-auto mt-2 text-sm">
+              "{search}" qidiruv so'roviga mos keluvchi o'qituvchi topilmadi. Qidiruv matnini o'zgartirib ko'ring.
+            </p>
+            <Button variant="outline" className="mt-6 border-border hover:bg-muted text-foreground rounded-xl" onClick={() => setSearch("")}>Qidiruvni tozalash</Button>
+          </div>
+        )
       ) : (
         view === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -938,7 +978,7 @@ export default function Teachers() {
                 <Label>O'qitadigan fanlari</Label>
                 <Badge variant="outline" className="text-[10px]">{formData.subjectIds.length} ta tanlangan</Badge>
               </div>
-              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-border rounded-lg p-2 bg-muted/50">
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto border border-border rounded-lg p-2 bg-muted/30">
                 {subjects.map(sub => (
                   <button
                     key={sub.id}
@@ -949,16 +989,17 @@ export default function Teachers() {
                         : [...formData.subjectIds, sub.id];
                       setFormData({ ...formData, subjectIds: ids });
                     }}
-                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] text-left transition-all ${
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-all border ${
                       formData.subjectIds.includes(sub.id)
-                        ? "bg-primary text-primary-foreground shadow-md shadow-blue-100"
-                        : "bg-card text-muted-foreground border border-border hover:border-blue-200"
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:bg-muted"
                     }`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${formData.subjectIds.includes(sub.id) ? "bg-card" : ""}`} style={!formData.subjectIds.includes(sub.id) ? { backgroundColor: sub.color } : {}} />
-                    <span className="truncate">{sub.name}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${formData.subjectIds.includes(sub.id) ? "bg-primary-foreground" : ""}`} style={!formData.subjectIds.includes(sub.id) ? { backgroundColor: sub.color } : {}} />
+                    {sub.name}
                   </button>
                 ))}
+                {subjects.length === 0 && <span className="text-[10px] text-muted-foreground italic p-1">Fanlar mavjud emas</span>}
               </div>
             </div>
 

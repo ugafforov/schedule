@@ -38,6 +38,7 @@ export class ClassStorage {
       subjectId: classSubjects.subjectId,
       teacherId: classSubjects.teacherId,
       teacherId2: classSubjects.teacherId2,
+      roomId: classSubjects.roomId,
       weeklyHours: classSubjects.weeklyHours,
     })
     .from(classSubjects)
@@ -45,13 +46,14 @@ export class ClassStorage {
     .where(eq(classes.isActive, true));
     return results as any;
   }
-  async setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>): Promise<void> {
+  async setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; roomId?: number | null; weeklyHours: number }>): Promise<void> {
     await db.delete(classSubjects).where(eq(classSubjects.classId, classId));
     if (items.length > 0) {
       await db.insert(classSubjects).values(items.map(item => ({
         classId,
         subjectId: item.subjectId,
         teacherId: item.teacherId,
+        roomId: item.roomId || null,
         weeklyHours: item.weeklyHours,
       })));
     }

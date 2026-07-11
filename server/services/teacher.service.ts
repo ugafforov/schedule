@@ -402,12 +402,13 @@ export async function autoDistributeUnassignedOnly(classIds?: number[]) {
     }
   }
 
-  const assignmentsByClass = new Map<number, Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>>();
+  const assignmentsByClass = new Map<number, Array<{ subjectId: number; teacherId: number | null; roomId?: number | null; weeklyHours: number }>>();
   for (const cs of allClassSubjects) {
     if (!assignmentsByClass.has(cs.classId)) assignmentsByClass.set(cs.classId, []);
     assignmentsByClass.get(cs.classId)!.push({
       subjectId: cs.subjectId,
       teacherId: cs.teacherId,
+      roomId: (cs as any).roomId || null,
       weeklyHours: cs.weeklyHours,
     });
   }
@@ -474,12 +475,13 @@ export async function autoDistributeAllForceReassign(classIds?: number[]) {
     if (passAssigned === 0) break;
   }
 
-  const assignmentsByClass = new Map<number, Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>>();
+  const assignmentsByClass = new Map<number, Array<{ subjectId: number; teacherId: number | null; roomId?: number | null; weeklyHours: number }>>();
   for (const cs of allClassSubjects) {
     if (!assignmentsByClass.has(cs.classId)) assignmentsByClass.set(cs.classId, []);
     assignmentsByClass.get(cs.classId)!.push({
       subjectId: cs.subjectId,
       teacherId: cs.teacherId,
+      roomId: (cs as any).roomId || null,
       weeklyHours: cs.weeklyHours,
     });
   }
@@ -552,11 +554,12 @@ export async function autoAssignDtsForClasses(classIds: number[]) {
     const dtsResult = await getAutoAssignments(grade, allSubjects, language);
     const dtsSubjectIds = new Set(dtsResult.assignments.map(a => a.subjectId));
 
-    const merged: { subjectId: number; teacherId: number | null; weeklyHours: number }[] = existingForClass
+    const merged: { subjectId: number; teacherId: number | null; roomId?: number | null; weeklyHours: number }[] = existingForClass
       .filter(cs => !dtsSubjectIds.has(cs.subjectId))
       .map(cs => ({
         subjectId: cs.subjectId,
         teacherId: cs.teacherId,
+        roomId: (cs as any).roomId || null,
         weeklyHours: cs.weeklyHours,
       }));
 
@@ -585,6 +588,7 @@ export async function autoAssignDtsForClasses(classIds: number[]) {
       merged.push({
         subjectId: dtsEntry.subjectId,
         teacherId,
+        roomId: (existing as any)?.roomId || null,
         weeklyHours: dtsEntry.weeklyHours,
       });
     }

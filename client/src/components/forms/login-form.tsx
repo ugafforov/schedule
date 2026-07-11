@@ -56,8 +56,8 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {error && (
-        <Alert variant="destructive" className="border-red-200 bg-red-50">
-          <AlertDescription className="text-red-700">{error}</AlertDescription>
+        <Alert variant="destructive" className="border-red-500/20 bg-red-500/10">
+          <AlertDescription className="text-red-700 dark:text-red-400">{error}</AlertDescription>
         </Alert>
       )}
 
