@@ -32,7 +32,8 @@ full-check-no-close.js
 Thumbs.db
 
 # Editor
-.vscode/
+.vscode/*
+!.vscode/mcp.json
 .idea/
 
 # Logs

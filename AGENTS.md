@@ -124,10 +124,22 @@ POST /api/class-subjects/bulk-assign
 
 ## MCP serverlari
 
-`.mcp.json`da ikkita server sozlangan (token `.env`dagi `SUPABASE_ACCESS_TOKEN`dan olinadi):
+Ikkita server ishlatiladi — **Supabase** (bazani tekshirish: `list_tables`, `execute_sql`, `get_logs`, `get_advisors`; schema oʻzgarishidan oldin real jadvallarni koʻzdan kechiring) va **Playwright** (brauzerda izolyatsiyalangan tekshirish, `http://localhost:5001`, avval `npm run dev`; skrinshotlar `.playwright-mcp/` ga).
 
-1. **Supabase MCP** — bazani tekshirish: `list_tables`, `execute_sql`, `get_logs`, `get_advisors`. Schema oʻzgarishidan oldin real jadvallarni koʻzdan kechiring.
-2. **Playwright MCP** — brauzerda izolyatsiyalangan tekshirish (`http://localhost:5001`, avval `npm run dev`). Skrinshotlar `.playwright-mcp/` ga saqlanadi. UI vizual tekshirishda default — Chrome tool (`claude-in-chrome`); Playwright faqat toza sessiya, dialogli oqim yoki uzun avtomatlashtirish kerak boʻlganda (`/verify-ui` skillga qarang). Har muhim UI oʻzgarishidan soʻng skrinshot bilan tasdiqlang.
+UI vizual tekshirishda default — Chrome tool (`claude-in-chrome`, **faqat Claude Code'da mavjud**); boshqa agentlarda va toza sessiya / dialogli oqim / uzun avtomatlashtirish hollarida — Playwright MCP (`/verify-ui` skillga qarang). Har muhim UI oʻzgarishidan soʻng skrinshot bilan tasdiqlang.
+
+Har bir agent oʻz config faylini oʻqiydi (barchasi bir xil serverlarga sozlangan):
+
+| Agent | Config |
+|---|---|
+| Claude Code | `.mcp.json` (loyihada) |
+| VS Code Copilot | `.vscode/mcp.json` (loyihada) |
+| Cursor | `.cursor/mcp.json` (loyihada) |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` (global) |
+| Antigravity | `~/.gemini/config/mcp_config.json` (global) |
+| Trae | Settings → MCP → Add manually (JSON `.cursor/mcp.json`dagi bilan bir xil) |
+
+Token: `SUPABASE_ACCESS_TOKEN` — user muhitida (`~/.config/environment.d/60-mcp-secrets.conf` va `~/.bashrc`); configlarda faqat `${env:SUPABASE_ACCESS_TOKEN}` havolasi. Tokenni hech qachon commit qilinadigan faylga yozmang.
 
 ## Bu faylni yangilash
 
