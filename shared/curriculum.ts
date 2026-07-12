@@ -1,3 +1,5 @@
+import { isPrimaryTeacherAllowedSubject } from "./constants";
+
 /**
  * 2026-2027-o'quv yili uchun tayanch o'quv reja (Uzbek schools)
  * Based on 1-ILOVA
@@ -386,12 +388,11 @@ export function getSpecialty(subjectName: string, grade: string, language: strin
   const name = subjectName.toLowerCase().trim();
   const g = parseInt(grade);
 
-  // Boshlang'ich sinflarda faqat sinf rahbari (homeroom) fanlari
+  // Boshlang'ich sinflarda faqat sinf rahbari (homeroom) fanlari — ruxsat etilgan
+  // fanlar ro'yxati shared/constants.ts'dagi PRIMARY_TEACHER_ALLOWED_SUBJECTS bilan
+  // bitta manbadan (ikkita ro'yxat sinxronsizlanib qolmasligi uchun).
   if (g >= 1 && g <= 4) {
-    const homeroomSubjects = [
-      "ona tili", "o'qish savodxonligi", "matematika", "tarbiya", "sinf soati",
-    ];
-    if (homeroomSubjects.includes(name)) return "Boshlang'ich sinf o'qituvchisi";
+    if (isPrimaryTeacherAllowedSubject(name)) return "Boshlang'ich sinf o'qituvchisi";
   }
 
   // Rus maktablarida "Ona tili" va "Adabiyot" aslida Rus tili va adabiyoti

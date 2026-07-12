@@ -210,7 +210,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
               </div>
               <div className="space-y-1">
                 {result.missingNames.map((name, i) => (
-                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-50/60">
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-500/10">
                     <X className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />
                     <span className="text-sm text-muted-foreground">{name}</span>
                   </div>
@@ -872,7 +872,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
               {/* Bulk operations buttons */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* DTS assign */}
-                <Card className="border border-blue-500/20 bg-blue-50/20 hover:border-blue-500/20 transition-all shadow-none rounded-xl">
+                <Card className="border border-blue-500/20 bg-blue-500/5 hover:border-blue-500/20 transition-all shadow-none rounded-xl">
                   <CardContent className="p-4 flex flex-col h-full justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400 font-semibold text-sm">
@@ -895,7 +895,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                 </Card>
 
                 {/* auto-distribute unassigned */}
-                <Card className="border border-green-500/20 bg-green-50/20 hover:border-green-500/20 transition-all shadow-none rounded-xl">
+                <Card className="border border-green-500/20 bg-green-500/5 hover:border-green-500/20 transition-all shadow-none rounded-xl">
                   <CardContent className="p-4 flex flex-col h-full justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-green-700 dark:text-green-400 font-semibold text-sm">
@@ -918,7 +918,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                 </Card>
 
                 {/* auto-distribute force reassign */}
-                <Card className="border border-amber-500/20 bg-amber-50/20 hover:border-amber-500/20 transition-all shadow-none rounded-xl">
+                <Card className="border border-amber-500/20 bg-amber-500/5 hover:border-amber-500/20 transition-all shadow-none rounded-xl">
                   <CardContent className="p-4 flex flex-col h-full justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold text-sm">
@@ -941,7 +941,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                 </Card>
 
                 {/* clear bulk */}
-                <Card className="border border-red-500/20 bg-red-50/20 hover:border-red-500/20 transition-all shadow-none rounded-xl">
+                <Card className="border border-red-500/20 bg-red-500/5 hover:border-red-500/20 transition-all shadow-none rounded-xl">
                   <CardContent className="p-4 flex flex-col h-full justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 text-red-700 dark:text-red-400 font-semibold text-sm">

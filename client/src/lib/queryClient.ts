@@ -4,7 +4,14 @@ import { supabase } from "./supabase";
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let message = text;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.message) message = parsed.message;
+    } catch {
+      // Server JSON qaytarmagan (masalan tarmoq xatosi) — xom matnni ishlatamiz
+    }
+    throw new Error(message);
   }
 }
 

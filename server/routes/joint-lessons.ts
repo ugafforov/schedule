@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { storage } from "../storage/index";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 
 export const jointLessonRoutes = new Hono()
@@ -17,7 +17,7 @@ export const jointLessonRoutes = new Hono()
     return c.json(result);
   })
 
-  .post("/", strictRateLimit, async (c) => {
+  .post("/", requireAdmin, strictRateLimit, async (c) => {
     const body = await c.req.json();
     const { subjectId, weeklyHours, classIds, groups } = body;
 
@@ -42,7 +42,7 @@ export const jointLessonRoutes = new Hono()
     }
   })
 
-  .patch("/:id", strictRateLimit, async (c) => {
+  .patch("/:id", requireAdmin, strictRateLimit, async (c) => {
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
     const { subjectId, weeklyHours, classIds, groups } = body;
@@ -71,7 +71,7 @@ export const jointLessonRoutes = new Hono()
     }
   })
 
-  .delete("/:id", async (c) => {
+  .delete("/:id", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const success = await storage.deleteJointLesson(id);
     if (!success) return c.json({ message: "Birlashtirilgan dars topilmadi" }, 404);

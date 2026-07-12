@@ -251,7 +251,7 @@ export function checkFeasibility(
     }
   }
 
-  const roomTypes = ["lab", "computer", "gym", "music", "art"] as const;
+  const roomTypes = ["classroom", "lab", "computer", "gym", "music", "art"] as const;
   for (const rt of roomTypes) {
     const roomCount = rooms.filter(r => r.roomType === rt).length;
     if (roomCount === 0) continue;
@@ -277,6 +277,37 @@ export function checkFeasibility(
         type: "room_shortage",
         message: `${rt} xonasi sig'imi: ${demandSlots}/${supplySlots} (80%+)`,
       });
+    }
+  }
+
+  // "any" (requiredRoomType belgilanmagan/umumiy) darslar — solverda istalgan xonaga
+  // joylashtiriladi (roomsByType.get("any") === barcha xonalar), shuning uchun bu yerda
+  // ham umumiy sig'im (BARCHA xonalar) bilan solishtiriladi. Boshqa turdagi darslar bilan
+  // bir xil xonaga da'vogarlik hisobga olinmaydi (soddalashtirilgan tekshiruv).
+  {
+    let anyDemandSlots = 0;
+    for (const cs of classSubjects) {
+      const sub = subjectMap.get(cs.subjectId);
+      if (sub && (!sub.requiredRoomType || sub.requiredRoomType === "any")) {
+        anyDemandSlots += cs.weeklyHours;
+      }
+    }
+    if (anyDemandSlots > 0 && rooms.length > 0) {
+      const anySupplySlots = rooms.length * activeSlotsPerDay * 6;
+      if (anyDemandSlots > anySupplySlots) {
+        errors.push({
+          type: "room_shortage",
+          entity: "any",
+          demand: anyDemandSlots,
+          supply: anySupplySlots,
+          message: `Umumiy xonalar: ${anyDemandSlots} soat kerak, ${rooms.length} xona × ${activeSlotsPerDay * 6} slot = ${anySupplySlots} slot`,
+        });
+      } else if (anyDemandSlots > anySupplySlots * 0.80) {
+        warnings.push({
+          type: "room_shortage",
+          message: `Umumiy xonalar sig'imi: ${anyDemandSlots}/${anySupplySlots} (80%+)`,
+        });
+      }
     }
   }
 
@@ -491,12 +522,17 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       ? lesson.classIds.reduce((sum, cid) => sum + (targetClasses.find(c => c.id === cid)?.totalStudents || 25), 0)
       : (targetClasses.find(c => c.id === lesson.classId)?.totalStudents || 25);
     const reqType = subjectMap.get(lesson.subjectId)?.requiredRoomType || "any";
+    // Juft dars (double period) qoidasi (docs/domain/scheduling-rules.md §2.B):
+    // boshlang'ich sinfda (1-4) bir kunda bir fandan faqat 1 marta; yuqori sinfda
+    // faqat laboratoriya talab qiladigan fanlar uchun bir kunda 2 martagacha ruxsat.
+    const grade = Number(lesson.grade);
+    const maxSameSubject = grade >= 1 && grade <= 4 ? 1 : (reqType === "lab" ? 2 : 1);
     return {
       ...lesson,
       classStudents,
       reqType,
       maxDaily: getMaxHoursPerDay(String(lesson.grade)),
-      maxSameSubject: 2
+      maxSameSubject,
     };
   });
 
@@ -1214,12 +1250,20 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   if (finalSchedule.length > 0) {
     const insertedEntries = await storage.createScheduleEntriesBulk(finalSchedule);
 
+    const entryByKey = new Map<string, ScheduleEntry>();
+    for (const e of insertedEntries) {
+      const key = `${e.classId}_${e.subjectId}_${e.teacherId}_${e.timeSlotId}_${e.weekType}`;
+      entryByKey.set(key, e);
+    }
+    // finalSchedule[idx] -> tegishli insertedEntries yozuvi (bir xil kalit orqali)
+    const entryByFinalIdx = (idx: number) => {
+      const fe = finalSchedule[idx];
+      if (!fe) return undefined;
+      const key = `${fe.classId}_${fe.subjectId}_${fe.teacherId}_${fe.timeSlotId}_${fe.weekType || "always"}`;
+      return entryByKey.get(key);
+    };
+
     if (generatedConflicts.length > 0) {
-      const entryByKey = new Map<string, ScheduleEntry>();
-      for (const e of insertedEntries) {
-        const key = `${e.classId}_${e.subjectId}_${e.teacherId}_${e.timeSlotId}_${e.weekType}`;
-        entryByKey.set(key, e);
-      }
       for (const c of generatedConflicts) {
         const key = `${c._key.classId}_${c._key.subjectId}_${c._key.teacherId}_${c._key.timeSlotId}_${c._key.weekType}`;
         const entry = entryByKey.get(key);
@@ -1230,6 +1274,20 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           scheduleEntry1Id: entry?.id ?? null,
         });
       }
+    }
+
+    // Post-validatsiyadagi qat'iy (hard) buzilishlar — avval faqat console.error qilinardi,
+    // admin UI'da (schedule_conflicts) ko'rinmas edi. Endi bazaga ham yoziladi.
+    for (const v of hardViolations) {
+      const entry1 = entryByFinalIdx(v.idx1);
+      const entry2 = v.idx2 !== undefined ? entryByFinalIdx(v.idx2) : undefined;
+      await storage.createConflict({
+        conflictType: v.type,
+        description: v.detail,
+        severity: "high",
+        scheduleEntry1Id: entry1?.id ?? null,
+        scheduleEntry2Id: entry2?.id ?? null,
+      });
     }
   }
 
@@ -1261,8 +1319,8 @@ function validateSchedule(
   entries: InsertScheduleEntry[],
   slots: Array<{ id: number; dayOfWeek: number; periodNumber: number }>,
   unavailSet: Set<string>,
-): Array<{ type: string; detail: string }> {
-  const violations: Array<{ type: string; detail: string }> = [];
+): Array<{ type: string; detail: string; idx1: number; idx2?: number }> {
+  const violations: Array<{ type: string; detail: string; idx1: number; idx2?: number }> = [];
   const slotMap = new Map(slots.map(s => [s.id, s]));
 
   type WkType = "always" | "surat" | "mahraj";
@@ -1293,7 +1351,7 @@ function validateSchedule(
 
     const slot = slotMap.get(e.timeSlotId);
     if (slot && unavailSet.has(`${e.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`)) {
-      violations.push({ type: "unavail_violation", detail: `O'qituvchi ${e.teacherId} band vaqtda darsga qo'yilgan (slot ${e.timeSlotId})` });
+      violations.push({ type: "unavail_violation", detail: `O'qituvchi ${e.teacherId} band vaqtda darsga qo'yilgan (slot ${e.timeSlotId})`, idx1: i });
     }
   }
 
@@ -1304,7 +1362,7 @@ function validateSchedule(
           const jl1 = entries[group[i].idx].jointLessonId;
           const jl2 = entries[group[j].idx].jointLessonId;
           if (jl1 && jl2 && jl1 === jl2) continue;
-          violations.push({ type: "teacher_clash", detail: `O'qituvchi to'qnashuvi: ${key}` });
+          violations.push({ type: "teacher_clash", detail: `O'qituvchi to'qnashuvi: ${key}`, idx1: group[i].idx, idx2: group[j].idx });
         }
       }
     }
@@ -1316,7 +1374,7 @@ function validateSchedule(
           const jl1 = entries[group[i].idx].jointLessonId;
           const jl2 = entries[group[j].idx].jointLessonId;
           if (jl1 && jl2 && jl1 === jl2) continue;
-          violations.push({ type: "class_clash", detail: `Sinf to'qnashuvi: ${key}` });
+          violations.push({ type: "class_clash", detail: `Sinf to'qnashuvi: ${key}`, idx1: group[i].idx, idx2: group[j].idx });
         }
       }
     }
@@ -1328,7 +1386,7 @@ function validateSchedule(
           const jl1 = entries[group[i].idx].jointLessonId;
           const jl2 = entries[group[j].idx].jointLessonId;
           if (jl1 && jl2 && jl1 === jl2) continue;
-          violations.push({ type: "room_clash", detail: `Xona to'qnashuvi: ${key}` });
+          violations.push({ type: "room_clash", detail: `Xona to'qnashuvi: ${key}`, idx1: group[i].idx, idx2: group[j].idx });
         }
       }
     }

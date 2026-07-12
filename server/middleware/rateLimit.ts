@@ -8,7 +8,7 @@ import { createMiddleware } from "hono/factory";
  * server) uchun yetarli. Klasterlash kerak bo'lsa — redis'ga ko'chish kerak.
  *
  * Standartlar:
- *  - IP aniqlash: X-Forwarded-For → X-Real-IP → socket remoteAddress
+ *  - IP aniqlash: socket remoteAddress (yoki TRUST_PROXY=1 bo'lsa X-Forwarded-For → X-Real-IP)
  *  - Javob headerlari: RateLimit-Limit / -Remaining / -Reset (IETF draft)
  *  - Cheklash buzilsa: 429 + Retry-After
  */
@@ -33,12 +33,22 @@ interface RateLimitOptions {
   keyPrefix?: string;
 }
 
-/** Foydalanuvchi IP sini aniqlash (proxy-talab). */
+/**
+ * Foydalanuvchi IP sini aniqlash.
+ *
+ * X-Forwarded-For / X-Real-IP headerlarini mijoz o'zi ixtiyoriy qiymatga
+ * o'zgartirib, rate-limit'ni chetlab o'tishi mumkin — shuning uchun bu
+ * headerlar faqat ishonchli reverse-proxy (Nginx/Cloudflare) orqasida
+ * deploy qilinganda (TRUST_PROXY=1) hisobga olinadi. Aks holda faqat
+ * to'g'ridan-to'g'ri socket manzili ishlatiladi.
+ */
 function getClientIp(c: Parameters<Parameters<typeof createMiddleware>[0]>[0]): string {
-  const fwd = c.req.header("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0]!.trim();
-  const real = c.req.header("x-real-ip");
-  if (real) return real.trim();
+  if (process.env.TRUST_PROXY === "1") {
+    const fwd = c.req.header("x-forwarded-for");
+    if (fwd) return fwd.split(",")[0]!.trim();
+    const real = c.req.header("x-real-ip");
+    if (real) return real.trim();
+  }
   // Hono Node.js adapter orqali socket ga kirish
   // @ts-expect-error — c.env Hono da turli xil, socket har doiz ham yo'q
   const remote = c.env?.incoming?.socket?.remoteAddress;

@@ -24,18 +24,18 @@ export const scheduleRoutes = new Hono().use(authMiddleware)
     }
     return c.json(entries);
   })
-  .post("/", async (c) => {
+  .post("/", requireAdmin, async (c) => {
     const data = insertScheduleEntrySchema.parse(await c.req.json());
     return c.json(await storage.createScheduleEntry(data), 201);
   })
-  .patch("/:id", async (c) => {
+  .patch("/:id", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const data = insertScheduleEntrySchema.partial().parse(await c.req.json());
     const result = await storage.updateScheduleEntry(id, data);
     if (!result) return c.json({ message: "Jadval yozuvi topilmadi" }, 404);
     return c.json(result);
   })
-  .delete("/:id", async (c) => {
+  .delete("/:id", requireAdmin, async (c) => {
     await storage.deleteScheduleEntry(parseInt(c.req.param("id")));
     return c.body(null, 204);
   })

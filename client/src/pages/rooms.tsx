@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DeleteConfirmDialog } from "@/components/teachers/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell, Monitor, Palette, Zap, LayoutGrid, List } from "lucide-react";
 
@@ -19,22 +20,6 @@ import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
 interface RoomFormData { name: string; roomNumber: string; building: string; floor: string; capacity: number; roomType: string; }
 
 const EMPTY_FORM: RoomFormData = { name: "", roomNumber: "", building: "", floor: "", capacity: 30, roomType: "classroom" };
-function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onCancel()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">{title}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
-          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; title: string; onClose: () => void; onConfirm: () => void }) {
   return (

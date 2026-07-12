@@ -2,8 +2,9 @@
 // joylashtira olmagan (skipped) darslar uchun, allaqachon joylashtirilgan BITTA (oddiy,
 // bitta o'qituvchili, birlashtirilmagan) darsni boshqa bo'sh vaqtga ko'chirib, bo'shagan
 // joyga skipped darsni qo'yishga harakat qiladi. To'liq constraint-solver emas — faqat
-// "o'qituvchi band" turidagi to'siqni hal qiladi (sinf/xona to'siqlari bu bosqichda
-// qo'llab-quvvatlanmaydi, chunki ular ko'proq zanjirli ko'chirishni talab qiladi).
+// ikki turdagi to'siqni hal qiladi: "o'qituvchi band" va "barcha mos xonalar band"
+// (sinf to'siqlari bu bosqichda qo'llab-quvvatlanmaydi, chunki ular ko'proq zanjirli
+// ko'chirishni talab qiladi).
 //
 // MUHIM: bitta chaqiruvda bir nechta skipped dars ketma-ket qayta ishlanadi. Har bir
 // reja topilgach DARHOL mark/unmark callback'lari orqali holat yangilanadi (band
@@ -87,55 +88,98 @@ export function attemptRelocations(params: {
       if (!isClassFree(skipped.classId, slot.id, skipped.weekType)) continue;
 
       const freeRoomId = skipped.roomCandidates.find((rid) => isRoomFree(rid, slot.id, skipped.weekType));
-      if (freeRoomId === undefined) continue;
+      const teacherFreeHere = isTeacherFree(skipped.teacherId, slot.id, skipped.weekType);
 
-      if (isTeacherFree(skipped.teacherId, slot.id, skipped.weekType)) {
-        // Bu holat normalda yuz bermasligi kerak (aks holda asosiy bosqichda joylashgan bo'lardi)
-        continue;
-      }
+      if (freeRoomId !== undefined && !teacherFreeHere) {
+        // --- Holat A: xona bor, lekin o'qituvchi band — o'qituvchini bo'shatishga urinamiz ---
+        attempts++;
 
-      attempts++;
+        const blocker = placedLessons.find(
+          (p) =>
+            !relocatedLessonIndices.has(p.index) &&
+            p.teacherId === skipped.teacherId &&
+            p.timeSlotId === slot.id &&
+            weekTypesConflict(p.weekType, skipped.weekType)
+        );
+        if (!blocker) continue;
 
-      const blocker = placedLessons.find(
-        (p) =>
-          !relocatedLessonIndices.has(p.index) &&
-          p.teacherId === skipped.teacherId &&
-          p.timeSlotId === slot.id &&
-          weekTypesConflict(p.weekType, skipped.weekType)
-      );
-      if (!blocker) continue;
+        for (const newSlot of activeSlots) {
+          if (newSlot.id === slot.id) continue;
+          if (!blocker.studyDays.includes(newSlot.dayOfWeek)) continue;
+          if (!isClassFree(blocker.classId, newSlot.id, blocker.weekType)) continue;
+          if (!isTeacherFree(blocker.teacherId, newSlot.id, blocker.weekType)) continue;
+          if (!isRoomFree(blocker.roomId, newSlot.id, blocker.weekType)) continue;
 
-      for (const newSlot of activeSlots) {
-        if (newSlot.id === slot.id) continue;
-        if (!blocker.studyDays.includes(newSlot.dayOfWeek)) continue;
-        if (!isClassFree(blocker.classId, newSlot.id, blocker.weekType)) continue;
-        if (!isTeacherFree(blocker.teacherId, newSlot.id, blocker.weekType)) continue;
-        if (!isRoomFree(blocker.roomId, newSlot.id, blocker.weekType)) continue;
+          // Rejani DARHOL amalga oshiramiz (holatni yangilaymiz), shunda navbatdagi
+          // skipped darslar bu o'zgarishni ko'radi va bir xil resursga da'vogar bo'lmaydi.
+          unmarkClassBusy(blocker.classId, slot.id, blocker.weekType);
+          unmarkTeacherBusy(blocker.teacherId, slot.id, blocker.weekType);
+          unmarkRoomBusy(blocker.roomId, slot.id, blocker.weekType);
+          markClassBusy(blocker.classId, newSlot.id, blocker.weekType);
+          markTeacherBusy(blocker.teacherId, newSlot.id, blocker.weekType);
+          markRoomBusy(blocker.roomId, newSlot.id, blocker.weekType);
+          blocker.timeSlotId = newSlot.id;
 
-        // Rejani DARHOL amalga oshiramiz (holatni yangilaymiz), shunda navbatdagi
-        // skipped darslar bu o'zgarishni ko'radi va bir xil resursga da'vogar bo'lmaydi.
-        unmarkClassBusy(blocker.classId, slot.id, blocker.weekType);
-        unmarkTeacherBusy(blocker.teacherId, slot.id, blocker.weekType);
-        unmarkRoomBusy(blocker.roomId, slot.id, blocker.weekType);
-        markClassBusy(blocker.classId, newSlot.id, blocker.weekType);
-        markTeacherBusy(blocker.teacherId, newSlot.id, blocker.weekType);
-        markRoomBusy(blocker.roomId, newSlot.id, blocker.weekType);
-        blocker.timeSlotId = newSlot.id;
+          markClassBusy(skipped.classId, slot.id, skipped.weekType);
+          markTeacherBusy(skipped.teacherId, slot.id, skipped.weekType);
+          markRoomBusy(freeRoomId, slot.id, skipped.weekType);
 
-        markClassBusy(skipped.classId, slot.id, skipped.weekType);
-        markTeacherBusy(skipped.teacherId, slot.id, skipped.weekType);
-        markRoomBusy(freeRoomId, slot.id, skipped.weekType);
+          plans.push({
+            skippedIndex: skipped.skippedIndex,
+            newSlotId: slot.id,
+            newRoomId: freeRoomId,
+            movedLessonIndex: blocker.index,
+            movedLessonNewSlotId: newSlot.id,
+          });
+          relocatedLessonIndices.add(blocker.index);
+          resolved = true;
+          break;
+        }
+      } else if (freeRoomId === undefined && teacherFreeHere && skipped.roomCandidates.length > 0) {
+        // --- Holat B: o'qituvchi bo'sh, lekin mos xonalarning barchasi band —
+        // shu slotda mos xonalardan birini egallab turgan darsni bo'shatishga urinamiz ---
+        attempts++;
 
-        plans.push({
-          skippedIndex: skipped.skippedIndex,
-          newSlotId: slot.id,
-          newRoomId: freeRoomId,
-          movedLessonIndex: blocker.index,
-          movedLessonNewSlotId: newSlot.id,
-        });
-        relocatedLessonIndices.add(blocker.index);
-        resolved = true;
-        break;
+        const roomBlocker = placedLessons.find(
+          (p) =>
+            !relocatedLessonIndices.has(p.index) &&
+            skipped.roomCandidates.includes(p.roomId) &&
+            p.timeSlotId === slot.id &&
+            weekTypesConflict(p.weekType, skipped.weekType)
+        );
+        if (!roomBlocker) continue;
+
+        for (const newSlot of activeSlots) {
+          if (newSlot.id === slot.id) continue;
+          if (!roomBlocker.studyDays.includes(newSlot.dayOfWeek)) continue;
+          if (!isClassFree(roomBlocker.classId, newSlot.id, roomBlocker.weekType)) continue;
+          if (!isTeacherFree(roomBlocker.teacherId, newSlot.id, roomBlocker.weekType)) continue;
+          if (!isRoomFree(roomBlocker.roomId, newSlot.id, roomBlocker.weekType)) continue;
+
+          const freedRoomId = roomBlocker.roomId;
+          unmarkClassBusy(roomBlocker.classId, slot.id, roomBlocker.weekType);
+          unmarkTeacherBusy(roomBlocker.teacherId, slot.id, roomBlocker.weekType);
+          unmarkRoomBusy(freedRoomId, slot.id, roomBlocker.weekType);
+          markClassBusy(roomBlocker.classId, newSlot.id, roomBlocker.weekType);
+          markTeacherBusy(roomBlocker.teacherId, newSlot.id, roomBlocker.weekType);
+          markRoomBusy(freedRoomId, newSlot.id, roomBlocker.weekType);
+          roomBlocker.timeSlotId = newSlot.id;
+
+          markClassBusy(skipped.classId, slot.id, skipped.weekType);
+          markTeacherBusy(skipped.teacherId, slot.id, skipped.weekType);
+          markRoomBusy(freedRoomId, slot.id, skipped.weekType);
+
+          plans.push({
+            skippedIndex: skipped.skippedIndex,
+            newSlotId: slot.id,
+            newRoomId: freedRoomId,
+            movedLessonIndex: roomBlocker.index,
+            movedLessonNewSlotId: newSlot.id,
+          });
+          relocatedLessonIndices.add(roomBlocker.index);
+          resolved = true;
+          break;
+        }
       }
     }
   }

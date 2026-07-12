@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DeleteConfirmDialog } from "@/components/teachers/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronRight, Zap, CheckSquare, Square, LayoutGrid, List, FileSpreadsheet, Calendar } from "lucide-react";
 
@@ -26,23 +27,6 @@ const GRADE_COLORS = [
   "bg-red-500/10 text-red-700 dark:text-red-400", "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
 ];
 const ALL_GRADES = ["1","2","3","4","5","6","7","8","9","10","11"];
-
-function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onCancel()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">{title}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
-          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function ClearAllDialog({ open, title, onClose, onConfirm }: { open: boolean; title: string; onClose: () => void; onConfirm: () => void }) {
   return (

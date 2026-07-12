@@ -147,4 +147,60 @@ describe("attemptRelocations", () => {
     const slotRoomPairs = plans.map((p) => `${p.newSlotId}_${p.newRoomId}`);
     expect(new Set(slotRoomPairs).size).toBe(slotRoomPairs.length);
   });
+
+  it("xona-band to'siqni (o'qituvchi bo'sh, lekin mos xona band) blokerni ko'chirib hal qiladi", () => {
+    // Bloker: class 10, teacher 1, room 100 — slot1'da joylashgan.
+    // Skipped dars uchun teacher 5 butunlay bo'sh, lekin yagona nomzod xona (100) slot1'da band —
+    // demak faqat xonani bo'shatish orqaligina yechim topiladi.
+    const busy = new Set<string>(["class_10_1", "teacher_1_1", "room_100_1"]);
+    const checkers = buildCheckersAndMutators(busy);
+
+    const placedLessons: MovablePlacedLesson[] = [
+      { index: 0, classId: 10, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+    ];
+
+    const skippedLessons: SkippedLessonInput[] = [
+      { skippedIndex: 0, classId: 20, teacherId: 5, weekType: "always", studyDays: [1, 2], roomCandidates: [100] },
+    ];
+    // Skipped dars uchun sinf 20 faqat slot 1'da bo'sh deb faraz qilamiz
+    busy.add("class_20_2");
+    busy.add("class_20_3");
+    busy.add("class_20_4");
+
+    const plans = attemptRelocations({ skippedLessons, placedLessons, activeSlots, ...checkers });
+
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({
+      skippedIndex: 0,
+      newSlotId: 1,
+      newRoomId: 100,
+      movedLessonIndex: 0,
+    });
+    // Bloker (teacher 1, class 10, room 100) slot1'dan tashqari bo'sh biror joyga ko'chishi kerak
+    expect([2, 3, 4]).toContain(plans[0].movedLessonNewSlotId);
+    // Skipped dars endi slot1'da room100'ni egallagan bo'lishi kerak
+    expect(busy.has("room_100_1")).toBe(true);
+    expect(busy.has("teacher_5_1")).toBe(true);
+    expect(busy.has("class_20_1")).toBe(true);
+  });
+
+  it("xona-band to'siq uchun ham hech qanday bo'sh joy topilmasa, reja qaytarilmaydi", () => {
+    const busy = new Set<string>([
+      "class_10_1", "teacher_1_1", "room_100_1",
+      // Bloker (class 10, teacher 1, room 100) boshqa HECH bir slotga ko'cha olmaydi:
+      "class_10_2", "teacher_1_3", "room_100_4",
+      "class_20_2", "class_20_3", "class_20_4",
+    ]);
+    const checkers = buildCheckersAndMutators(busy);
+
+    const placedLessons: MovablePlacedLesson[] = [
+      { index: 0, classId: 10, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+    ];
+    const skippedLessons: SkippedLessonInput[] = [
+      { skippedIndex: 0, classId: 20, teacherId: 5, weekType: "always", studyDays: [1, 2], roomCandidates: [100] },
+    ];
+
+    const plans = attemptRelocations({ skippedLessons, placedLessons, activeSlots, ...checkers });
+    expect(plans).toHaveLength(0);
+  });
 });

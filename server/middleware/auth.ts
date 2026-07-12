@@ -44,16 +44,13 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       .limit(1)
       .then((res) => res[0]);
 
-    // Agar DB da roli bo'lmasa (yangi foydalanuvchi), avtomatik "teacher" roli beramiz
+    // Agar DB da roli bo'lmasa — hisob hali administrator tomonidan faollashtirilmagan
+    // (Supabase Dashboard → Auth → Users → user_metadata orqali qo'lda belgilanadi).
     if (!roleData) {
-      const [newRole] = await db
-        .insert(userRoles)
-        .values({
-          userId: user.id,
-          role: "teacher",
-        })
-        .returning();
-      roleData = newRole;
+      return c.json(
+        { message: "Hisobingiz hali faollashtirilmagan. Administrator bilan bog'laning." },
+        403,
+      );
     }
 
     c.set("user", {

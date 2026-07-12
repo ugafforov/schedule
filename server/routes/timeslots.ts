@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { insertTimeSlotSchema } from "@shared/schema";
 import { storage } from "../storage/index";
-import { authMiddleware } from "../middleware/auth";
+import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { ensureTimeSlots, saveTimeSlotsFromRows } from "../services/schedule.service";
 
 const DAYS = [1, 2, 3, 4, 5, 6];
@@ -15,7 +15,7 @@ export const timeslotRoutes = new Hono()
     return c.json(slots);
   })
 
-  .patch("/:id", async (c) => {
+  .patch("/:id", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const data = insertTimeSlotSchema.partial().parse(await c.req.json());
     const result = await storage.updateTimeSlot(id, data);
@@ -23,20 +23,20 @@ export const timeslotRoutes = new Hono()
     return c.json(result);
   })
 
-  .delete("/:id", async (c) => {
+  .delete("/:id", requireAdmin, async (c) => {
     await storage.deleteTimeSlot(parseInt(c.req.param("id")));
     return c.body(null, 204);
   })
 
   // Reset to defaults
-  .post("/reset", async (c) => {
+  .post("/reset", requireAdmin, async (c) => {
     await storage.deleteAllTimeSlots();
     const slots = await ensureTimeSlots();
     return c.json(slots);
   })
 
   // Update periods
-  .put("/periods", async (c) => {
+  .put("/periods", requireAdmin, async (c) => {
     const { periods } = await c.req.json();
     if (!Array.isArray(periods) || periods.length === 0) {
       return c.json({ message: "Periods bo'sh bo'lmasligi kerak" }, 400);
@@ -62,7 +62,7 @@ export const timeslotRoutes = new Hono()
   })
 
   // Save full bell schedule
-  .post("/save", async (c) => {
+  .post("/save", requireAdmin, async (c) => {
     const { rows } = await c.req.json();
     if (!Array.isArray(rows) || rows.length === 0) {
       return c.json({ message: "Qatorlar bo'sh bo'lmasligi kerak" }, 400);

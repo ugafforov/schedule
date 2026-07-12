@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DeleteConfirmDialog } from "@/components/teachers/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit, Trash2, BookOpen, X, Clock, DoorOpen, Zap, CheckSquare, Square, GraduationCap, LayoutGrid, List, FileSpreadsheet } from "lucide-react";
 
@@ -342,23 +343,6 @@ function DtsDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () =>
             </Button>
           </DialogFooter>
         </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DeleteConfirmDialog({ open, title, onCancel, onConfirm }: { open: boolean; title: string; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <Dialog open={open} onOpenChange={v => !v && onCancel()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>O'chirishni tasdiqlash</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">{title}</p>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Bekor qilish</Button>
-          <Button variant="destructive" onClick={onConfirm}>O'chirish</Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

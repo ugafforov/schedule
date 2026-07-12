@@ -139,14 +139,14 @@ export const classRoutes = new Hono()
     return c.json(await storage.getClassSubjects(parseInt(c.req.param("id"))));
   })
 
-  .put("/:id/subjects", async (c) => {
+  .put("/:id/subjects", requireAdmin, async (c) => {
     const classId = parseInt(c.req.param("id"));
     const { subjects: items } = await c.req.json();
     await storage.setClassSubjects(classId, items || []);
     return c.json({ ok: true });
   })
 
-  .post("/:id/subjects", async (c) => {
+  .post("/:id/subjects", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const { assignments } = await c.req.json();
     // Filter out invalid assignments on the backend as well to prevent foreign key errors
@@ -158,7 +158,7 @@ export const classRoutes = new Hono()
   })
 
   // Barcha biriktirishlarni tozalash (bo'sh array bilan)
-  .delete("/:id/subjects", async (c) => {
+  .delete("/:id/subjects", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     await storage.setClassSubjects(id, []);
     return c.body(null, 204);
