@@ -137,7 +137,7 @@ Har bir agent oʻz config faylini oʻqiydi (barchasi bir xil serverlarga sozlang
 | Cursor | `.cursor/mcp.json` (loyihada) |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` (global) |
 | Antigravity | `~/.gemini/config/mcp_config.json` (global) |
-| Trae | Settings → MCP → Add manually (JSON `.cursor/mcp.json`dagi bilan bir xil) |
+| Trae | `.trae/mcp.json` (loyihada; token flag emas — server muhitdagi `SUPABASE_ACCESS_TOKEN`ni oʻzi oʻqiydi) |
 
 Token: `SUPABASE_ACCESS_TOKEN` — user muhitida (`~/.config/environment.d/60-mcp-secrets.conf` va `~/.bashrc`); configlarda faqat `${env:SUPABASE_ACCESS_TOKEN}` havolasi. Tokenni hech qachon commit qilinadigan faylga yozmang.
 
