@@ -51,8 +51,9 @@ DATABASE_URL=postgresql://...
 VITE_SUPABASE_URL=https://xxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJ...        # brauzerga chiqadi — maxfiy emas
 SUPABASE_SERVICE_ROLE_KEY=eyJ...     # faqat server — frontendga BERMANG
-SUPABASE_ACCESS_TOKEN=sbp_...        # faqat MCP uchun (.mcp.json shuni o'qiydi)
 ```
+
+`SUPABASE_ACCESS_TOKEN` (faqat MCP uchun) `.env`da EMAS — `.claude/settings.local.json`dagi `env` boʻlimida saqlanadi (gitignore'da); `.mcp.json` uni muhitdan `${SUPABASE_ACCESS_TOKEN}` orqali oʻqiydi.
 
 ## Auth
 
@@ -126,7 +127,7 @@ POST /api/class-subjects/bulk-assign
 `.mcp.json`da ikkita server sozlangan (token `.env`dagi `SUPABASE_ACCESS_TOKEN`dan olinadi):
 
 1. **Supabase MCP** — bazani tekshirish: `list_tables`, `execute_sql`, `get_logs`, `get_advisors`. Schema oʻzgarishidan oldin real jadvallarni koʻzdan kechiring.
-2. **Playwright MCP** — UI oʻzgarishlarini brauzerda vizual tekshirish (`http://localhost:5001`, avval `npm run dev`). Skrinshotlar `.playwright-mcp/` ga saqlanadi. Har muhim UI oʻzgarishidan soʻng skrinshot bilan tasdiqlang.
+2. **Playwright MCP** — brauzerda izolyatsiyalangan tekshirish (`http://localhost:5001`, avval `npm run dev`). Skrinshotlar `.playwright-mcp/` ga saqlanadi. UI vizual tekshirishda default — Chrome tool (`claude-in-chrome`); Playwright faqat toza sessiya, dialogli oqim yoki uzun avtomatlashtirish kerak boʻlganda (`/verify-ui` skillga qarang). Har muhim UI oʻzgarishidan soʻng skrinshot bilan tasdiqlang.
 
 ## Bu faylni yangilash
 
