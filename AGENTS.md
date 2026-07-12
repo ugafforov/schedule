@@ -110,6 +110,19 @@ UI komponentlar (badge, kartochka, active state, hover) yozayotganda **hech qach
 - Yozuvlar o'qilishi uchun doim dark variantni bering: `text-blue-700 dark:text-blue-400`.
 - Chegaralar (border) uchun opacity ishlating: `border-blue-500/20`.
 
+## Kritik tartiblar (barcha agentlar uchun)
+
+Claude Code'da bular skill/hook sifatida avtomatlashtirilgan; boshqa agentlar shu tartibga qoʻlda amal qilsin.
+
+**Schema oʻzgartirish (Drizzle + Supabase):**
+1. Avval real bazani koʻring (Supabase MCP `list_tables`) — schema.ts bilan farq boʻlishi mumkin.
+2. `shared/schema.ts` (drizzle-zod insert schema'lari bilan) → `server/storage/IStorage.ts` → tegishli `*.storage.ts` → `server/storage/index.ts` bind.
+3. Dev: `npm run db:push`. Prod: `npm run db:generate` → migrationni koʻzdan kechiring → `npm run db:migrate`.
+4. Mavjud ustunni oʻchirish/qayta nomlashdan oldin foydalanuvchidan tasdiq oling (maʼlumot yoʻqolishi mumkin).
+5. Yakunda: `npm run check` + `execute_sql` bilan yangi strukturani tekshiring.
+
+**Verifikatsiya intizomi:** har kod oʻzgarishidan soʻng `npm run check` toza oʻtishi shart; sof logika oʻzgarganda `npm run test`. UI oʻzgarishini brauzerda skrinshot bilan tasdiqlamasdan "tayyor" demang (dark mode'ni ham tekshiring, konsolda yangi error boʻlmasin).
+
 ## Noodatiy API URLlar
 
 ```
