@@ -1,0 +1,12 @@
+# Codex CLI — loyiha-darajali MCP konfiguratsiyasi (trusted project talab qilinadi).
+# Token configda yo'q: env_vars orqali muhitdagi SUPABASE_ACCESS_TOKEN uzatiladi,
+# Supabase MCP server uni o'zi o'qiydi.
+
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp"]
+
+[mcp_servers.supabase]
+command = "npx"
+args = ["-y", "@supabase/mcp-server-supabase@latest"]
+env_vars = ["SUPABASE_ACCESS_TOKEN"]
