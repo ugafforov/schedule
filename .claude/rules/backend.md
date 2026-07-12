@@ -5,19 +5,8 @@ paths:
 
 # Backend qoidalari (Hono)
 
-## Route qoʻshish
-1. `server/routes/yangi.ts` — Hono sub-router
-2. `server/routes/index.ts` — `app.route("/api/...", yangiRoutes)`
-3. Murakkab logika: `server/services/` ga ajrating
-
-## URL mapping xatosi (eng koʻp uchraydigan muammo)
-```typescript
-// ❌ teacherRoutes ichida /load → /api/teacher-load/load
-app.route("/api/teacher-load", teacherRoutes);
-// ✅ Alohida router
-app.route("/api/teacher-load", teacherLoadRoute);
-```
-`teacher-load` va `teacher-recommendation` alohida routerlar.
+## Route qoʻshish va URL mapping
+Yagona manba: AGENTS.md ("Muhim qoidalar" #3) — route qoʻshish zanjiri va teacher-load/teacher-recommendation URL mapping tuzogʻi. Shu yerda takrorlanmaydi. Murakkab logika: `server/services/` ga ajrating.
 
 ## Storage
 - Interfeys: `server/storage/IStorage.ts`

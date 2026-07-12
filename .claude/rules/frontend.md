@@ -15,4 +15,4 @@ Qoidalar AGENTS.md ("Muhim qoidalar" #1-2) da — apiRequest() va Wouter. Shu ye
 - Foydalanuvchiga koʻrinadigan barcha matnlar oʻzbek tilida
 
 ## Ehtiyot
-`timetables.tsx` va `assignments.tsx` juda katta — toʻliq oʻqimasdan Grep bilan kerakli funksiyani toping. UI oʻzgarishini Playwright MCP skrinshoti bilan tekshiring (`/verify-ui`).
+`timetables.tsx` va `assignments.tsx` juda katta — toʻliq oʻqimasdan Grep bilan kerakli funksiyani toping. UI oʻzgarishini brauzer skrinshoti bilan tekshiring — `/verify-ui` tartibi (default — Chrome tool, maxsus hollarda Playwright MCP).

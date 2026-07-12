@@ -96,7 +96,7 @@ app.route("/api/teacher-load", teacherLoadRoute) → /api/teacher-load/      ✅
 
 ### 4. Database
 - Soft delete: `isActive: false` — haqiqiy `DELETE` emas.
-- Yangi jadval/ustun: `shared/schema.ts` → `server/storage/IStorage.ts` + tegishli `*.storage.ts` → `npm run db:push`.
+- Schema oʻzgartirish tartibi — quyidagi "Kritik tartiblar" boʻlimida.
 - Asosiy jadvallar: `teachers`, `subjects`, `classes`, `rooms`, `time_slots`, `teacher_subjects`, `class_subjects`, `schedule_entries`, `schedule_conflicts`, `teacher_unavailability`.
 
 ### 5. Boshlangʻich sinf oʻqituvchilari

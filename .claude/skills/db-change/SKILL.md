@@ -5,13 +5,8 @@ description: Database schema oʻzgartirish workflow (Drizzle + Supabase). Yangi 
 
 # Schema oʻzgartirish tartibi
 
-1. **Hozirgi holatni tekshiring:** Supabase MCP `list_tables` bilan real bazadagi strukturani koʻring — schema.ts bilan farq boʻlishi mumkin.
-2. **`shared/schema.ts`** — jadval/ustun qoʻshing yoki oʻzgartiring. Drizzle-zod insert schema'larini ham yangilang.
-3. **Storage qatlami:** `server/storage/IStorage.ts` interfeysiga metod qoʻshing → tegishli `*.storage.ts` faylda implementatsiya → `server/storage/index.ts` da bind tekshiring.
-4. **Bazaga qoʻllash:**
-   - Dev: `npm run db:push` (tezkor, migration yaratmaydi)
-   - Prod uchun: `npm run db:generate` → migration faylni koʻzdan kechiring → `npm run db:migrate`
-5. **Qoidalar:**
-   - Soft delete: `isActive: false` ustuni — hard DELETE yoʻq
-   - Mavjud ustunlarni oʻchirish/nomini oʻzgartirishdan oldin foydalanuvchidan tasdiqlang (maʼlumot yoʻqolishi mumkin)
-6. **Tekshirish:** `npm run check` + Supabase MCP `execute_sql` bilan yangi struktura va (kerak boʻlsa) test soʻrov.
+Yagona manba: **AGENTS.md → "Kritik tartiblar" boʻlimidagi "Schema oʻzgartirish"** — 5 qadamni oʻsha yerdan oʻqib, aynan shu tartibda bajaring. Shu yerda takrorlanmaydi.
+
+Claude Code'ga xos qoʻshimchalar:
+- 1-qadam (real bazani koʻrish) uchun Supabase MCP `list_tables`ni, yakuniy tekshiruv uchun `execute_sql`ni ishlating.
+- Prod migrationda fayl mazmunini foydalanuvchiga koʻrsatib, keyin `npm run db:migrate` qiling.
