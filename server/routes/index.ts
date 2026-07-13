@@ -15,6 +15,7 @@ import {
 import { dashboardRoutes } from "./dashboard";
 import { jointLessonRoutes } from "./joint-lessons";
 import { curriculumRoutes } from "./curriculum";
+import { settingsRoutes } from "./settings";
 import { rateLimitMiddleware, strictRateLimit } from "../middleware/rateLimit";
 import { auditLogMiddleware } from "../middleware/auditLog";
 
@@ -34,6 +35,7 @@ export function registerRoutes(app: Hono) {
   app.route("/api/dashboard", dashboardRoutes);
   app.route("/api/joint-lessons", jointLessonRoutes);
   app.route("/api/curriculum", curriculumRoutes);
+  app.route("/api/settings", settingsRoutes);
 
   // ─── Schedule ──────────────────────────────────────────────────────────────
   // Har bir frontend URL → to'g'ri backend route

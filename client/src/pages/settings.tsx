@@ -1,8 +1,91 @@
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, User, Shield, LogOut, ExternalLink } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Settings, User, Shield, LogOut, ExternalLink, CalendarClock } from "lucide-react";
+import { CLASS_HOUR_SLOT_SETTING_KEY, DEFAULT_CLASS_HOUR_SLOT } from "@shared/constants";
+
+const DAY_NAMES: Record<number, string> = {
+  1: "Dushanba", 2: "Seshanba", 3: "Chorshanba", 4: "Payshanba", 5: "Juma", 6: "Shanba",
+};
+
+function ClassHourSlotCard() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+
+  const { data } = useQuery<{ key: string; value: { dayOfWeek: number; periodNumber: number } }>({
+    queryKey: [`/api/settings/${CLASS_HOUR_SLOT_SETTING_KEY}`],
+  });
+  const slot = data?.value || DEFAULT_CLASS_HOUR_SLOT;
+
+  const saveMutation = useMutation({
+    mutationFn: async (value: { dayOfWeek: number; periodNumber: number }) => {
+      await apiRequest("PUT", `/api/settings/${CLASS_HOUR_SLOT_SETTING_KEY}`, value);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/settings/${CLASS_HOUR_SLOT_SETTING_KEY}`] });
+      toast({ title: "Muvaffaqiyat", description: "Sinf soati vaqti saqlandi" });
+    },
+    onError: (e: any) => toast({ title: "Xatolik", description: e.message || "Saqlanmadi", variant: "destructive" }),
+  });
+
+  return (
+    <Card className="border border-border shadow-sm bg-card text-card-foreground">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold flex items-center">
+          <CalendarClock className="mr-2 h-4 w-4 text-emerald-500" />
+          Jadval sozlamalari
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Sinf soati (Kelajak soati) vaqti</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Sinf soati odatda dushanba 1-darsda o'tkaziladi va uni sinf rahbari o'tadi.
+            Xususiy maktablar boshqa kun/vaqtni tanlashi mumkin.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-sm">Kun</Label>
+            <Select
+              value={String(slot.dayOfWeek)}
+              onValueChange={v => saveMutation.mutate({ dayOfWeek: parseInt(v), periodNumber: slot.periodNumber })}
+              disabled={saveMutation.isPending}
+            >
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[1, 2, 3, 4, 5, 6].map(d => (
+                  <SelectItem key={d} value={String(d)}>{DAY_NAMES[d]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">Dars raqami</Label>
+            <Select
+              value={String(slot.periodNumber)}
+              onValueChange={v => saveMutation.mutate({ dayOfWeek: slot.dayOfWeek, periodNumber: parseInt(v) })}
+              disabled={saveMutation.isPending}
+            >
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {[1, 2, 3, 4, 5, 6, 7].map(p => (
+                  <SelectItem key={p} value={String(p)}>{p}-dars</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -51,6 +134,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Jadval sozlamalari */}
+      {user?.role === "admin" && <ClassHourSlotCard />}
 
       {/* Foydalanuvchilarni boshqarish */}
       {user?.role === "admin" && (

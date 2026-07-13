@@ -6,7 +6,7 @@ import { getCurriculumForGrade, getAutoAssignments, getSpecialty } from "./curri
 
 const DEFAULT_MAX_HOURS = 30;
 
-import { isPrimaryTeacherFromSpecialty, pickBestTeacher, scoreTeacherForSubject } from "@shared/teacher-matching";
+import { findClassPrimaryTeacherId, isPrimaryTeacherFromSpecialty, pickBestTeacher, scoreTeacherForSubject } from "@shared/teacher-matching";
 import { parseGrade } from "@shared/constants";
 
 interface AssignmentEntry {
@@ -138,6 +138,27 @@ export async function autoGenerateTeachers() {
 
     const isPrimarySpecialty = specialty === "Boshlang'ich sinf o'qituvchisi";
 
+    // Sinf rahbari ustuvor: rahbari belgilangan sinfning boshlang'ich fanlari avval rahbarga (3271-son nizom)
+    if (isPrimarySpecialty) {
+      for (let i = 0; i < assignments.length; i++) {
+        const a = assignments[i];
+        const cls = allClasses.find(c => c.id === a.classId);
+        const rahbar = cls?.classTeacherId
+          ? allTeachers.find(t => t.id === cls.classTeacherId && t.isActive)
+          : undefined;
+        if (!rahbar) continue;
+        let load = 0;
+        for (const list of Array.from(updatedAssignmentsByClass.values())) {
+          for (const x of list) if (x.teacherId === rahbar.id) load += x.weeklyHours;
+        }
+        if (load + a.weeklyHours <= (rahbar.maxHoursPerWeek || DEFAULT_MAX_HOURS)) {
+          a.teacherId = rahbar.id;
+          assignments.splice(i, 1);
+          i--;
+        }
+      }
+    }
+
     for (const teacher of matchingTeachers) {
       let currentLoad = 0;
       let teacherClassId: number | null = null;
@@ -173,8 +194,8 @@ export async function autoGenerateTeachers() {
     while (assignments.length > 0) {
       const suffix = createdTeachersCount > 0 ? ` ${createdTeachersCount + 1}` : "";
       const newTeacher = await storage.createTeacher({
-        firstName: specialty,
-        lastName: `vakant${suffix}`,
+        firstName: `${specialty}${suffix}`,
+        lastName: "vakant",
         employeeId: `VAK_${specialty.slice(0, 3).toUpperCase()}_${Date.now().toString().slice(-4)}_${createdTeachersCount}`,
         department: "Avtomatik",
         specialization: specialty,
@@ -226,6 +247,8 @@ export async function autoGenerateTeachers() {
     await storage.setClassSubjects(classId, toSave);
   }
 
+  await backfillPrimaryClassTeachers();
+
   return {
     message: `${createdTeachersCount} ta yangi vakant o'qituvchi yaratildi. Jami darslar DTS asosida yangilandi.`,
     teachersCreated: createdTeachersCount,
@@ -251,6 +274,9 @@ function countEligibleTeachers(
   weeklyHours: number,
 ): number {
   const language = classInfo ? (classInfo.language || "uz") : "uz";
+  const classPrimaryTeacherId = classInfo
+    ? findClassPrimaryTeacherId(classInfo.id, allTeachers, teacherClassMap, language, classInfo.classTeacherId)
+    : null;
   return allTeachers.filter((t) =>
     scoreTeacherForSubject(
       {
@@ -266,6 +292,8 @@ function countEligibleTeachers(
         language,
         weeklyHours,
         classId: classInfo?.id,
+        classTeacherId: classInfo?.classTeacherId ?? null,
+        classPrimaryTeacherId,
       },
     ) >= 0,
   ).length;
@@ -346,7 +374,47 @@ function findTeacherForClassSubject(
     language: classInfo ? (classInfo.language || "uz") : "uz",
     weeklyHours,
     classId: classInfo?.id,
+    classTeacherId: classInfo?.classTeacherId ?? null,
+    // classPrimaryTeacherId ni pickBestTeacher teacherClassMap'dan o'zi aniqlaydi
   }, teacherClassMap);
+}
+
+// 3271-son nizom: boshlang'ich sinfning asosiy fanlarini olgan o'qituvchi sinf rahbari hisoblanadi.
+// Taqsimlashdan so'ng rahbari belgilanmagan 1-4 sinflarga konsolidatsiyalangan primary
+// o'qituvchini avtomatik yozadi. Qo'lda tanlangan rahbarni hech qachon qayta yozmaydi,
+// 5-11 sinflarga tegmaydi (u yerda rahbar ma'muriy tanlov).
+async function backfillPrimaryClassTeachers(classIds?: number[]): Promise<number> {
+  const [allClasses, allTeachers, allClassSubjects] = await Promise.all([
+    storage.getClasses(),
+    storage.getTeachers(),
+    storage.getAllClassSubjects(),
+  ]);
+
+  const teacherClassMap = new Map<number, Set<number>>();
+  for (const cs of allClassSubjects) {
+    if (cs.teacherId) {
+      if (!teacherClassMap.has(cs.teacherId)) teacherClassMap.set(cs.teacherId, new Set());
+      teacherClassMap.get(cs.teacherId)!.add(cs.classId);
+    }
+  }
+
+  // Bir o'qituvchi faqat bitta sinfga rahbar — allaqachon rahbar bo'lganlar band
+  const takenTeacherIds = new Set(allClasses.map(c => c.classTeacherId).filter((id): id is number => id != null));
+
+  let updated = 0;
+  for (const cls of allClasses) {
+    if (cls.classTeacherId) continue;
+    const grade = parseGrade(cls.grade);
+    if (grade < 1 || grade > 4) continue;
+    if (classIds && classIds.length > 0 && !classIds.includes(cls.id)) continue;
+    const ownerId = findClassPrimaryTeacherId(cls.id, allTeachers, teacherClassMap, cls.language || "uz");
+    if (ownerId != null && !takenTeacherIds.has(ownerId)) {
+      await storage.updateClass(cls.id, { classTeacherId: ownerId });
+      takenTeacherIds.add(ownerId);
+      updated++;
+    }
+  }
+  return updated;
 }
 
 // ─── Faqat bo'sh fanlarni biriktirish ─────────────────────────────────────────
@@ -384,6 +452,13 @@ export async function autoDistributeUnassignedOnly(classIds?: number[]) {
     unassignedCS = unassignedCS.filter((cs) => classIds.includes(cs.classId));
   }
 
+  // Sinf boyicha ketma-ket (kichik sinflar avval) — konsolidatsiya bitta sinf ichida uzluksiz ishlashi uchun
+  const gradeOf = new Map(allClasses.map(c => [c.id, parseGrade(c.grade)]));
+  unassignedCS.sort((a, b) =>
+    (gradeOf.get(a.classId) || 0) - (gradeOf.get(b.classId) || 0) ||
+    a.classId - b.classId || a.subjectId - b.subjectId,
+  );
+
   for (const cs of unassignedCS) {
     const classInfo = allClasses.find(c => c.id === cs.classId);
     const subject = allSubjects.find(s => s.id === cs.subjectId);
@@ -419,8 +494,11 @@ export async function autoDistributeUnassignedOnly(classIds?: number[]) {
     await storage.setClassSubjects(classId, items);
   }
 
+  const backfilled = await backfillPrimaryClassTeachers(classIds);
+  const backfillNote = backfilled > 0 ? ` ${backfilled} ta boshlang'ich sinfga sinf rahbari avtomatik belgilandi.` : "";
+
   return {
-    message: `${assignedCount} ta bo'sh dars o'qituvchilarga avtomatik taqsimlandi.`,
+    message: `${assignedCount} ta bo'sh dars o'qituvchilarga avtomatik taqsimlandi.${backfillNote}`,
     assignedCount,
   };
 }
@@ -542,7 +620,14 @@ export async function autoAssignDtsForClasses(classIds: number[]) {
   let assignedCount = 0;
   let preservedTeachers = 0;
 
-  for (const classId of classIds) {
+  // Kichik sinflar avval — primary konsolidatsiya deterministik ishlashi uchun
+  const sortedClassIds = [...classIds].sort((a, b) => {
+    const ga = parseGrade(allClasses.find(c => c.id === a)?.grade);
+    const gb = parseGrade(allClasses.find(c => c.id === b)?.grade);
+    return ga - gb || a - b;
+  });
+
+  for (const classId of sortedClassIds) {
     const cls = allClasses.find(c => c.id === classId);
     if (!cls) continue;
 

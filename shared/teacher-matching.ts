@@ -1,5 +1,5 @@
 import type { Teacher } from "./schema";
-import { isPrimaryTeacherAllowedSubject, parseGrade } from "./constants";
+import { isClassHourSubject, isPrimaryTeacherAllowedSubject, parseGrade } from "./constants";
 import { getSpecialty } from "./curriculum";
 
 const UNIVERSAL_SUBJECTS = [
@@ -33,6 +33,10 @@ export interface TeacherMatchContext {
   language?: string;
   weeklyHours: number;
   classId?: number;
+  /** Sinf rahbari (classes.classTeacherId) — sinf soati va primary konsolidatsiyada qattiq ustuvor. */
+  classTeacherId?: number | null;
+  /** Shu sinf fanlarini allaqachon olgan boshlang'ich o'qituvchi (callerda teacherClassMap'dan hisoblanadi). */
+  classPrimaryTeacherId?: number | null;
 }
 
 export interface TeacherMatchInput {
@@ -60,6 +64,23 @@ export function scoreTeacherForSubject(
 
   const teacherGradeLevels = resolveTeacherGradeLevels(teacher, language);
   const isPrimaryTeacher = teacherGradeLevels.includes("primary");
+
+  // Sinf soati (Tarbiya/Kelajak soati) — sinf rahbari belgilangan bo'lsa, faqat u o'tadi.
+  // Yuqori sinf rahbari mutaxassisligidan qat'i nazar oladi (specialty tekshiruvisiz).
+  if (isClassHourSubject(ctx.subjectName) && ctx.classTeacherId != null) {
+    if (teacher.id !== ctx.classTeacherId) return -1;
+    const rahbarMaxHours = teacher.maxHoursPerWeek || 30;
+    if (currentHours + ctx.weeklyHours > rahbarMaxHours) return -1;
+    return 1000 - currentHours;
+  }
+
+  // Boshlang'ich konsolidatsiya (3271-son nizom): sinfning asosiy fanlari egasi
+  // aniqlangan bo'lsa (sinf rahbari yoki sinfga allaqachon kirgan primary o'qituvchi),
+  // boshqa hech kim bu fanlarni ololmaydi — qattiq qoida.
+  if (isPrimaryClass && isPrimarySubjectAllowed) {
+    const owner = ctx.classPrimaryTeacherId ?? null;
+    if (owner != null && teacher.id !== owner) return -1;
+  }
 
   // Primary o'qituvchi faqat bitta sinfda dars bera oladi cheklovi
   if (isPrimaryTeacher && input.assignedClassIds && ctx.classId) {
@@ -104,10 +125,46 @@ export function scoreTeacherForSubject(
   else score += 40;
 
   if (specialization.includes(ctx.subjectName.toLowerCase())) score += 30;
+  // Sinf egasi (konsolidatsiya) — mutaxassislardan ham, yuklama jarimasidan ham ustun tursin
+  if (
+    isPrimaryClass && isPrimarySubjectAllowed &&
+    ctx.classPrimaryTeacherId != null && teacher.id === ctx.classPrimaryTeacherId
+  ) {
+    score += 500;
+  }
   score -= currentHours;
   score -= subjectIds.size * 2;
 
   return score;
+}
+
+/**
+ * Sinfning asosiy fanlari "egasi"ni aniqlaydi (3271-son nizom konsolidatsiyasi uchun):
+ * 1) sinf rahbari boshlang'ich o'qituvchi bo'lsa — u;
+ * 2) aks holda sinfga allaqachon fan olgan boshlang'ich o'qituvchi (deterministik: eng kichik id);
+ * 3) topilmasa — null (yangi sinf, erkin tanlov).
+ * Natija TeacherMatchContext.classPrimaryTeacherId sifatida uzatiladi.
+ */
+export function findClassPrimaryTeacherId(
+  classId: number,
+  teachers: Teacher[],
+  teacherClassMap: Map<number, Set<number>>,
+  language = "uz",
+  classTeacherId?: number | null,
+): number | null {
+  if (classTeacherId != null) {
+    const rahbar = teachers.find(t => t.id === classTeacherId);
+    if (rahbar && resolveTeacherGradeLevels(rahbar, language).includes("primary")) {
+      return classTeacherId;
+    }
+  }
+  const candidates = teachers
+    .filter(t =>
+      resolveTeacherGradeLevels(t, language).includes("primary") &&
+      teacherClassMap.get(t.id)?.has(classId),
+    )
+    .sort((a, b) => a.id - b.id);
+  return candidates[0]?.id ?? null;
 }
 
 export function pickBestTeacher(
@@ -117,6 +174,17 @@ export function pickBestTeacher(
   ctx: TeacherMatchContext,
   teacherClassMap?: Map<number, Set<number>>,
 ): Teacher | null {
+  // Konsolidatsiya egasi berilmagan bo'lsa, teacherClassMap'dan o'zi aniqlaydi
+  const resolvedCtx: TeacherMatchContext =
+    ctx.classPrimaryTeacherId === undefined && teacherClassMap && ctx.classId != null
+      ? {
+          ...ctx,
+          classPrimaryTeacherId: findClassPrimaryTeacherId(
+            ctx.classId, teachers, teacherClassMap, ctx.language || "uz", ctx.classTeacherId,
+          ),
+        }
+      : ctx;
+
   const scored = teachers
     .map(teacher => ({
       teacher,
@@ -127,7 +195,7 @@ export function pickBestTeacher(
           currentHours: teacherLoadMap.get(teacher.id) || 0,
           assignedClassIds: teacherClassMap?.get(teacher.id) || new Set(),
         },
-        ctx,
+        resolvedCtx,
       ),
     }))
     .filter(x => x.score >= 0)

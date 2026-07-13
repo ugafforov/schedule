@@ -1,6 +1,6 @@
 import { db } from "../db";
 import {
-  subjects, rooms, timeSlots, curriculumPlans, curriculumEntries,
+  subjects, rooms, timeSlots, curriculumPlans, curriculumEntries, appSettings,
   type Subject, type InsertSubject,
   type Room, type InsertRoom, type TimeSlot, type InsertTimeSlot,
   type CurriculumPlan, type InsertCurriculumPlan, type CurriculumEntry, type InsertCurriculumEntry,
@@ -101,5 +101,15 @@ export class CoreStorage {
   async deleteCurriculumEntry(id: number): Promise<boolean> {
     const r = await db.delete(curriculumEntries).where(eq(curriculumEntries.id, id));
     return (r.rowCount || 0) > 0;
+  }
+
+  // App settings (key-value)
+  async getSetting(key: string): Promise<string | undefined> {
+    const [r] = await db.select().from(appSettings).where(eq(appSettings.key, key));
+    return r?.value;
+  }
+  async setSetting(key: string, value: string): Promise<void> {
+    await db.insert(appSettings).values({ key, value })
+      .onConflictDoUpdate({ target: appSettings.key, set: { value } });
   }
 }

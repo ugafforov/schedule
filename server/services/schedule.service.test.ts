@@ -18,6 +18,7 @@ vi.mock("../storage/index", () => ({
     getTeachers: vi.fn(),
     getJointLessons: vi.fn(),
     getScheduleEntries: vi.fn(),
+    getSetting: vi.fn(),
     createScheduleEntriesBulk: vi.fn(),
     createConflict: vi.fn(),
     clearScheduleForClass: vi.fn(),
@@ -344,5 +345,86 @@ describe("generateSchedule — room constraints", () => {
     const mockCalls = (storage.createScheduleEntriesBulk as any).mock.calls;
     const entries = mockCalls[0][0];
     expect(entries.every((e: any) => e.classId === 1 && e.roomId === 1)).toBe(true);
+  });
+});
+
+describe("generateSchedule — Sinf soati pinning (3271-son nizom)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const fixture = buildFixture();
+    (storage.getTimeSlots as any).mockResolvedValue(buildTimeSlots());
+    (storage.getClasses as any).mockResolvedValue(fixture.classes);
+    (storage.getRooms as any).mockResolvedValue(fixture.rooms);
+    (storage.getSubjects as any).mockResolvedValue([
+      ...fixture.subjects,
+      { id: 3, name: "Tarbiya", code: "TARB", requiredRoomType: "any", isActive: true },
+    ]);
+    (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
+    (storage.getTeachers as any).mockResolvedValue([]);
+    (storage.getJointLessons as any).mockResolvedValue([]);
+    (storage.getScheduleEntries as any).mockResolvedValue([]);
+    (storage.getSetting as any).mockResolvedValue(undefined); // default: dushanba 1-dars
+    (storage.createScheduleEntriesBulk as any).mockImplementation(async (entries: any[]) =>
+      entries.map((e, i) => ({ ...e, id: i + 1 }))
+    );
+    (storage.createConflict as any).mockResolvedValue({});
+  });
+
+  function tarbiyaEntries() {
+    const mockCalls = (storage.createScheduleEntriesBulk as any).mock.calls;
+    const entries = mockCalls[0][0];
+    return entries.filter((e: any) => e.subjectId === 3);
+  }
+
+  it("Tarbiya har sinfda default slotga (dushanba 1-dars) tushadi", async () => {
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 3, teacherId: 30, teacherId2: null, weeklyHours: 1 },
+      { id: 2, classId: 2, subjectId: 3, teacherId: 40, teacherId2: null, weeklyHours: 1 },
+      { id: 3, classId: 1, subjectId: 1, teacherId: 10, teacherId2: null, weeklyHours: 5 },
+    ]);
+
+    const result = await generateSchedule({});
+    expect(result.coverage).toBe(100);
+
+    const slots = buildTimeSlots();
+    for (const e of tarbiyaEntries()) {
+      const slot = slots.find(s => s.id === e.timeSlotId)!;
+      expect(Number(slot.dayOfWeek)).toBe(1);
+      expect(Number(slot.periodNumber)).toBe(1);
+    }
+  });
+
+  it("sozlamadagi boshqa slot (chorshanba 2-dars) hurmat qilinadi", async () => {
+    (storage.getSetting as any).mockResolvedValue(JSON.stringify({ dayOfWeek: 3, periodNumber: 2 }));
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 3, teacherId: 30, teacherId2: null, weeklyHours: 1 },
+    ]);
+
+    await generateSchedule({});
+    const slots = buildTimeSlots();
+    const [e] = tarbiyaEntries();
+    const slot = slots.find(s => s.id === e.timeSlotId)!;
+    expect(Number(slot.dayOfWeek)).toBe(3);
+    expect(Number(slot.periodNumber)).toBe(2);
+  });
+
+  it("bitta rahbar 2 sinfda: biri belgilangan slotda, ikkinchisi fallback + past darajali konflikt", async () => {
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 3, teacherId: 30, teacherId2: null, weeklyHours: 1 },
+      { id: 2, classId: 2, subjectId: 3, teacherId: 30, teacherId2: null, weeklyHours: 1 },
+    ]);
+
+    const result = await generateSchedule({});
+    expect(result.coverage).toBe(100); // fallback tufayli baribir joylashadi
+
+    const slots = buildTimeSlots();
+    const pinnedCount = tarbiyaEntries().filter((e: any) => {
+      const slot = slots.find(s => s.id === e.timeSlotId)!;
+      return Number(slot.dayOfWeek) === 1 && Number(slot.periodNumber) === 1;
+    }).length;
+    expect(pinnedCount).toBe(1);
+
+    const conflictCalls = (storage.createConflict as any).mock.calls.map((c: any[]) => c[0]);
+    expect(conflictCalls.some((c: any) => c.conflictType === "class_hour_slot" && c.severity === "low")).toBe(true);
   });
 });

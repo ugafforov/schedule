@@ -86,6 +86,9 @@ export interface IStorage {
   updateCurriculumEntry(id: number, data: Partial<InsertCurriculumEntry>): Promise<CurriculumEntry | undefined>;
   deleteCurriculumEntry(id: number): Promise<boolean>;
 
+  getSetting(key: string): Promise<string | undefined>;
+  setSetting(key: string, value: string): Promise<void>;
+
   getDashboardStats(): Promise<{
     totalClasses: number;
     totalTeachers: number;

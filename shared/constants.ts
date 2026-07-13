@@ -26,6 +26,27 @@ export function isPrimaryTeacherAllowedSubject(subjectName: string): boolean {
 }
 
 /**
+ * "Sinf soati" (Kelajak soati) darsini aniqlaydi — 3271-son nizomga ko'ra bu dars
+ * sinf rahbari tomonidan, belgilangan vaqtda (default: dushanba 1-soat) o'tiladi.
+ * DTS'da bu dars "Tarbiya" nomi bilan yuritiladi.
+ */
+export function isClassHourSubject(subjectName: string): boolean {
+  const name = subjectName.toLowerCase().trim();
+  // startsWith — "Jismoniy tarbiya" ni yanglish moslashdan saqlaydi
+  return (
+    name.startsWith("tarbiya") ||
+    name.includes("sinf soati") ||
+    name.includes("kelajak soati")
+  );
+}
+
+/** Sinf soati uchun standart vaqt: dushanba (1), 1-dars. */
+export const DEFAULT_CLASS_HOUR_SLOT = { dayOfWeek: 1, periodNumber: 1 };
+
+/** app_settings jadvalidagi sinf soati vaqti kaliti. */
+export const CLASS_HOUR_SLOT_SETTING_KEY = "classHourSlot";
+
+/**
  * classes.grade matn maydonidan raqamli sinf darajasini oladi.
  * "5", "5A", "5-A" kabi qiymatlarni to'g'ri qayta ishlaydi ("5A" uchun parseInt ham 5
  * qaytaradi, lekin bu helper niyatni aniq ifodalaydi va noto'g'ri qiymatda 0 qaytaradi).

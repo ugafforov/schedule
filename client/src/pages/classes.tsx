@@ -18,9 +18,9 @@ import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 interface SubjectAssignment { subjectId: number; teacherId: number | null; teacherId2: number | null; weeklyHours: number; }
-interface ClassFormData { name: string; grade: string; section: string; language: string; totalStudents: number; studyDays: string; defaultRoomId: number | null; subjects: SubjectAssignment[]; }
+interface ClassFormData { name: string; grade: string; section: string; language: string; totalStudents: number; studyDays: string; defaultRoomId: number | null; classTeacherId: number | null; subjects: SubjectAssignment[]; }
 
-const EMPTY_FORM: ClassFormData = { name: "", grade: "", section: "", language: "uz", totalStudents: 25, studyDays: "1,2,3,4,5", defaultRoomId: null, subjects: [] };
+const EMPTY_FORM: ClassFormData = { name: "", grade: "", section: "", language: "uz", totalStudents: 25, studyDays: "1,2,3,4,5", defaultRoomId: null, classTeacherId: null, subjects: [] };
 const GRADE_COLORS = [
   "bg-blue-500/10 text-blue-700 dark:text-blue-400", "bg-green-500/10 text-green-700 dark:text-green-400", "bg-purple-500/10 text-purple-700 dark:text-purple-400",
   "bg-orange-500/10 text-orange-700 dark:text-orange-400", "bg-pink-500/10 text-pink-700 dark:text-pink-400", "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400",
@@ -285,7 +285,7 @@ export default function Classes() {
     } catch (e) {
       console.error("Error fetching class subjects:", e);
     }
-    setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", language: (cls as any).language || "uz", totalStudents: cls.totalStudents || 25, studyDays: (cls as any).studyDays || "1,2,3,4,5", defaultRoomId: cls.defaultRoomId || null, subjects: subs });
+    setForm({ name: cls.name || "", grade: cls.grade || "", section: cls.section || "", language: (cls as any).language || "uz", totalStudents: cls.totalStudents || 25, studyDays: (cls as any).studyDays || "1,2,3,4,5", defaultRoomId: cls.defaultRoomId || null, classTeacherId: (cls as any).classTeacherId || null, subjects: subs });
     setActiveTab("info"); setOpen(true);
   };
 
@@ -301,6 +301,26 @@ export default function Classes() {
   const filtered = classes.filter(c => `${c.name} ${c.grade} ${c.section}`.toLowerCase().includes(search.toLowerCase()));
   const subjectName = (id: number) => subjects.find(s => s.id === id)?.name || "?";
   const unassignedSubjects = subjects.filter(s => !form.subjects.find(fs => fs.subjectId === s.id));
+
+  const isPrimaryGradeForm = (() => { const g = parseInt(form.grade); return g >= 1 && g <= 4; })();
+  // Bir o'qituvchi faqat bitta sinfga rahbar bo'la oladi — boshqa sinfga rahbar bo'lganlar ro'yxatdan chiqariladi
+  const takenClassTeacherIds = new Set(
+    classes.filter(c => (c as any).classTeacherId && c.id !== editing?.id).map(c => (c as any).classTeacherId as number),
+  );
+  const availableTeachers = teachers.filter(t => !takenClassTeacherIds.has(t.id));
+  // 1-4 sinf uchun boshlang'ich o'qituvchilar ro'yxat boshida (qattiq cheklov emas — admin istalganini tanlashi mumkin)
+  const classTeacherOptions = isPrimaryGradeForm
+    ? [...availableTeachers].sort((a, b) => {
+        const ap = String((a as any).gradeLevel || "").includes("primary") ? 0 : 1;
+        const bp = String((b as any).gradeLevel || "").includes("primary") ? 0 : 1;
+        return ap - bp || a.id - b.id;
+      })
+    : availableTeachers;
+  const classTeacherName = (id: number | null | undefined) => {
+    if (!id) return null;
+    const t = teachers.find(x => x.id === id);
+    return t ? `${t.firstName} ${t.lastName}`.trim() || t.employeeId : null;
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -409,6 +429,11 @@ export default function Classes() {
                         {(cls as any).language || "uz"}
                       </Badge>
                     </div>
+                    {classTeacherName((cls as any).classTeacherId) && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate" title="Sinf rahbari">
+                        Rahbar: {classTeacherName((cls as any).classTeacherId)}
+                      </p>
+                    )}
                     <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
                       <div className="flex items-center space-x-1 text-muted-foreground/60">
                         <Users className="h-3.5 w-3.5" /><span className="text-xs">{cls.totalStudents} o'quvchi</span>
@@ -472,6 +497,11 @@ export default function Classes() {
                             className="text-xs text-muted-foreground/60"
                             disabled={isUpdating}
                           />
+                          {classTeacherName((cls as any).classTeacherId) && (
+                            <p className="text-xs text-muted-foreground truncate" title="Sinf rahbari">
+                              Rahbar: {classTeacherName((cls as any).classTeacherId)}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <InlineSelect
@@ -544,7 +574,7 @@ export default function Classes() {
 
       {/* Single add/edit dialog */}
       <Dialog open={open} onOpenChange={v => { setOpen(v); if (!v) setEditing(null); }}>
-        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Sinfni tahrirlash" : "Yangi sinf qo'shish"}</DialogTitle>
           </DialogHeader>
@@ -557,62 +587,86 @@ export default function Classes() {
             ))}
           </div>
           {activeTab === "info" && (
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label className="text-sm">Ta'lim tili</Label>
-                <Select value={form.language} onValueChange={v => setForm(p => ({ ...p, language: v }))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Tilni tanlang" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="uz">O'zbek tili</SelectItem>
-                    <SelectItem value="ru">Rus tili</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Sinf nomi *</Label>
+                  <Input className="h-9" placeholder="Masalan: 9-A" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Ta'lim tili</Label>
+                  <Select value={form.language} onValueChange={v => setForm(p => ({ ...p, language: v }))}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Til" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uz">O'zbek tili</SelectItem>
+                      <SelectItem value="ru">Rus tili</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Sinf nomi *</Label>
-                <Input placeholder="Masalan: 9-A" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Sinf raqami</Label>
+                  <Input className="h-9" placeholder="9" value={form.grade} onChange={e => setForm(p => ({ ...p, grade: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Guruh</Label>
+                  <Input className="h-9" placeholder="A" value={form.section} onChange={e => setForm(p => ({ ...p, section: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">O'quvchilar</Label>
+                  <Input className="h-9" type="number" min={1} max={50} value={form.totalStudents} onChange={e => setForm(p => ({ ...p, totalStudents: parseInt(e.target.value) || 25 }))} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Sinf raqami</Label>
-                  <Input placeholder="9" value={form.grade} onChange={e => setForm(p => ({ ...p, grade: e.target.value }))} />
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">O'quv kunlari</Label>
+                  <Select value={form.studyDays} onValueChange={v => setForm(p => ({ ...p, studyDays: v }))}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Kunlar" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1,2,3,4,5">5 kunlik (Du - Ju)</SelectItem>
+                      <SelectItem value="1,2,3,4,5,6">6 kunlik (Du - Sh)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Guruh</Label>
-                  <Input placeholder="A" value={form.section} onChange={e => setForm(p => ({ ...p, section: e.target.value }))} />
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Asosiy xona</Label>
+                  <Select value={form.defaultRoomId ? String(form.defaultRoomId) : "none"} onValueChange={v => setForm(p => ({ ...p, defaultRoomId: v === "none" ? null : parseInt(v) }))}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Xona" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none"><span className="text-muted-foreground/60">Xona yo'q</span></SelectItem>
+                      {rooms.map(r => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.name} ({r.roomNumber})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">O'quvchilar soni</Label>
-                <Input type="number" min={1} max={50} value={form.totalStudents} onChange={e => setForm(p => ({ ...p, totalStudents: parseInt(e.target.value) || 25 }))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">O'quv kunlari</Label>
-                <Select value={form.studyDays} onValueChange={v => setForm(p => ({ ...p, studyDays: v }))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="O'quv kunlarini tanlang" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1,2,3,4,5">5 kunlik (Dushanba - Juma)</SelectItem>
-                    <SelectItem value="1,2,3,4,5,6">6 kunlik (Dushanba - Shanba)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Asosiy xona (ixtiyoriy)</Label>
-                <Select value={form.defaultRoomId ? String(form.defaultRoomId) : "none"} onValueChange={v => setForm(p => ({ ...p, defaultRoomId: v === "none" ? null : parseInt(v) }))}>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Sinf rahbari</Label>
+                <Select value={form.classTeacherId ? String(form.classTeacherId) : "none"} onValueChange={v => setForm(p => ({ ...p, classTeacherId: v === "none" ? null : parseInt(v) }))}>
                   <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Asosiy xonani tanlang" />
+                    <SelectValue placeholder="Sinf rahbarini tanlang" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none"><span className="text-muted-foreground/60">Asosiy xona yo'q</span></SelectItem>
-                    {rooms.map(r => (
-                      <SelectItem key={r.id} value={String(r.id)}>
-                        {r.name} ({r.roomNumber})
+                    <SelectItem value="none"><span className="text-muted-foreground/60">Sinf rahbari yo'q</span></SelectItem>
+                    {classTeacherOptions.map(t => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {`${t.firstName} ${t.lastName}`.trim() || t.employeeId}
+                        {isPrimaryGradeForm && String((t as any).gradeLevel || "").includes("primary") ? " · boshlang'ich" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {isPrimaryGradeForm && (
+                  <p className="text-xs text-muted-foreground">Bo'sh qoldirilsa, avtomatik taqsimlashda belgilanadi.</p>
+                )}
               </div>
-              <Button variant="outline" size="sm" onClick={() => setActiveTab("subjects")} className="w-full">
+              <Button variant="outline" size="sm" onClick={() => setActiveTab("subjects")} className="w-full h-8 text-xs">
                 Fanlarni belgilash <ChevronRight className="ml-1 h-3.5 w-3.5" />
               </Button>
             </div>

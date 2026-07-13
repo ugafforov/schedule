@@ -2,7 +2,7 @@ import { storage } from "../storage/index";
 import { db } from "../db";
 import { scheduleEntries, timeSlots, type InsertScheduleEntry, type ScheduleEntry } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory, getMaxDailyComplexity } from "@shared/constants";
+import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory, getMaxDailyComplexity, isClassHourSubject, CLASS_HOUR_SLOT_SETTING_KEY, DEFAULT_CLASS_HOUR_SLOT } from "@shared/constants";
 import { DomainError } from "../errors";
 import { attemptRelocations, minimizeGaps, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
 
@@ -344,6 +344,13 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   const slots = await ensureTimeSlots();
   const activeSlots = slots.filter((s) => !s.isBreak);
 
+  // Sinf soati (Tarbiya/Kelajak soati) belgilangan vaqti — default: dushanba 1-dars
+  let classHourSlot = DEFAULT_CLASS_HOUR_SLOT;
+  try {
+    const raw = await storage.getSetting(CLASS_HOUR_SLOT_SETTING_KEY);
+    if (raw) classHourSlot = JSON.parse(raw);
+  } catch { /* buzilgan qiymatda default qoladi */ }
+
   const [allClasses, allRooms, allClassSubjects, allSubjects, allUnavailability, allTeachers, allJointLessons] =
     await Promise.all([
       storage.getClasses(),
@@ -396,6 +403,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     groups?: Array<{ groupName: string; teacherId: number; roomId?: number | null }>;
     roomId?: number | null;
     defaultRoomId?: number | null;
+    /** Sinf soati kabi belgilangan vaqtga majburiy darslar; topilmasa oddiy qidiruvga fallback */
+    pinned?: { dayOfWeek: number; periodNumber: number };
   }
 
   const lessonsToSchedule: LessonRequirement[] = [];
@@ -436,6 +445,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           weekType: "always",
           roomId: (cs as any).roomId || null,
           defaultRoomId: cls.defaultRoomId || null,
+          // Sinf soati haftada 1 marta belgilangan slotga qo'yiladi (barcha sinflar)
+          pinned: i === 0 && isClassHourSubject(sub?.name || "") ? classHourSlot : undefined,
         });
       }
       
@@ -541,6 +552,10 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     teacherUnavailCount.set(u.teacherId, (teacherUnavailCount.get(u.teacherId) || 0) + 1);
   }
   precomputedLessons.sort((a, b) => {
+    // Belgilangan vaqtli (pinned) darslar eng avval — sloti band bo'lib qolmasin
+    const pinA = a.pinned ? 1 : 0;
+    const pinB = b.pinned ? 1 : 0;
+    if (pinB !== pinA) return pinB - pinA;
     const jointA = (a.isJoint ? 1 : 0) + (a.teacherId2 ? 1 : 0);
     const jointB = (b.isJoint ? 1 : 0) + (b.teacherId2 ? 1 : 0);
     if (jointB !== jointA) return jointB - jointA;
@@ -688,11 +703,20 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     let leastConflicts = 9999;
     let bestConflictReasons: string[] = [];
 
+    // Pinned dars: avval faqat belgilangan slotda, topilmasa oddiy qidiruvga fallback
+    for (let pinAttempt = 0; pinAttempt < (lesson.pinned ? 2 : 1); pinAttempt++) {
+    const usePin = !!lesson.pinned && pinAttempt === 0;
+
     // Try to find the best slot
     for (const slot of activeSlots) {
       const day = slot.dayOfWeek;
       const slotId = slot.id;
-      
+
+      if (usePin && lesson.pinned &&
+        (Number(day) !== lesson.pinned.dayOfWeek || Number(slot.periodNumber) !== lesson.pinned.periodNumber)) {
+        continue;
+      }
+
       if (lesson.isJoint && lesson.classIds && lesson.groups) {
         // --- Joint Lesson Logic ---
         // 1. Check if all classes study on this day (hard constraint)
@@ -896,6 +920,19 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       }
     }
 
+    if (bestSlot || !lesson.pinned) break;
+    if (usePin) {
+      // Belgilangan slot band — oddiy qidiruvga o'tamiz va past darajali ziddiyat qayd etamiz
+      const dayName = ["", "dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba"][lesson.pinned.dayOfWeek] || "";
+      generatedConflicts.push({
+        conflictType: "class_hour_slot",
+        description: `Sinf soati belgilangan vaqtga (${dayName} ${lesson.pinned.periodNumber}-dars) joylashtirilmadi — sinf: ${lesson.classId}, boshqa vaqt qidirildi.`,
+        severity: "low",
+        _key: { classId: lesson.classId, subjectId: lesson.subjectId, teacherId: lesson.teacherId, timeSlotId: 0, weekType: lesson.weekType },
+      });
+    }
+    }
+
     // Apply best slot
     if (bestSlot && bestRoom1) {
       const day = bestSlot.dayOfWeek;
@@ -1019,7 +1056,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
 
         // Faqat oddiy (bitta o'qituvchili) darslar keyinroq xavfsiz ko'chirilishi mumkin —
         // split (teacherId2) darslarni bitta tomonini ko'chirish juftlikni buzadi.
-        if (!lesson.teacherId2) {
+        if (!lesson.teacherId2 && !lesson.pinned) {
           const classStudyDaysForMove = lesson.studyDays ? lesson.studyDays.split(",").map(Number) : [1, 2, 3, 4, 5];
           movableLessons.push({
             index: finalSchedule.length - 1,

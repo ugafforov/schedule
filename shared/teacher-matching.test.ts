@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Teacher } from "./schema";
+import { isClassHourSubject } from "./constants";
 import {
+  findClassPrimaryTeacherId,
   isUniversalSubject,
   pickBestTeacher,
   resolveTeacherGradeLevels,
@@ -124,5 +126,154 @@ describe("pickBestTeacher", () => {
       mathCtx, // 2 + 4 > 2
     );
     expect(best).toBeNull();
+  });
+});
+
+describe("isClassHourSubject", () => {
+  it("Tarbiya / Sinf soati / Kelajak soati fanlarini taniydi", () => {
+    expect(isClassHourSubject("Tarbiya")).toBe(true);
+    expect(isClassHourSubject("Sinf soati")).toBe(true);
+    expect(isClassHourSubject("Kelajak soati")).toBe(true);
+  });
+
+  it("Jismoniy tarbiya sinf soati emas", () => {
+    expect(isClassHourSubject("Jismoniy tarbiya")).toBe(false);
+    expect(isClassHourSubject("Matematika")).toBe(false);
+  });
+});
+
+describe("sinf soati override (sinf rahbari)", () => {
+  const tarbiyaCtx: TeacherMatchContext = {
+    subjectId: 20,
+    subjectName: "Tarbiya",
+    classGrade: "8",
+    weeklyHours: 1,
+    classId: 7,
+    classTeacherId: 3,
+  };
+
+  it("sinf rahbari mutaxassisligidan qat'i nazar sinf soatini oladi", () => {
+    const fizik = makeTeacher({ id: 3, specialization: "Fizika" });
+    const score = scoreTeacherForSubject(
+      { teacher: fizik, teacherSubjectIds: [], currentHours: 10 },
+      tarbiyaCtx,
+    );
+    expect(score).toBeGreaterThan(0);
+  });
+
+  it("rahbar bo'lmagan o'qituvchi sinf soatini ololmaydi", () => {
+    const boshqa = makeTeacher({ id: 5, specialization: "Tarbiya" });
+    expect(
+      scoreTeacherForSubject({ teacher: boshqa, teacherSubjectIds: [20], currentHours: 0 }, tarbiyaCtx),
+    ).toBe(-1);
+  });
+
+  it("rahbar limiti oshsa -1", () => {
+    const fizik = makeTeacher({ id: 3, maxHoursPerWeek: 10 });
+    expect(
+      scoreTeacherForSubject({ teacher: fizik, teacherSubjectIds: [], currentHours: 10 }, tarbiyaCtx),
+    ).toBe(-1);
+  });
+
+  it("rahbar belgilanmagan bo'lsa eski xatti-harakat saqlanadi", () => {
+    const tarbiyachi = makeTeacher({ id: 5, specialization: "Tarbiya" });
+    const score = scoreTeacherForSubject(
+      { teacher: tarbiyachi, teacherSubjectIds: [20], currentHours: 0 },
+      { ...tarbiyaCtx, classTeacherId: undefined },
+    );
+    expect(score).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("boshlang'ich konsolidatsiya (3271-son nizom)", () => {
+  const primary = (id: number) =>
+    makeTeacher({ id, gradeLevel: "primary", specialization: "Boshlang'ich ta'lim" });
+
+  const coreCtx = (subjectName: string, extra: Partial<TeacherMatchContext> = {}): TeacherMatchContext => ({
+    subjectId: 30,
+    subjectName,
+    classGrade: "1",
+    weeklyHours: 5,
+    classId: 100,
+    ...extra,
+  });
+
+  it("egasi aniqlangan sinfda boshqa primary o'qituvchi -1 oladi", () => {
+    const t2 = primary(2);
+    expect(
+      scoreTeacherForSubject(
+        { teacher: t2, teacherSubjectIds: [30], currentHours: 0 },
+        coreCtx("Matematika", { classPrimaryTeacherId: 1 }),
+      ),
+    ).toBe(-1);
+  });
+
+  it("egasi yuklamasi ko'p bo'lsa ham fanni oladi (bonus jarimadan ustun)", () => {
+    const owner = primary(1);
+    const score = scoreTeacherForSubject(
+      { teacher: owner, teacherSubjectIds: [30], currentHours: 15, assignedClassIds: [100] },
+      coreCtx("Matematika", { classPrimaryTeacherId: 1 }),
+    );
+    expect(score).toBeGreaterThan(400);
+  });
+
+  it("regression: birinchi fan T1 ga tushgach, keyingi fan ham T1 ga boradi", () => {
+    const t1 = primary(1);
+    const t2 = primary(2);
+    const teacherSubjectMap = new Map([[1, new Set([30])], [2, new Set([30])]]);
+    const teacherLoadMap = new Map([[1, 0], [2, 0]]);
+    const teacherClassMap = new Map<number, Set<number>>();
+
+    // 1-fan: Ona tili — T1 tanlanadi (id kichik, yuklama teng)
+    const first = pickBestTeacher([t1, t2], teacherSubjectMap, teacherLoadMap,
+      coreCtx("Ona tili"), teacherClassMap);
+    expect(first?.id).toBe(1);
+    teacherLoadMap.set(1, 10);
+    teacherClassMap.set(1, new Set([100]));
+
+    // 2-fan: Matematika — yuklama tenglashiga qaramay T1 (T2 emas!)
+    const second = pickBestTeacher([t1, t2], teacherSubjectMap, teacherLoadMap,
+      coreCtx("Matematika"), teacherClassMap);
+    expect(second?.id).toBe(1);
+
+    // Boshqa sinf (101) uchun esa T2 tanlanadi
+    const otherClass = pickBestTeacher([t1, t2], teacherSubjectMap, teacherLoadMap,
+      coreCtx("Ona tili", { classId: 101 }), teacherClassMap);
+    expect(otherClass?.id).toBe(2);
+  });
+
+  it("egasi limitdan oshsa fan biriktirilmaydi (boshqa primaryga berilmaydi)", () => {
+    const t1 = primary(1);
+    const t2 = primary(2);
+    const best = pickBestTeacher(
+      [t1, t2],
+      new Map([[1, new Set([30])], [2, new Set([30])]]),
+      new Map([[1, 22], [2, 0]]), // 22 + 5 > 24
+      coreCtx("Matematika", { classPrimaryTeacherId: 1 }),
+      new Map([[1, new Set([100])]]),
+    );
+    expect(best).toBeNull();
+  });
+});
+
+describe("findClassPrimaryTeacherId", () => {
+  const primary = (id: number) =>
+    makeTeacher({ id, gradeLevel: "primary", specialization: "Boshlang'ich ta'lim" });
+
+  it("primary sinf rahbari ustuvor", () => {
+    const teachers = [primary(1), primary(2)];
+    const map = new Map([[1, new Set([100])]]);
+    expect(findClassPrimaryTeacherId(100, teachers, map, "uz", 2)).toBe(2);
+  });
+
+  it("rahbar primary bo'lmasa e'tiborga olinmaydi, sinfga kirgan primary qaytadi", () => {
+    const fizik = makeTeacher({ id: 9, specialization: "Fizika" });
+    const teachers = [fizik, primary(1)];
+    const map = new Map([[1, new Set([100])]]);
+    expect(findClassPrimaryTeacherId(100, teachers, map, "uz", 9)).toBe(1);
+  });
+
+  it("hech kim topilmasa null", () => {
+    expect(findClassPrimaryTeacherId(100, [primary(1)], new Map())).toBeNull();
   });
 });

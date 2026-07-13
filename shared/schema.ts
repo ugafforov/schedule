@@ -196,6 +196,12 @@ export const curriculumEntries = pgTable("curriculum_entries", {
   planGradeIdx: index("curriculum_entries_plan_grade_idx").on(table.planId, table.grade),
 }));
 
+// Umumiy sozlamalar (key-value): masalan classHourSlot — sinf soati kuni/vaqti
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 // User roles table
 export const userRoles = pgTable("user_roles", {
   id: serial("id").primaryKey(),
@@ -321,6 +327,7 @@ export const insertJointLessonClassSchema = createInsertSchema(jointLessonClasse
 export const insertJointLessonGroupSchema = createInsertSchema(jointLessonGroups).omit({ id: true });
 export const insertCurriculumPlanSchema = createInsertSchema(curriculumPlans).omit({ id: true, createdAt: true });
 export const insertCurriculumEntrySchema = createInsertSchema(curriculumEntries).omit({ id: true });
+export const insertAppSettingSchema = createInsertSchema(appSettings);
 
 // Types
 export type Subject = typeof subjects.$inferSelect;
@@ -357,6 +364,8 @@ export type CurriculumPlan = typeof curriculumPlans.$inferSelect;
 export type InsertCurriculumPlan = z.infer<typeof insertCurriculumPlanSchema>;
 export type CurriculumEntry = typeof curriculumEntries.$inferSelect;
 export type InsertCurriculumEntry = z.infer<typeof insertCurriculumEntrySchema>;
+export type AppSetting = typeof appSettings.$inferSelect;
+export type InsertAppSetting = z.infer<typeof insertAppSettingSchema>;
 
 
 // Login schema — Supabase Auth (email + password)

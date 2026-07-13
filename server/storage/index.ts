@@ -36,6 +36,9 @@ class DatabaseStorage implements IStorage {
   updateCurriculumEntry = this.core.updateCurriculumEntry.bind(this.core);
   deleteCurriculumEntry = this.core.deleteCurriculumEntry.bind(this.core);
 
+  getSetting = this.core.getSetting.bind(this.core);
+  setSetting = this.core.setSetting.bind(this.core);
+
   // Teachers
   getTeachers = this.teachers.getTeachers.bind(this.teachers);
   createTeacher = this.teachers.createTeacher.bind(this.teachers);
