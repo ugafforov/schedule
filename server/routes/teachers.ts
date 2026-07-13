@@ -352,7 +352,7 @@ export const teacherRoutes = new Hono()
         maxHoursPerWeek: tData.maxHoursPerWeek || 30,
         // bulk-add-dialog.tsx "vakant ro'yxati" rejimida lastName="...vakant..." bilan
         // yuboradi — bu yerda (yagona qo'lda-vakant-yaratish yo'li) flag to'g'ri o'rnatiladi.
-        isVacant: /vakant/i.test(tData.lastName),
+        isVacant: /vakant/i.test(tData.lastName) || /vakant/i.test(tData.firstName),
         isActive: true,
         specialization,
       });

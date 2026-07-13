@@ -69,8 +69,8 @@ export function BulkAddTeachers({
       for (let i = 0; i < rec.vacancies; i++) {
         const suffix = rec.vacancies === 1 ? "" : ` ${i + 1}`;
         items.push({
-          firstName: rec.subjectName,
-          lastName: `vakant${suffix}`,
+          firstName: `${rec.subjectName}${suffix}`,
+          lastName: "vakant",
           subjectId: rec.subjectId,
           subjectName: rec.subjectName,
           subjectColor: rec.subjectColor,
