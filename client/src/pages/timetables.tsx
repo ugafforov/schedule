@@ -862,6 +862,15 @@ export default function Timetables() {
       
       if (!isNaN(entryId) && !isNaN(slotId)) {
         const draggedEntry = allEntries.find(e => e.id === entryId);
+        const slot = timeSlots.find(s => s.id === slotId);
+
+        if (draggedEntry && slot) {
+          const isUnavail = unavailSet.has(`${draggedEntry.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
+          if (isUnavail) {
+            toast({ title: "Bu dars soatida o'qituvchining bandlik cheklovi bor", variant: "destructive" });
+            return;
+          }
+        }
 
         // If dropping onto the SAME slot and it is an alternating week entry, toggle its weekType!
         if (draggedEntry && draggedEntry.timeSlotId === slotId && draggedEntry.weekType !== "always") {
@@ -939,6 +948,13 @@ export default function Timetables() {
       // Move existing entry
       const draggedEntry = allEntries.find(e => e.id === sourceEntryId);
       if (!draggedEntry) return;
+
+      const isUnavail = unavailSet.has(`${draggedEntry.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
+      if (isUnavail) {
+        toast({ title: "Bu dars soatida o'qituvchining bandlik cheklovi bor", variant: "destructive" });
+        setSelectedSubjectToPlace(null);
+        return;
+      }
 
       const teacherConflict = allEntries.find(e => 
         e.timeSlotId === slotId && 
@@ -2246,7 +2262,17 @@ export default function Timetables() {
               </Button>
               <Button variant="outline" onClick={() => setEditEntry(null)}>Bekor qilish</Button>
               <Button
-                onClick={() => updateEntryMutation.mutate({ id: editEntry.id, data: editForm })}
+                onClick={() => {
+                  const slot = timeSlots.find(s => s.id === editEntry.timeSlotId);
+                  if (slot && editForm.teacherId) {
+                    const isUnavail = unavailSet.has(`${editForm.teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`);
+                    if (isUnavail) {
+                      toast({ title: "Bu dars soatida o'qituvchining bandlik cheklovi bor", variant: "destructive" });
+                      return;
+                    }
+                  }
+                  updateEntryMutation.mutate({ id: editEntry.id, data: editForm });
+                }}
                 disabled={updateEntryMutation.isPending}
                 className="bg-primary hover:bg-primary/90"
               >
