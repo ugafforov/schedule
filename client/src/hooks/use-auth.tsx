@@ -35,6 +35,8 @@ async function fetchMe(): Promise<AppUser | null> {
   }
 }
 
+let lastProcessedToken: string | null = "INITIAL_UNPROCESSED";
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -43,10 +45,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function syncUser(nextSession: Session | null) {
+      const token = nextSession?.access_token ?? null;
+      if (token === lastProcessedToken) {
+        return;
+      }
+      lastProcessedToken = token;
+
       setSession(nextSession);
-      if (nextSession?.access_token) {
-        localStorage.setItem("auth_token", nextSession.access_token);
-        setUser(await fetchMe());
+      if (token) {
+        localStorage.setItem("auth_token", token);
+        const me = await fetchMe();
+        setUser(me);
       } else {
         localStorage.removeItem("auth_token");
         setUser(null);
