@@ -10,14 +10,14 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Trash2, GraduationCap, BookOpen, Users,
   Clock, ChevronRight, AlertCircle, CheckCircle2, Zap, Info, X,
-  BarChart3, UserCheck, UserX, ArrowRight, Loader2, FileSpreadsheet, DoorOpen, ChevronDown
+  BarChart3, UserCheck, UserX, ArrowRight, Loader2, FileSpreadsheet, DoorOpen, ChevronDown, XCircle
 } from "lucide-react";
 import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { apiRequest } from "@/lib/queryClient";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Class, Subject, Teacher, ClassSubject, Room } from "@shared/schema";
+import type { Class, Subject, Teacher, ClassSubject, Room, CurriculumPlan, CurriculumEntry } from "@shared/schema";
 
 interface AutoAssignResult {
   assignments: Array<{ subjectId: number; teacherId: number | null; weeklyHours: number }>;
@@ -103,9 +103,16 @@ function ClearAssignmentsDialog({
         <DialogHeader>
           <DialogTitle>Tez tozalashni tasdiqlash</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Ushbu sinfdagi barcha fan-o'qituvchi biriktirishlari o'chiriladi.
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Ushbu sinfdagi barcha fan-o'qituvchi biriktirishlari o'chiriladi.
+          </p>
+          <div className="rounded-md bg-red-500/10 border border-red-500/20 p-3">
+            <p className="text-sm text-red-700 dark:text-red-400">
+              Diqqat: bu sinf uchun generatsiya qilingan dars jadvali ham o'chiriladi.
+            </p>
+          </div>
+        </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Bekor qilish</Button>
           <Button variant="destructive" onClick={onConfirm}>Tozalash</Button>
@@ -116,13 +123,23 @@ function ClearAssignmentsDialog({
 }
 
 // ─── Auto-assign dialog ────────────────────────────────────────────────────────
-function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, teachers, teacherLoadMap }: {
+function getPreferredRoomId(subject: Subject | undefined, selectedClass: Class | undefined, rooms: Room[]): number | null {
+  if (!subject) return selectedClass?.defaultRoomId || null;
+  if (subject.requiredRoomType && subject.requiredRoomType !== "any" && subject.requiredRoomType !== "classroom") {
+    const matchingRoom = rooms.find(r => r.roomType === subject.requiredRoomType);
+    if (matchingRoom) return matchingRoom.id;
+  }
+  return selectedClass?.defaultRoomId || null;
+}
+
+function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, teachers, teacherLoadMap, rooms }: {
   open: boolean; onClose: () => void;
   onConfirm: (a: Assignment[]) => void;
   selectedClass: Class | undefined;
   subjects: Subject[];
   teachers: TeacherWithSubjects[];
   teacherLoadMap: Map<number, number>;
+  rooms: Room[];
 }) {
   const grade = selectedClass ? parseInt(selectedClass.grade) : 0;
   const language = (selectedClass as any)?.language || "uz";
@@ -136,17 +153,46 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
     enabled: open && !!selectedClass,
   });
 
+  // Primary bir-sinf cheklovi va konsolidatsiya uchun: qaysi o'qituvchi qaysi sinflarda dars beradi
+  const { data: allClassSubjectsMap } = useQuery<Record<number, Array<{ teacherId: number | null }>>>({
+    queryKey: ["/api/classes/all/subjects"],
+    enabled: open && !!selectedClass,
+  });
+
   if (!selectedClass) return null;
 
   const teacherSubjectMap = new Map<number, number[]>();
   for (const teacher of teachers) {
     teacherSubjectMap.set(teacher.id, teacher.subjectIds || []);
   }
+
+  const teacherClassMap = new Map<number, Set<number>>();
+  for (const [classIdStr, entries] of Object.entries(allClassSubjectsMap || {})) {
+    for (const cs of entries) {
+      if (cs.teacherId) {
+        if (!teacherClassMap.has(cs.teacherId)) teacherClassMap.set(cs.teacherId, new Set());
+        teacherClassMap.get(cs.teacherId)!.add(parseInt(classIdStr));
+      }
+    }
+  }
+
+  // Serverdagi kabi ketma-ket: har tanlov lokal yuklama va sinf xaritasini yangilaydi,
+  // shunda bitta sinfning asosiy fanlari bitta o'qituvchiga to'planadi
+  const localLoadMap = new Map(teacherLoadMap);
   const assignmentsWithTeachers = (result?.assignments || []).map((a) => {
     const subject = subjects.find((s) => s.id === a.subjectId);
     if (!subject) return { ...a, roomId: null };
-    const teacher = pickTeacherForSubject(subject, teachers, teacherLoadMap, teacherSubjectMap, selectedClass.grade, language, a.weeklyHours);
-    return { ...a, teacherId: teacher?.id ?? null, roomId: null };
+    const teacher = pickTeacherForSubject(
+      subject, teachers, localLoadMap, teacherSubjectMap, selectedClass.grade, language, a.weeklyHours,
+      selectedClass.id, (selectedClass as any).classTeacherId ?? null, teacherClassMap,
+    );
+    if (teacher) {
+      localLoadMap.set(teacher.id, (localLoadMap.get(teacher.id) || 0) + a.weeklyHours);
+      if (!teacherClassMap.has(teacher.id)) teacherClassMap.set(teacher.id, new Set());
+      teacherClassMap.get(teacher.id)!.add(selectedClass.id);
+    }
+    const roomId = getPreferredRoomId(subject, selectedClass, rooms);
+    return { ...a, teacherId: teacher?.id ?? null, roomId };
   });
 
   if (isLoading || !result) {
@@ -258,6 +304,9 @@ function pickTeacherForSubject(
   classGrade: string,
   language: string = "uz",
   weeklyHours: number = 2,
+  classId?: number,
+  classTeacherId?: number | null,
+  teacherClassMap?: Map<number, Set<number>>,
 ) {
   const map = new Map<number, Set<number>>();
   teacherSubjectMap.forEach((subs, id) => map.set(id, new Set(subs)));
@@ -267,7 +316,9 @@ function pickTeacherForSubject(
     classGrade,
     language,
     weeklyHours,
-  });
+    classId,
+    classTeacherId,
+  }, teacherClassMap);
 }
 
 // ─── Bulk assign dialog (Tab 2) ────────────────────────────────────────────────
@@ -514,12 +565,13 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
       qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
       qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
       qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
+      qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
       setAssignments([]);
       loadedClassIdRef.current = selectedClassId;
       setIsDirty(false);
       setSaveStatus("idle");
       setClearOpen(false);
-      toast({ title: "Muvaffaqiyat", description: "Biriktirishlar tez tozalandi" });
+      toast({ title: "Muvaffaqiyat", description: "Biriktirishlar va dars jadvali tozalandi" });
     },
     onError: () => {
       toast({ title: "Xatolik", description: "Tozalash amalga oshmadi", variant: "destructive" });
@@ -530,6 +582,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
     endBulkOperation();
     qc.invalidateQueries({ queryKey: ["/api/classes/all/subjects"] });
     qc.invalidateQueries({ queryKey: ["/api/teacher-load"] });
+    qc.invalidateQueries({ queryKey: ["/api/schedule-entries"] });
     if (selectedClassId) {
       qc.invalidateQueries({ queryKey: ["/api/classes", selectedClassId, "subjects"] });
     }
@@ -537,8 +590,9 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
 
   const autoDistributeUnassignedMutation = useMutation({
     mutationFn: async () => {
+      if (!selectedClassId) throw new Error("Sinf tanlanmagan");
       const res = await apiRequest("POST", "/api/class-subjects/auto-distribute-unassigned", {
-        classIds: selectedClassId ? [selectedClassId] : [],
+        classIds: [selectedClassId],
       });
       return res.json();
     },
@@ -556,8 +610,9 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
 
   const autoDistributeForceMutation = useMutation({
     mutationFn: async () => {
+      if (!selectedClassId) throw new Error("Sinf tanlanmagan");
       const res = await apiRequest("POST", "/api/class-subjects/auto-distribute-force-reassign", {
-        classIds: selectedClassId ? [selectedClassId] : [],
+        classIds: [selectedClassId],
       });
       return res.json();
     },
@@ -645,6 +700,13 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
     },
   });
 
+  // Bulk amallar bir vaqtda bitta ishlasin — parallel yozuv oldini olish
+  const isAnyBulkPending =
+    bulkDtsMutation.isPending ||
+    bulkDistributeUnassignedMutation.isPending ||
+    bulkDistributeForceMutation.isPending ||
+    bulkClearMutation.isPending;
+
   // Auto-save with debounce after any assignment change
   useEffect(() => {
     if (
@@ -710,8 +772,13 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
         }
       }
     }
-    
-    setAssignments(p => p.map((a, idx) => idx === i ? { ...a, [field]: val } : a));
+    if (field === "subjectId") {
+      const subject = subjects.find(s => s.id === val);
+      const roomId = getPreferredRoomId(subject, selectedClass, rooms);
+      setAssignments(p => p.map((a, idx) => idx === i ? { ...a, subjectId: val, roomId } : a));
+    } else {
+      setAssignments(p => p.map((a, idx) => idx === i ? { ...a, [field]: val } : a));
+    }
     setIsDirty(true);
   };
   
@@ -885,7 +952,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                     </div>
                     <Button 
                       onClick={() => setBulkDtsConfirmOpen(true)} 
-                      disabled={bulkDtsMutation.isPending}
+                      disabled={isAnyBulkPending}
                       className="w-full bg-primary hover:bg-primary/90 text-primary-foreground mt-2 h-9 text-xs font-medium rounded-lg"
                     >
                       {bulkDtsMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
@@ -908,7 +975,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                     </div>
                     <Button 
                       onClick={() => setBulkUnassignedConfirmOpen(true)} 
-                      disabled={bulkDistributeUnassignedMutation.isPending}
+                      disabled={isAnyBulkPending}
                       className="w-full bg-green-600 hover:bg-green-700 text-primary-foreground mt-2 h-9 text-xs font-medium rounded-lg"
                     >
                       {bulkDistributeUnassignedMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
@@ -931,7 +998,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                     </div>
                     <Button 
                       onClick={() => setBulkForceConfirmOpen(true)} 
-                      disabled={bulkDistributeForceMutation.isPending}
+                      disabled={isAnyBulkPending}
                       className="w-full bg-amber-600 hover:bg-amber-700 text-primary-foreground mt-2 h-9 text-xs font-medium rounded-lg"
                     >
                       {bulkDistributeForceMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
@@ -954,7 +1021,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                     </div>
                     <Button 
                       onClick={() => setBulkClearConfirmOpen(true)} 
-                      disabled={bulkClearMutation.isPending}
+                      disabled={isAnyBulkPending}
                       variant="destructive"
                       className="w-full mt-2 h-9 text-xs font-medium rounded-lg"
                     >
@@ -1065,7 +1132,10 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-auto pb-4">
+            <CardContent className="flex-1 overflow-auto pb-4 pt-4">
+              {selectedClass && (
+                <ClassCurriculumAnalysis selectedClass={selectedClass} assignments={assignments} subjects={subjects} />
+              )}
               {assignLoading ? (
                 <div className="space-y-2">{Array(4).fill(0).map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}</div>
               ) : (
@@ -1214,6 +1284,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
         subjects={subjects}
         teachers={teachers}
         teacherLoadMap={teacherHoursMap}
+        rooms={rooms}
       />
 
       <ClearAssignmentsDialog
@@ -1285,7 +1356,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkDtsConfirmOpen(false)}>Bekor qilish</Button>
-            <Button onClick={() => bulkDtsMutation.mutate()} disabled={bulkDtsMutation.isPending} className="bg-primary hover:bg-primary/90">
+            <Button onClick={() => bulkDtsMutation.mutate()} disabled={isAnyBulkPending} className="bg-primary hover:bg-primary/90">
               {bulkDtsMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}
               Tasdiqlash
             </Button>
@@ -1307,7 +1378,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkUnassignedConfirmOpen(false)}>Bekor qilish</Button>
-            <Button onClick={() => bulkDistributeUnassignedMutation.mutate()} disabled={bulkDistributeUnassignedMutation.isPending} className="bg-green-600 hover:bg-green-700">
+            <Button onClick={() => bulkDistributeUnassignedMutation.mutate()} disabled={isAnyBulkPending} className="bg-green-600 hover:bg-green-700">
               {bulkDistributeUnassignedMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1.5 h-3.5 w-3.5" />}
               Tasdiqlash
             </Button>
@@ -1330,13 +1401,13 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
             </p>
             <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Ushbu amal tanlangan sinflardagi mavjud barcha o'qituvchi tayinlovlarini butunlay o'zgartirib yuborishi mumkin.
+                Ushbu amal tanlangan sinflardagi mavjud barcha o'qituvchi tayinlovlarini butunlay o'zgartirib yuborishi mumkin. Biriktirishlar o'zgargani uchun dars jadvalini qayta generatsiya qilish tavsiya etiladi.
               </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkForceConfirmOpen(false)}>Bekor qilish</Button>
-            <Button onClick={() => bulkDistributeForceMutation.mutate()} disabled={bulkDistributeForceMutation.isPending} className="bg-amber-600 hover:bg-amber-700">
+            <Button onClick={() => bulkDistributeForceMutation.mutate()} disabled={isAnyBulkPending} className="bg-amber-600 hover:bg-amber-700">
               {bulkDistributeForceMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <AlertCircle className="mr-1.5 h-3.5 w-3.5" />}
               Tasdiqlash (Force)
             </Button>
@@ -1353,12 +1424,19 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
               Guruhli tozalash
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Tanlangan <strong>{selectedClassIds.length} ta sinfdagi</strong> barcha fan va o'qituvchi biriktirishlari o'chiriladi.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Tanlangan <strong>{selectedClassIds.length} ta sinfdagi</strong> barcha fan va o'qituvchi biriktirishlari o'chiriladi.
+            </p>
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+              <p className="text-xs text-red-700 dark:text-red-400">
+                Diqqat: bu sinflar uchun generatsiya qilingan dars jadvali ham o'chiriladi.
+              </p>
+            </div>
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkClearConfirmOpen(false)}>Bekor qilish</Button>
-            <Button onClick={() => bulkClearMutation.mutate()} disabled={bulkClearMutation.isPending} variant="destructive">
+            <Button onClick={() => bulkClearMutation.mutate()} disabled={isAnyBulkPending} variant="destructive">
               {bulkClearMutation.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />}
               Tozalash
             </Button>
@@ -1604,6 +1682,168 @@ function YukHisobi({ teachers }: { teachers: Teacher[] }) {
           bulkMutation.mutate({ subjectId: bulkSubject.subjectId, teacherId });
         }}
       />
+    </div>
+  );
+}
+
+function ClassCurriculumAnalysis({
+  selectedClass,
+  assignments,
+  subjects,
+}: {
+  selectedClass: Class;
+  assignments: { subjectId: number; weeklyHours: number }[];
+  subjects: Subject[];
+}) {
+  const language = (selectedClass as any)?.language || "uz";
+  const grade = parseInt(selectedClass.grade) || 0;
+
+  const { data: plans = [] } = useQuery<CurriculumPlan[]>({
+    queryKey: ["/api/curriculum/plans"],
+    queryFn: async () => (await apiRequest("GET", "/api/curriculum/plans")).json(),
+  });
+
+  const activePlan = plans.find(p => p.language === language && p.isActive) || plans.find(p => p.isActive);
+
+  const { data: entries = [], isLoading } = useQuery<CurriculumEntry[]>({
+    queryKey: ["/api/curriculum/plans", activePlan?.id, "entries"],
+    queryFn: async () => (await apiRequest("GET", `/api/curriculum/plans/${activePlan!.id}/entries`)).json(),
+    enabled: !!activePlan,
+  });
+
+  if (isLoading || !activePlan) return null;
+
+  const gradeEntries = entries.filter(e => e.grade === grade);
+  
+  const deviations: {
+    type: "missing" | "extra" | "hours_diff";
+    subjectName: string;
+    expectedHours?: number;
+    actualHours?: number;
+  }[] = [];
+
+  const matchedEntryIds = new Set<number>();
+
+  // Compare actual assignments to active plan entries
+  const actualSubjects = assignments.map(a => {
+    const sub = subjects.find(s => s.id === a.subjectId);
+    return {
+      subjectId: a.subjectId,
+      subjectName: sub?.name || "Noma'lum fan",
+      weeklyHours: a.weeklyHours
+    };
+  });
+
+  const isMatch = (dbSubjName: string, planSubjName: string) => {
+    const n1 = dbSubjName.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[()]/g, '').replace("science", "").trim();
+    const n2 = planSubjName.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[()]/g, '').replace("science", "").trim();
+    if (n1 === n2) return true;
+    if (n1 === "informatika" && n2 === "informatika va axborot texnologiyalari") return true;
+    if (n2 === "informatika" && n1 === "informatika va axborot texnologiyalari") return true;
+    if (n1 === "tarix" && n2 === "tarixdan hikoyalar") return true;
+    if (n2 === "tarix" && n1 === "tarixdan hikoyalar") return true;
+    if (n1 === "science" && n2 === "tabiiy fanlar") return true;
+    if (n2 === "science" && n1 === "tabiiy fanlar") return true;
+    return false;
+  };
+
+  actualSubjects.forEach(actual => {
+    let matchedEntry: CurriculumEntry | null = null;
+    for (const entry of gradeEntries) {
+      if (isMatch(actual.subjectName, entry.subjectName)) {
+        matchedEntry = entry;
+        break;
+      }
+    }
+
+    if (matchedEntry) {
+      matchedEntryIds.add(matchedEntry.id);
+      if (actual.weeklyHours !== matchedEntry.weeklyHours) {
+        deviations.push({
+          type: "hours_diff",
+          subjectName: actual.subjectName,
+          expectedHours: matchedEntry.weeklyHours,
+          actualHours: actual.weeklyHours
+        });
+      }
+    } else {
+      deviations.push({
+        type: "extra",
+        subjectName: actual.subjectName,
+        actualHours: actual.weeklyHours
+      });
+    }
+  });
+
+  gradeEntries.forEach(entry => {
+    if (!matchedEntryIds.has(entry.id)) {
+      deviations.push({
+        type: "missing",
+        subjectName: entry.subjectName,
+        expectedHours: entry.weeklyHours
+      });
+    }
+  });
+
+  if (deviations.length === 0) {
+    return (
+      <div className="flex items-center gap-1.5 px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-medium shadow-sm mb-3">
+        <CheckCircle2 className="h-4 w-4 shrink-0" />
+        Sinf dars soatlari tayanch o'quv rejaga to'liq mos keladi (Faol: {activePlan.year} {activePlan.orderNumber}).
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-muted/30 border border-border/60 rounded-lg p-3 space-y-2 mb-3">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+          <BarChart3 className="h-3.5 w-3.5 shrink-0 text-primary" />
+          Faol o'quv reja bilan solishtirish ({activePlan.year})
+        </div>
+        <Badge variant="outline" className="text-[10px] px-1.5 h-4 border-amber-500/30 text-amber-500 bg-amber-500/5">
+          {deviations.length} ta tafovut
+        </Badge>
+      </div>
+      <div className="space-y-1.5 max-h-[160px] overflow-y-auto scrollbar-thin pr-1">
+        {deviations.map((dev, idx) => (
+          <div 
+            key={idx} 
+            className={`text-[11.5px] leading-tight p-2 rounded-md flex items-start gap-2 ${
+              dev.type === "missing" 
+                ? "bg-destructive/10 text-destructive border border-destructive/20" 
+                : dev.type === "hours_diff" 
+                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20" 
+                : "bg-muted/60 text-foreground border border-border/60"
+            }`}
+          >
+            {dev.type === "missing" && (
+              <>
+                <XCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-destructive" />
+                <div className="flex-1">
+                  <span className="font-semibold">{dev.subjectName}</span> — o'quv rejada <span className="font-semibold">{dev.expectedHours} soat</span> belgilangan, lekin sinfga biriktirilmagan.
+                </div>
+              </>
+            )}
+            {dev.type === "hours_diff" && (
+              <>
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+                <div className="flex-1">
+                  <span className="font-semibold">{dev.subjectName}</span> soati farq qiladi. O'quv rejada <span className="font-semibold">{dev.expectedHours}s</span>, amalda esa <span className="font-semibold">{dev.actualHours}s</span>.
+                </div>
+              </>
+            )}
+            {dev.type === "extra" && (
+              <>
+                <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                <div className="flex-1">
+                  <span className="font-semibold">{dev.subjectName}</span> qo'shimcha fan (<span className="font-semibold">{dev.actualHours} soat</span>). O'quv rejada ko'zda tutilmagan.
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

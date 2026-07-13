@@ -5,6 +5,13 @@ import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
 
+// Bir o'qituvchi faqat bitta sinfga rahbar bo'la oladi
+async function classTeacherConflict(teacherId: number, excludeClassId?: number): Promise<string | null> {
+  const all = await storage.getClasses();
+  const other = all.find(cl => cl.classTeacherId === teacherId && cl.id !== excludeClassId);
+  return other ? `Bu o'qituvchi allaqachon ${other.name} sinfiga rahbar. Bir o'qituvchi faqat bitta sinfga rahbar bo'la oladi.` : null;
+}
+
 export const classRoutes = new Hono()
   .use(authMiddleware)
 
@@ -12,6 +19,10 @@ export const classRoutes = new Hono()
 
   .post("/", requireAdmin, async (c) => {
     const body = await c.req.json();
+    if (body.classTeacherId) {
+      const conflict = await classTeacherConflict(body.classTeacherId);
+      if (conflict) return c.json({ message: conflict }, 400);
+    }
     const name = body.name || `${body.grade || "1"}${body.section ? "-" + body.section : ""}`;
     const data = insertClassSchema.parse({
       name,
@@ -21,6 +32,7 @@ export const classRoutes = new Hono()
       totalStudents: body.totalStudents || 25,
       studyDays: body.studyDays || "1,2,3,4,5",
       defaultRoomId: body.defaultRoomId !== undefined ? body.defaultRoomId : null,
+      classTeacherId: body.classTeacherId ?? null,
       isActive: true,
     });
     const cls = await storage.createClass(data);
@@ -33,6 +45,10 @@ export const classRoutes = new Hono()
   .patch("/:id", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     const body = await c.req.json();
+    if (body.classTeacherId) {
+      const conflict = await classTeacherConflict(body.classTeacherId, id);
+      if (conflict) return c.json({ message: conflict }, 400);
+    }
     const data = insertClassSchema.partial().parse(body);
     const result = await storage.updateClass(id, data);
     if (!result) return c.json({ message: "Sinf topilmadi" }, 404);
@@ -157,9 +173,11 @@ export const classRoutes = new Hono()
     return c.json({ message: "Muvaffaqiyatli saqlandi" });
   })
 
-  // Barcha biriktirishlarni tozalash (bo'sh array bilan)
+  // Barcha biriktirishlarni tozalash (bo'sh array bilan) — jadval yozuvlari ham
+  // tozalanadi, aks holda class_subjects'siz qolgan schedule_entries eskirib qoladi
   .delete("/:id/subjects", requireAdmin, async (c) => {
     const id = parseInt(c.req.param("id"));
     await storage.setClassSubjects(id, []);
+    await storage.clearScheduleForClass(id);
     return c.body(null, 204);
   });

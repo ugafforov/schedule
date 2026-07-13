@@ -124,11 +124,17 @@ export const classSubjectsRoute = new Hono().use(authMiddleware).use(strictRateL
   })
   .post("/auto-distribute-unassigned", requireAdmin, async (c) => {
     const body = await c.req.json().catch(() => ({}));
+    if (!Array.isArray(body.classIds) || body.classIds.length === 0) {
+      return c.json({ message: "classIds massivi kiritilishi shart" }, 400);
+    }
     const result = await autoDistributeUnassignedOnly(body.classIds);
     return c.json(result);
   })
   .post("/auto-distribute-force-reassign", requireAdmin, async (c) => {
     const body = await c.req.json().catch(() => ({}));
+    if (!Array.isArray(body.classIds) || body.classIds.length === 0) {
+      return c.json({ message: "classIds massivi kiritilishi shart" }, 400);
+    }
     const result = await autoDistributeAllForceReassign(body.classIds);
     return c.json(result);
   })
@@ -147,8 +153,9 @@ export const classSubjectsRoute = new Hono().use(authMiddleware).use(strictRateL
     }
     for (const id of body.classIds) {
       await storage.setClassSubjects(id, []);
+      await storage.clearScheduleForClass(id);
     }
-    return c.json({ message: `${body.classIds.length} ta sinf biriktirishlari tozalandi.` });
+    return c.json({ message: `${body.classIds.length} ta sinf biriktirishlari va dars jadvali tozalandi.` });
   })
   // Bulk import (Excel): sinf/fan/o'qituvchi NOM bo'yicha moslashtirib class_subjects yozadi.
   // Qator formati: { className, subjectName, teacherName?, weeklyHours? }
