@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DeleteConfirmDialog } from "@/components/teachers/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell, Monitor, Palette, Zap, LayoutGrid, List } from "lucide-react";
+import { Plus, Search, Edit, Trash2, DoorOpen, Users, Building2, X, FlaskConical, BookOpen, Music, Dumbbell, Monitor, Palette, Zap, LayoutGrid, List, MoreHorizontal } from "lucide-react";
 
 import { useAuth } from "@/hooks/use-auth";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
@@ -499,7 +501,7 @@ export default function Rooms() {
       )}
 
       <Card className="border border-border shadow-sm bg-card text-card-foreground">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 border-b border-border">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base font-semibold flex items-center">
               <DoorOpen className="mr-2 h-4 w-4 text-amber-500" />
@@ -507,87 +509,55 @@ export default function Rooms() {
               <Badge variant="secondary" className="ml-2 text-xs bg-muted text-foreground">{rooms.length} ta</Badge>
             </CardTitle>
             <div className="flex items-center gap-2">
-              <div className="relative w-60">
+              <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 h-4 w-4" />
                 <Input placeholder="Qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
                 {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60"><X className="h-3.5 w-3.5" /></button>}
               </div>
-              <div className="flex items-center gap-1 p-1 bg-muted/50 border border-border rounded-lg">
-                <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "grid" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setViewMode("grid")} aria-label="Grid view">
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "list" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setViewMode("list")} aria-label="List view">
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-3"}>
-              {Array(8).fill(0).map((_, i) => <div key={i} className="h-32 bg-muted animate-pulse rounded-xl" />)}
+            <div className="p-6 space-y-3">
+              {Array(5).fill(0).map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : filtered.length > 0 ? (
-            viewMode === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-              {filtered.map(room => {
-                const d = getTypeDisplay(room.roomType); const Icon = d.icon;
-                return (
-                  <div key={room.id} className="group border border-border rounded-xl p-4 hover:border-primary/50 hover:shadow-sm transition-all bg-card">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`w-10 h-10 ${d.bg} rounded-xl flex items-center justify-center`}><Icon className={`${d.color} h-5 w-5`} /></div>
-                      <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-foreground" onClick={() => openEdit(room)}><Edit className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-500/10" onClick={() => setDeleteId(room.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
-                      </div>
-                    </div>
-                    <h3 className="font-semibold text-foreground text-sm">{room.name}</h3>
-                    <p className="text-xs text-muted-foreground/60 mt-0.5 font-mono">#{room.roomNumber}</p>
-                    {(room.building || room.floor) && (
-                      <div className="flex items-center space-x-1 mt-1.5">
-                        <Building2 className="h-3 w-3 text-muted-foreground/60 flex-shrink-0" />
-                        <p className="text-xs text-muted-foreground">{room.building}{room.floor && `, ${room.floor}-qavat`}</p>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${d.badge}`}>{ROOM_TYPE_LABELS[room.roomType] || room.roomType}</span>
-                      <div className="flex items-center space-x-1 text-muted-foreground/60"><Users className="h-3 w-3" /><span className="text-xs">{room.capacity} o'rin</span></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-[minmax(0,1.5fr)_110px_120px_120px_100px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/50 rounded-xl border border-border">
-                  <div>Xona</div>
-                  <div>Raqam</div>
-                  <div>Turi</div>
-                  <div>Sig'im</div>
-                  <div className="text-right">Amal</div>
-                </div>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent bg-muted/50 border-border">
+                  <TableHead className="w-[60px] pl-4">Tur</TableHead>
+                  <TableHead>Nomi</TableHead>
+                  <TableHead className="w-[120px]">Raqam</TableHead>
+                  <TableHead className="w-[150px]">Xona turi</TableHead>
+                  <TableHead className="w-[100px]">Sig'im</TableHead>
+                  <TableHead className="w-[60px] text-right pr-4"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filtered.map(room => {
                   const d = getTypeDisplay(room.roomType); const Icon = d.icon;
                   const isUpdating = inlineUpdateMutation.isPending;
                   return (
-                    <div key={room.id} className="grid grid-cols-[minmax(0,1.5fr)_110px_120px_120px_100px] gap-4 items-center p-3 rounded-xl border border-border bg-card hover:shadow-sm transition-all">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-10 h-10 ${d.bg} rounded-xl flex items-center justify-center flex-shrink-0`}><Icon className={`${d.color} h-5 w-5`} /></div>
-                        <div className="min-w-0 flex-1">
-                          <InlineEdit
-                            value={room.name}
-                            onSave={(name) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { name } })}
-                            placeholder="Xona nomi"
-                            className="font-semibold text-foreground text-sm"
-                            disabled={isUpdating}
-                          />
-                          <p className="text-xs text-muted-foreground/60 truncate flex items-center gap-1">
-                            {room.building || "—"}{room.floor ? `, ${room.floor}-qavat` : ""}
-                          </p>
+                    <TableRow key={room.id} className="group border-border hover:bg-muted/30 transition-colors">
+                      <TableCell className="pl-4">
+                        <div className={`w-8 h-8 ${d.bg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                          <Icon className={`${d.color} h-4 w-4`} />
                         </div>
-                      </div>
-                      <div className="font-mono text-sm">
+                      </TableCell>
+                      <TableCell>
+                        <InlineEdit
+                          value={room.name}
+                          onSave={(name) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { name } })}
+                          placeholder="Xona nomi"
+                          className="font-medium text-foreground text-sm"
+                          disabled={isUpdating}
+                        />
+                        <p className="text-[11px] text-muted-foreground/80 mt-0.5 flex items-center gap-1">
+                          {room.building || "Bino belgilanmagan"}{room.floor ? `, ${room.floor}-qavat` : ""}
+                        </p>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm text-foreground">
                         <InlineEdit
                           value={room.roomNumber}
                           onSave={(roomNumber) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { roomNumber } })}
@@ -595,36 +565,54 @@ export default function Rooms() {
                           className="text-foreground"
                           disabled={isUpdating}
                         />
-                      </div>
-                      <InlineSelect
-                        value={room.roomType}
-                        options={roomTypeOptions}
-                        onSave={(roomType) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { roomType } })}
-                        className="text-sm"
-                        disabled={isUpdating}
-                      />
-                      <div className="text-sm text-foreground whitespace-nowrap">
-                        <InlineEdit
-                          value={room.capacity}
-                          onSave={(val) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { capacity: parseInt(val) || 30 } })}
-                          type="number"
-                          min={5}
-                          max={500}
-                          placeholder="30"
-                          className="inline-block w-16"
+                      </TableCell>
+                      <TableCell>
+                        <InlineSelect
+                          value={room.roomType}
+                          options={roomTypeOptions}
+                          onSave={(roomType) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { roomType } })}
+                          className="text-xs text-muted-foreground hover:text-foreground"
                           disabled={isUpdating}
                         />
-                        <span className="ml-1 text-muted-foreground/60">o'rini</span>
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground/60 hover:text-foreground" onClick={() => openEdit(room)} title="Batafsil tahrirlash"><Edit className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-500/10" onClick={() => setDeleteId(room.id)} disabled={deleteMutation.isPending}><Trash2 className="h-3.5 w-3.5" /></Button>
-                      </div>
-                    </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-foreground">
+                        <div className="flex items-center gap-1">
+                          <InlineEdit
+                            value={room.capacity}
+                            onSave={(val) => inlineUpdateMutation.mutateAsync({ id: room.id, data: { capacity: parseInt(val) || 30 } })}
+                            type="number"
+                            min={5}
+                            max={500}
+                            placeholder="30"
+                            className="inline-block w-12"
+                            disabled={isUpdating}
+                          />
+                          <span className="text-xs text-muted-foreground">o'rin</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right pr-4">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="sr-only">Menyu</span>
+                              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40 border-border">
+                            <DropdownMenuItem onClick={() => openEdit(room)} className="text-sm cursor-pointer">
+                              <Edit className="mr-2 h-4 w-4" /> Tahrirlash
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setDeleteId(room.id)} className="text-sm text-red-600 focus:bg-red-50 focus:text-red-600 cursor-pointer">
+                              <Trash2 className="mr-2 h-4 w-4" /> O'chirish
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </div>
-            )
+              </TableBody>
+            </Table>
           ) : (
             <div className="text-center py-16">
               <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center mx-auto mb-3"><DoorOpen className="h-6 w-6 text-muted-foreground/40" /></div>

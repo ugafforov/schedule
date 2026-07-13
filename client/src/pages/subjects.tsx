@@ -5,10 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DeleteConfirmDialog } from "@/components/teachers/delete-confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, BookOpen, X, Clock, DoorOpen, Zap, CheckSquare, Square, GraduationCap, LayoutGrid, List, FileSpreadsheet } from "lucide-react";
+import { Plus, Search, Edit, Trash2, BookOpen, X, Clock, DoorOpen, Zap, CheckSquare, Square, GraduationCap, LayoutGrid, List, FileSpreadsheet, MoreHorizontal } from "lucide-react";
 
 import { apiRequest } from "@/lib/queryClient";
 import { ROOM_TYPE_LABELS } from "@shared/schema";
@@ -348,146 +351,6 @@ function DtsDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () =>
   );
 }
 
-function SubjectCard({ subject, openEdit, onDelete, onSave, isUpdating }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void; onSave: (data: Partial<Subject>) => void; isUpdating?: boolean }) {
-  const roomType = (subject as any).requiredRoomType || "any";
-  const roomTypeOptions = Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => ({
-    value,
-    label,
-  }));
-
-  return (
-    <div className="group border border-border rounded-xl p-4 hover:border-primary/50 hover:shadow-sm transition-all bg-card text-card-foreground">
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: subject.color ? `${subject.color}20` : "#3B82F620" }}>
-          <BookOpen className="h-5 w-5" style={{ color: subject.color || "#3B82F6" }} />
-        </div>
-        <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-foreground" onClick={() => openEdit(subject)} disabled={isUpdating}><Edit className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-500/10" onClick={() => onDelete(subject.id)} disabled={isUpdating}><Trash2 className="h-3.5 w-3.5" /></Button>
-        </div>
-      </div>
-      <div className="flex items-center space-x-2 mb-1">
-        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: subject.color || "#3B82F6" }} />
-        <InlineEdit
-          value={subject.name}
-          onSave={(name) => onSave({ name })}
-          placeholder="Fan nomi"
-          className="font-semibold text-foreground text-sm leading-tight truncate flex-1"
-          disabled={isUpdating}
-        />
-      </div>
-      <div className="ml-5">
-        <InlineEdit
-          value={subject.code || ""}
-          onSave={(code) => onSave({ code: code.toUpperCase() })}
-          placeholder="KOD"
-          className="text-xs text-muted-foreground/60 font-mono"
-          disabled={isUpdating}
-        />
-      </div>
-      <div className="ml-5 mt-1.5">
-        <InlineEdit
-          value={subject.description || ""}
-          onSave={(description) => onSave({ description })}
-          placeholder="Tavsif..."
-          className="text-xs text-muted-foreground line-clamp-2"
-          disabled={isUpdating}
-        />
-      </div>
-      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-border">
-        <InlineSelect
-          value={roomType}
-          options={roomTypeOptions}
-          onSave={(val) => onSave({ requiredRoomType: val })}
-          className={`text-xs px-2 py-0.5 rounded-full border font-medium ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}
-          disabled={isUpdating}
-        />
-        <div className="flex items-center space-x-1 text-muted-foreground/60">
-          <Clock className="h-3 w-3" />
-          <InlineEdit
-            value={subject.weeklyHours || 4}
-            onSave={(val) => onSave({ weeklyHours: parseInt(val) || 4 })}
-            type="number"
-            min={1}
-            max={12}
-            className="text-xs w-8 text-foreground"
-            disabled={isUpdating}
-          />
-          <span className="text-xs">soat</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SubjectRow({ subject, openEdit, onDelete, onSave, isUpdating }: { subject: Subject; openEdit: (s: Subject) => void; onDelete: (id: number) => void; onSave: (data: Partial<Subject>) => void; isUpdating?: boolean }) {
-  const roomType = (subject as any).requiredRoomType || "any";
-  const roomTypeOptions = Object.entries(ROOM_TYPE_LABELS).map(([value, label]) => ({
-    value,
-    label,
-  }));
-
-  return (
-    <div className="group grid grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_130px] gap-4 px-4 py-3 items-center border border-border rounded-xl hover:border-primary/50 hover:bg-muted/40 transition-all bg-card text-card-foreground">
-      <div className="flex items-center space-x-2 min-w-0">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: subject.color ? `${subject.color}20` : "#3B82F620" }}>
-          <BookOpen className="h-4 w-4" style={{ color: subject.color || "#3B82F6" }} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <InlineEdit
-            value={subject.name}
-            onSave={(name) => onSave({ name })}
-            placeholder="Fan nomi"
-            className="font-semibold text-foreground text-sm truncate"
-            disabled={isUpdating}
-          />
-          <InlineEdit
-            value={subject.code || ""}
-            onSave={(code) => onSave({ code: code.toUpperCase() })}
-            placeholder="KOD"
-            className="text-xs text-muted-foreground/60 font-mono block"
-            disabled={isUpdating}
-          />
-        </div>
-      </div>
-      <div className="min-w-0">
-        <InlineEdit
-          value={subject.description || ""}
-          onSave={(description) => onSave({ description })}
-          placeholder="Tavsif..."
-          className="text-sm text-muted-foreground truncate block"
-          disabled={isUpdating}
-        />
-      </div>
-      <InlineSelect
-        value={roomType}
-        options={roomTypeOptions}
-        onSave={(val) => onSave({ requiredRoomType: val })}
-        className={`text-xs px-2 py-1 rounded-full border font-medium w-fit ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}
-        disabled={isUpdating}
-      />
-      <div className="flex items-center justify-end space-x-2">
-        <div className="flex items-center space-x-1 text-muted-foreground/60">
-          <Clock className="h-3.5 w-3.5" />
-          <InlineEdit
-            value={subject.weeklyHours || 4}
-            onSave={(val) => onSave({ weeklyHours: parseInt(val) || 4 })}
-            type="number"
-            min={1}
-            max={12}
-            className="text-xs w-8 text-foreground"
-            disabled={isUpdating}
-          />
-        </div>
-        <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-foreground" onClick={() => openEdit(subject)} disabled={isUpdating}><Edit className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-500/10" onClick={() => onDelete(subject.id)} disabled={isUpdating}><Trash2 className="h-3.5 w-3.5" /></Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Subjects() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -598,65 +461,122 @@ export default function Subjects() {
       )}
 
       <Card className="border border-border shadow-sm bg-card text-card-foreground">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 border-b border-border">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <CardTitle className="text-base font-semibold flex items-center">
               <BookOpen className="mr-2 h-4 w-4 text-violet-600" /> Fanlar ro'yxati
               <Badge variant="secondary" className="ml-2 text-xs bg-muted text-foreground">{subjects.length} ta</Badge>
             </CardTitle>
             <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-              <div className="relative w-full sm:w-72">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 h-4 w-4" />
                 <Input placeholder="Qidirish..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg" />
                 {search && <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60"><X className="h-3.5 w-3.5" /></button>}
               </div>
-              <div className="flex items-center gap-1 p-1 bg-muted/50 border border-border rounded-lg">
-                <Button variant={viewMode === "grid" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "grid" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setViewMode("grid")} aria-label="Grid view">
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button variant={viewMode === "list" ? "default" : "ghost"} size="sm" className={`h-8 w-8 p-0 ${viewMode === "list" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`} onClick={() => setViewMode("list")} aria-label="List view">
-                  <List className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-3"}>
-              {Array(8).fill(0).map((_, i) => <div key={i} className={viewMode === "grid" ? "h-32 bg-muted animate-pulse rounded-xl" : "h-20 bg-muted animate-pulse rounded-xl"} />)}
+            <div className="p-6 space-y-3">
+              {Array(5).fill(0).map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : filtered.length > 0 ? (
-            viewMode === "grid" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filtered.map(subject => (
-                  <SubjectCard
-                    key={subject.id}
-                    subject={subject}
-                    openEdit={openEdit}
-                    onDelete={id => setDeleteId(id)}
-                    onSave={(data) => inlineUpdateMutation.mutate({ id: subject.id, data })}
-                    isUpdating={inlineUpdateMutation.isPending}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,0.9fr)_130px] gap-4 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/50 rounded-xl border border-border">
-                  <div>Fan</div><div>Tavsif</div><div>Xona turi</div><div className="text-right">Soat / Amal</div>
-                </div>
-                {filtered.map(subject => (
-                  <SubjectRow
-                    key={subject.id}
-                    subject={subject}
-                    openEdit={openEdit}
-                    onDelete={id => setDeleteId(id)}
-                    onSave={(data) => inlineUpdateMutation.mutate({ id: subject.id, data })}
-                    isUpdating={inlineUpdateMutation.isPending}
-                  />
-                ))}
-              </div>
-            )
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent bg-muted/50 border-border">
+                  <TableHead className="w-[60px] pl-4">Fan</TableHead>
+                  <TableHead>Nomi & Kod</TableHead>
+                  <TableHead className="w-[30%]">Tavsif</TableHead>
+                  <TableHead className="w-[150px]">Xona turi</TableHead>
+                  <TableHead className="w-[120px]">Soat</TableHead>
+                  <TableHead className="w-[60px] text-right pr-4"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map(subject => {
+                  const roomType = (subject as any).requiredRoomType || "any";
+                  const isUpdating = inlineUpdateMutation.isPending;
+                  return (
+                    <TableRow key={subject.id} className="group border-border hover:bg-muted/30 transition-colors">
+                      <TableCell className="pl-4">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: subject.color ? `${subject.color}20` : "#3B82F620" }}>
+                          <BookOpen className="h-4 w-4" style={{ color: subject.color || "#3B82F6" }} />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <InlineEdit
+                          value={subject.name}
+                          onSave={(name) => inlineUpdateMutation.mutate({ id: subject.id, data: { name } })}
+                          placeholder="Fan nomi"
+                          className="font-medium text-foreground text-sm"
+                          disabled={isUpdating}
+                        />
+                        <div className="mt-0.5">
+                          <InlineEdit
+                            value={subject.code || ""}
+                            onSave={(code) => inlineUpdateMutation.mutate({ id: subject.id, data: { code: code.toUpperCase() } })}
+                            placeholder="KOD"
+                            className="text-[11px] text-muted-foreground/80 font-mono"
+                            disabled={isUpdating}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <InlineEdit
+                          value={subject.description || ""}
+                          onSave={(description) => inlineUpdateMutation.mutate({ id: subject.id, data: { description } })}
+                          placeholder="Tavsif..."
+                          className="text-xs text-muted-foreground"
+                          disabled={isUpdating}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <InlineSelect
+                          value={roomType}
+                          options={roomTypeOptions}
+                          onSave={(val) => inlineUpdateMutation.mutate({ id: subject.id, data: { requiredRoomType: val } })}
+                          className={`text-xs px-2 py-0.5 rounded-md font-medium border ${ROOM_TYPE_COLORS[roomType] || ROOM_TYPE_COLORS.any}`}
+                          disabled={isUpdating}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-muted-foreground/60" />
+                          <InlineEdit
+                            value={subject.weeklyHours || 4}
+                            onSave={(val) => inlineUpdateMutation.mutate({ id: subject.id, data: { weeklyHours: parseInt(val) || 4 } })}
+                            type="number"
+                            min={1}
+                            max={12}
+                            className="text-sm text-foreground w-8"
+                            disabled={isUpdating}
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right pr-4">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="sr-only">Menyu</span>
+                              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40 border-border">
+                            <DropdownMenuItem onClick={() => openEdit(subject)} className="text-sm cursor-pointer">
+                              <Edit className="mr-2 h-4 w-4" /> Tahrirlash
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setDeleteId(subject.id)} className="text-sm text-red-600 focus:bg-red-50 focus:text-red-600 cursor-pointer">
+                              <Trash2 className="mr-2 h-4 w-4" /> O'chirish
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           ) : (
             <div className="text-center py-16 max-w-xl mx-auto">
               <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 border border-border">

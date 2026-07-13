@@ -6,10 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Plus, Search, Edit, Trash2, Users, Phone, BookOpen, X, Clock, 
-  CalendarX, Zap, LayoutGrid, List, ChevronRight, FileSpreadsheet 
+  CalendarX, Zap, LayoutGrid, List, ChevronRight, FileSpreadsheet,
+  MoreHorizontal
 } from "lucide-react";
 
 import { apiRequest } from "@/lib/queryClient";
@@ -181,24 +184,24 @@ function UnavailabilityDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-md select-none" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <CalendarX className="h-6 w-6 text-red-500" />
+      <DialogContent className="sm:max-w-md select-none border-border bg-card text-card-foreground p-5 rounded-xl shadow-lg" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+        <DialogHeader className="pb-2 border-b border-border/40">
+          <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+            <CalendarX className="h-5 w-5 text-red-500" />
             Bandlik cheklovlari
           </DialogTitle>
-          <p className="text-sm text-muted-foreground font-medium">{teacher.lastName} {teacher.firstName}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{teacher.lastName} {teacher.firstName} ({teacher.specialization || "Mutaxassislik kiritilmagan"})</p>
         </DialogHeader>
         
-        <div className="py-6">
-          <div className="grid gap-2" style={{ gridTemplateColumns: `95px repeat(${daysToRender.length}, 1fr)` }}>
+        <div className="py-3">
+          <div className="grid gap-1" style={{ gridTemplateColumns: `75px repeat(${daysToRender.length}, 1fr)` }}>
             <div />
             {daysToRender.map((day, dIdx) => (
               <button 
                 key={day} 
                 type="button"
                 onClick={() => handleBulkToggle("day", dIdx + 1)}
-                className="h-9 flex items-center justify-center font-bold text-[11px] text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 uppercase tracking-widest bg-muted/50/50 rounded-t-xl transition-all cursor-pointer border border-transparent hover:border-blue-500/20"
+                className="h-8 flex items-center justify-center font-bold text-[10px] text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 uppercase tracking-wider bg-muted/40 rounded-t-md transition-all cursor-pointer border border-transparent hover:border-blue-500/20"
               >
                 {day}
               </button>
@@ -209,12 +212,12 @@ function UnavailabilityDialog({
                 <button 
                   type="button"
                   onClick={() => handleBulkToggle("period", period)}
-                  className="h-14 flex flex-col justify-center pr-4 border-r-2 border-border text-right hover:bg-blue-500/10 transition-all cursor-pointer group rounded-l-xl"
+                  className="h-9 flex flex-col justify-center pr-2.5 border-r border-border text-right hover:bg-blue-500/10 transition-all cursor-pointer group rounded-l-md"
                 >
-                  <span className="font-bold text-[11px] text-muted-foreground group-hover:text-blue-600 uppercase tracking-tighter leading-none">
+                  <span className="font-bold text-[9px] text-muted-foreground group-hover:text-blue-600 uppercase tracking-tighter leading-none">
                     {period}-soat
                   </span>
-                  <span className="text-[10px] text-gray-300 group-hover:text-blue-400 font-medium mt-1 leading-none">
+                  <span className="text-[7.5px] text-muted-foreground/60 group-hover:text-blue-400 font-mono mt-0.5 leading-none">
                     {getPeriodTime(period)}
                   </span>
                 </button>
@@ -222,14 +225,14 @@ function UnavailabilityDialog({
                   const dayNum = dIdx + 1;
                   const blocked = isSlotBlocked(dayNum, period);
                   return (
-                    <div key={dIdx} className="h-14 flex items-center justify-center p-1">
+                    <div key={dIdx} className="h-9 flex items-center justify-center p-[1.5px]">
                       <div
                         onMouseDown={() => handleMouseDown(dayNum, period)}
                         onMouseEnter={() => handleMouseEnter(dayNum, period)}
-                        className={`w-full h-full rounded-xl border-2 transition-all duration-150 cursor-pointer ${
+                        className={`w-full h-full rounded border transition-all duration-150 cursor-pointer ${
                           blocked 
-                            ? "bg-red-500 border-red-600 shadow-lg shadow-red-200 ring-2 ring-red-100 scale-[0.98]" 
-                            : "bg-muted/50 border-border hover:border-blue-300 hover:bg-card hover:scale-105"
+                            ? "bg-red-500/20 border-red-500 hover:bg-red-500/35 dark:bg-red-500/30 dark:border-red-400 shadow-sm" 
+                            : "bg-muted/30 border-border/70 hover:border-blue-500/40 hover:bg-muted/70 hover:scale-[1.02]"
                         }`}
                       />
                     </div>
@@ -239,296 +242,37 @@ function UnavailabilityDialog({
             ))}
           </div>
           
-          <div className="mt-8 flex gap-4 p-4 bg-muted/50 rounded-2xl border border-border items-center justify-center">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-lg bg-red-500 border-2 border-red-600" />
-              <span className="text-[11px] font-bold text-muted-foreground uppercase">Taqiqlangan</span>
+          <div className="mt-4 flex gap-3 p-2 bg-muted/30 rounded-lg border border-border/40 items-center justify-center">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3.5 h-3.5 rounded bg-red-500/25 border border-red-500" />
+              <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">Taqiqlangan</span>
             </div>
-            <div className="w-px h-4 bg-gray-200" />
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-lg bg-card border-2 border-border" />
-              <span className="text-[11px] font-bold text-muted-foreground uppercase">Ruxsat etilgan</span>
+            <div className="w-px h-3.5 bg-border" />
+            <div className="flex items-center gap-1.5">
+              <div className="w-3.5 h-3.5 rounded bg-muted/30 border border-border" />
+              <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">Ruxsat etilgan</span>
             </div>
           </div>
           
-          <div className="mt-4 space-y-1">
-            <p className="text-[10px] text-muted-foreground text-center italic">
+          <div className="mt-2.5 space-y-0.5">
+            <p className="text-[9px] text-muted-foreground/75 text-center italic">
               * Sichqonchani bosib turib surish — ko'p kataklarni tezkor belgilash
             </p>
-            <p className="text-[10px] text-muted-foreground text-center italic">
-              * Kun nomi yoki soat raqami ustiga bosish — to'liq qator/ustunni o'zgartirish
+            <p className="text-[9px] text-muted-foreground/75 text-center italic">
+              * Kun yoki soat ustiga bosish — butun qator/ustunni o'zgartirish
             </p>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button onClick={onClose} className="w-full bg-primary hover:bg-primary/90 h-11 text-base font-bold shadow-xl shadow-blue-100 rounded-xl">Tayyor</Button>
+        <DialogFooter className="mt-1">
+          <Button onClick={onClose} className="w-full bg-primary hover:bg-primary/90 h-9 text-xs font-semibold rounded-lg shadow-sm">Tayyor</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function TeacherCard({ 
-  teacher, 
-  subjects, 
-  onEdit, 
-  onDelete, 
-  onOpenUnavail,
-  onUpdateField 
-}: { 
-  teacher: Teacher; 
-  subjects: Subject[]; 
-  onEdit: (t: Teacher) => void; 
-  onDelete: (id: number) => void; 
-  onOpenUnavail: (t: Teacher) => void;
-  onUpdateField: (id: number, field: string, value: any) => void;
-}) {
-  const teacherUnavail = (teacher as any).unavailability || [];
-  const teacherSubs = (teacher as any).teacherSubjects || [];
-  const isVacant = teacher.isVacant;
 
-  return (
-    <Card className={`group hover:shadow-md transition-all duration-300 border-border rounded-2xl overflow-hidden bg-card ${isVacant ? 'border-l-4 border-l-amber-500/80 bg-amber-500/10' : ''}`}>
-      <div className="p-4 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            {isVacant ? (
-              <div className="w-12 h-12 rounded-xl border-2 border-dashed border-amber-500/30 bg-amber-500/10 flex items-center justify-center text-amber-500 text-lg font-bold shadow-sm flex-shrink-0 animate-pulse" title="Tahrirlanmagan vakant o'qituvchi. F.I.O ni yozish uchun bosing.">
-                V
-              </div>
-            ) : (
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-primary-foreground text-lg font-bold shadow-sm flex-shrink-0">
-                {teacher.firstName[0]}{teacher.lastName[0]}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-col">
-                <InlineEdit
-                  value={`${teacher.lastName} ${teacher.firstName}`}
-                  onSave={(val) => {
-                    const parts = val.split(" ");
-                    onUpdateField(teacher.id, "lastName", parts[0] || "");
-                    onUpdateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
-                  }}
-                  className={`font-bold text-sm truncate ${isVacant ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}
-                  placeholder="F.I.O ni kiriting..."
-                />
-                {isVacant && (
-                  <span className="text-[10px] text-amber-500 font-semibold animate-pulse ml-1.5 mt-0.5">
-                    ⚠️ Haqiqiy F.I.O ni yozish uchun bosing
-                  </span>
-                )}
-              </div>
-              <InlineEdit
-                value={teacher.specialization || "Mutaxassislik..."}
-                onSave={(val) => onUpdateField(teacher.id, "specialization", val)}
-                className="text-xs text-muted-foreground truncate block mt-0.5"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/60 hover:text-primary" onClick={() => onEdit(teacher)}>
-              <Edit className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground/60 hover:text-red-500" onClick={() => onDelete(teacher.id)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          <Badge variant="secondary" className="bg-muted text-muted-foreground border-border px-1.5 py-0 text-[10px] font-mono">
-            {teacher.employeeId}
-          </Badge>
-          {teacher.department && (
-            <Badge variant="outline" className="text-[10px] border-blue-500/20 text-blue-600 dark:text-blue-400 bg-blue-500/10">
-              {teacher.department}
-            </Badge>
-          )}
-          {(teacher as any).gradeLevel && (
-            <Badge variant="outline" className="text-[10px] border-purple-500/20 text-purple-600 dark:text-purple-400 bg-purple-500/10">
-              {(teacher as any).gradeLevel === "primary" ? "1-4 sinf" : (teacher as any).gradeLevel === "high" ? "5-11 sinf" : "Barcha sinf"}
-            </Badge>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 py-2 border-y border-border">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Phone className="h-3 w-3 text-muted-foreground/60" />
-            <InlineEdit
-              value={teacher.phone || "Tel..."}
-              onSave={(val) => onUpdateField(teacher.id, "phone", val)}
-              className="truncate"
-            />
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground justify-end">
-            <Clock className="h-3 w-3 text-primary" />
-            <InlineEdit
-              value={teacher.maxHoursPerWeek || 30}
-              onSave={(val) => onUpdateField(teacher.id, "maxHoursPerWeek", parseInt(val) || 30)}
-              type="number"
-              className="font-bold text-foreground w-8"
-            />
-            <span>soat</span>
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Fanlar</span>
-            <span className="text-[10px] text-muted-foreground/80">{teacherSubs.length} ta</span>
-          </div>
-          <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto pr-1">
-            {teacherSubs.length > 0 ? (
-              teacherSubs.map((ts: any) => {
-                const sub = subjects.find(s => s.id === ts.subjectId);
-                return (
-                  <Badge key={ts.id} variant="outline" className="text-[9px] py-0 px-1.5 border-border text-foreground" style={{ borderLeftColor: sub?.color, borderLeftWidth: '2px' }}>
-                    {sub?.name}
-                  </Badge>
-                );
-              })
-            ) : (
-              <span className="text-[10px] text-muted-foreground/30 italic">Fan yo'q</span>
-            )}
-          </div>
-        </div>
-
-        <div className="pt-2">
-          <button 
-            onClick={() => onOpenUnavail(teacher)}
-            className="w-full flex items-center justify-between text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider hover:text-foreground transition-colors bg-muted/40 hover:bg-muted p-2 rounded-lg border border-border"
-          >
-            <div className="flex items-center gap-2">
-              <CalendarX className="h-3.5 w-3.5 text-red-400" />
-              <span>Bandlik cheklovlari</span>
-            </div>
-            <div className="flex items-center gap-1">
-              {teacherUnavail.length > 0 && (
-                <span className="bg-red-500/15 text-red-500 px-1.5 py-0.5 rounded-full text-[9px]">{teacherUnavail.length} ta</span>
-              )}
-              <ChevronRight className="h-3 w-3" />
-            </div>
-          </button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function TeacherRow({ 
-  teacher, 
-  subjects, 
-  onEdit, 
-  onDelete, 
-  onOpenUnavail,
-  onUpdateField 
-}: { 
-  teacher: Teacher; 
-  subjects: Subject[]; 
-  onEdit: (t: Teacher) => void; 
-  onDelete: (id: number) => void; 
-  onOpenUnavail: (t: Teacher) => void;
-  onUpdateField: (id: number, field: string, value: any) => void;
-}) {
-  const teacherSubs = (teacher as any).teacherSubjects || [];
-  const teacherUnavail = (teacher as any).unavailability || [];
-  const isVacant = teacher.isVacant;
-
-  return (
-    <div className={`group grid grid-cols-[1.5fr_1fr_1fr_150px_100px] gap-4 items-center p-3 rounded-xl border border-border bg-card hover:shadow-sm transition-all ${isVacant ? 'border-l-4 border-l-amber-500/80 bg-amber-500/5' : ''}`}>
-      <div className="flex items-center gap-3 min-w-0">
-        {isVacant ? (
-          <div className="w-10 h-10 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/10 flex items-center justify-center text-amber-500 font-bold text-sm flex-shrink-0 animate-pulse">
-            V
-          </div>
-        ) : (
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
-            {teacher.firstName[0]}{teacher.lastName[0]}
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <InlineEdit
-              value={`${teacher.lastName} ${teacher.firstName}`}
-              onSave={(val) => {
-                const parts = val.split(" ");
-                onUpdateField(teacher.id, "lastName", parts[0] || "");
-                onUpdateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
-              }}
-              className={`font-semibold text-sm truncate ${isVacant ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}
-              placeholder="F.I.O ni kiriting..."
-            />
-            {isVacant && (
-              <span className="text-[9px] text-amber-500 font-semibold animate-pulse whitespace-nowrap bg-amber-500/10 px-1 rounded border border-amber-500/20">
-                ⚠️ Ism kiritish uchun bosing
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[10px] text-muted-foreground/60 font-mono">{teacher.employeeId}</span>
-            <InlineEdit
-              value={teacher.specialization || "Mutaxassislik..."}
-              onSave={(val) => onUpdateField(teacher.id, "specialization", val)}
-              className="text-[10px] text-muted-foreground truncate"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="text-sm text-muted-foreground truncate">
-        {teacher.department || "—"}
-      </div>
-
-      <div className="flex flex-wrap gap-1 max-h-8 overflow-hidden">
-        {teacherSubs.length > 0 ? (
-          teacherSubs.slice(0, 3).map((ts: any) => {
-            const sub = subjects.find(s => s.id === ts.subjectId);
-            return (
-              <Badge key={ts.id} variant="outline" className="text-[9px] py-0 px-1 border-border text-muted-foreground whitespace-nowrap">
-                {sub?.name}
-              </Badge>
-            );
-          })
-        ) : (
-          <span className="text-[10px] text-muted-foreground/30 italic">Biriktirilmagan</span>
-        )}
-        {teacherSubs.length > 3 && <span className="text-[9px] text-muted-foreground/60">+{teacherSubs.length - 3}</span>}
-      </div>
-
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Clock className="h-3 w-3 text-primary" />
-          <InlineEdit
-            value={teacher.maxHoursPerWeek || 30}
-            onSave={(val) => onUpdateField(teacher.id, "maxHoursPerWeek", parseInt(val) || 30)}
-            type="number"
-            className="font-bold w-6 text-foreground"
-          />
-        </div>
-        <button 
-          onClick={() => onOpenUnavail(teacher)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-red-500 transition-colors"
-          title="Bandlik cheklovlarini boshqarish"
-        >
-          <CalendarX className={`h-3 w-3 ${teacherUnavail.length > 0 ? 'text-red-400' : 'text-muted-foreground/30'}`} />
-          <span className="font-medium">{teacherUnavail.length}</span>
-          <ChevronRight className="h-2.5 w-2.5" />
-        </button>
-      </div>
-
-      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:text-primary" onClick={() => onEdit(teacher)}>
-          <Edit className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground/60 hover:text-red-500" onClick={() => onDelete(teacher.id)}>
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export default function Teachers() {
   const [search, setSearch] = useState("");
@@ -539,7 +283,6 @@ export default function Teachers() {
   const [formData, setFormData] = useState<TeacherFormData>(EMPTY_FORM);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [clearing, setClearing] = useState(false);
-  const [view, setView] = useState<"grid" | "list">("list");
   const [unavailTeacher, setUnavailTeacher] = useState<Teacher | null>(null);
   const [autoGenerateConfirmOpen, setAutoGenerateConfirmOpen] = useState(false);
 
@@ -697,6 +440,9 @@ export default function Teachers() {
           <Button variant="outline" size="sm" onClick={() => setBulkOpen(true)} className="border-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10">
             <Zap className="h-4 w-4 mr-1.5 text-amber-500" /> Ko'p qo'shish
           </Button>
+          <Button size="sm" onClick={() => { setEditing(null); setFormData(EMPTY_FORM); setOpen(true); }} className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm">
+            <Plus className="h-4 w-4 mr-1.5" /> O'qituvchi qo'shish
+          </Button>
         </div>
       </div>
 
@@ -781,134 +527,222 @@ export default function Teachers() {
         </div>
       )}
 
-      {/* Filters and View controls */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-card p-3 rounded-xl border border-border shadow-sm">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
-          <Input 
-            placeholder="F.I.O yoki kafedra bo'yicha qidirish..." 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-9 text-sm bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg"
-          />
-        </div>
-        <div className="flex items-center gap-2 self-end">
-          <div className="flex items-center bg-muted/50 p-1 rounded-lg border border-border">
+      {teachers.length === 0 && !isLoading ? (
+        <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border max-w-xl mx-auto shadow-sm">
+          <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
+            <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+          </div>
+          <h3 className="text-lg font-bold text-foreground">O'qituvchilar ro'yxati bo'sh</h3>
+          <p className="text-muted-foreground max-w-md mx-auto mt-2 text-sm leading-relaxed">
+            Dars jadvalini shakllantirish uchun o'qituvchilarni qo'shing. Excel fayldan yuklashingiz yoki dars yuklamalari bo'yicha vakantlarni avtomatik yaratishingiz mumkin.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3 justify-center">
+            {totalVacancies > 0 && (
+              <Button 
+                onClick={() => setAutoGenerateConfirmOpen(true)} 
+                className="bg-amber-600 hover:bg-amber-700 text-primary-foreground font-medium rounded-xl h-10 px-4 gap-2 border border-transparent shadow-sm"
+              >
+                <Zap className="h-4 w-4 fill-white" />
+                Vakantlarni avtomatik qo'shish
+              </Button>
+            )}
             <Button 
-              variant={view === "grid" ? "secondary" : "ghost"} 
-              size="sm" 
-              className={`h-7 w-8 p-0 ${view === "grid" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`}
-              onClick={() => setView("grid")}
-              title="Grid ko'rinishi"
+              variant="outline" 
+              onClick={() => setExcelImportOpen(true)} 
+              className="border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl h-10 px-4 gap-2"
             >
-              <LayoutGrid className="h-3.5 w-3.5" />
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel Import
             </Button>
             <Button 
-              variant={view === "list" ? "secondary" : "ghost"} 
-              size="sm" 
-              className={`h-7 w-8 p-0 ${view === "list" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:text-foreground"}`}
-              onClick={() => setView("list")}
-              title="Ro'yxat ko'rinishi"
+              onClick={() => setOpen(true)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl h-10 px-4 gap-2 shadow-sm"
             >
-              <List className="h-3.5 w-3.5" />
+              <Plus className="h-4 w-4" />
+              O'qituvchi qo'shish
             </Button>
           </div>
         </div>
-      </div>
-
-      {/* Main content */}
-      {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {Array(8).fill(0).map((_, i) => (
-            <div key={i} className="h-48 bg-muted animate-pulse rounded-2xl border border-border" />
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        teachers.length === 0 ? (
-          <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border max-w-xl mx-auto shadow-sm">
-            <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
-              <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="text-lg font-bold text-foreground">O'qituvchilar ro'yxati bo'sh</h3>
-            <p className="text-muted-foreground max-w-md mx-auto mt-2 text-sm leading-relaxed">
-              Dars jadvalini shakllantirish uchun o'qituvchilarni qo'shing. Excel fayldan yuklashingiz yoki dars yuklamalari bo'yicha vakantlarni avtomatik yaratishingiz mumkin.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3 justify-center">
-              {totalVacancies > 0 && (
-                <Button 
-                  onClick={() => setAutoGenerateConfirmOpen(true)} 
-                  className="bg-amber-600 hover:bg-amber-700 text-primary-foreground font-medium rounded-xl h-10 px-4 gap-2 border border-transparent shadow-sm"
-                >
-                  <Zap className="h-4 w-4 fill-white" />
-                  Vakantlarni avtomatik qo'shish
-                </Button>
-              )}
-              <Button 
-                variant="outline" 
-                onClick={() => setExcelImportOpen(true)} 
-                className="border-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl h-10 px-4 gap-2"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Excel Import
-              </Button>
-              <Button 
-                onClick={() => setOpen(true)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-xl h-10 px-4 gap-2 shadow-sm"
-              >
-                <Plus className="h-4 w-4" />
-                O'qituvchi qo'shish
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center py-20 bg-card rounded-2xl border border-dashed border-border max-w-xl mx-auto shadow-sm">
-            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 border border-border">
-              <Search className="h-8 w-8 text-muted-foreground/40" />
-            </div>
-            <h3 className="text-lg font-bold text-foreground">Hech qanday o'qituvchi topilmadi</h3>
-            <p className="text-muted-foreground max-w-md mx-auto mt-2 text-sm">
-              "{search}" qidiruv so'roviga mos keluvchi o'qituvchi topilmadi. Qidiruv matnini o'zgartirib ko'ring.
-            </p>
-            <Button variant="outline" className="mt-6 border-border hover:bg-muted text-foreground rounded-xl" onClick={() => setSearch("")}>Qidiruvni tozalash</Button>
-          </div>
-        )
       ) : (
-        view === "grid" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filtered.map((teacher) => (
-              <TeacherCard 
-                key={teacher.id} 
-                teacher={teacher} 
-                subjects={subjects}
-                onEdit={handleEdit}
-                onDelete={id => setDeletingId(id)}
-                onOpenUnavail={setUnavailTeacher}
-                onUpdateField={updateField}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="grid grid-cols-[1.5fr_1fr_1fr_150px_100px] gap-4 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted/50 rounded-xl border border-border">
-              <div>O'qituvchi</div>
-              <div>Kafedra</div>
-              <div>Fanlar</div>
-              <div>Yuklama / Bandlik</div>
-              <div className="text-right">Amallar</div>
+        <Card className="border border-border shadow-sm bg-card text-card-foreground">
+          <CardHeader className="pb-3 border-b border-border">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <CardTitle className="text-base font-semibold flex items-center">
+                <Users className="mr-2 h-4 w-4 text-blue-500" />
+                O'qituvchilar ro'yxati
+                <Badge variant="secondary" className="ml-2 text-xs bg-muted text-foreground">{teachers.length} ta</Badge>
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/60 h-4 w-4" />
+                  <Input 
+                    placeholder="Qidirish..." 
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 h-9 text-sm bg-muted/50 border-transparent focus:bg-background focus:border-primary/50 text-foreground transition-all rounded-lg"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/60">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
-            {filtered.map((teacher) => (
-              <TeacherRow
-                key={teacher.id}
-                teacher={teacher}
-                subjects={subjects}
-                onEdit={handleEdit}
-                onDelete={id => setDeletingId(id)}
-                onOpenUnavail={setUnavailTeacher}
-                onUpdateField={updateField}
-              />
-            ))}
-          </div>
-        )
+          </CardHeader>
+          <CardContent className="p-0">
+            {isLoading ? (
+              <div className="p-6 space-y-3">
+                {Array(5).fill(0).map((_, i) => <div key={i} className="h-12 bg-muted animate-pulse rounded-lg" />)}
+              </div>
+            ) : filtered.length > 0 ? (
+              <Table>
+                <TableHeader className="bg-muted/50">
+                  <TableRow className="border-border">
+                    <TableHead className="w-[280px] pl-4">O'qituvchi</TableHead>
+                    <TableHead className="w-[240px]">Mutaxassislik</TableHead>
+                    <TableHead>Fanlar</TableHead>
+                    <TableHead className="w-[150px]">Yuklama</TableHead>
+                    <TableHead className="w-[180px]">Bandlik cheklovi</TableHead>
+                    <TableHead className="w-[60px] text-right pr-4"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((teacher) => {
+                    const teacherSubs = (teacher as any).teacherSubjects || [];
+                    const teacherUnavail = (teacher as any).unavailability || [];
+                    const isVacant = teacher.isVacant;
+
+                    return (
+                      <TableRow key={teacher.id} className={`group border-border hover:bg-muted/30 transition-colors ${isVacant ? 'bg-amber-500/5 hover:bg-amber-500/10' : ''}`}>
+                        <TableCell className="pl-4">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <InlineEdit
+                                value={`${teacher.lastName} ${teacher.firstName}`}
+                                onSave={(val) => {
+                                  const parts = val.split(" ");
+                                  updateField(teacher.id, "lastName", parts[0] || "");
+                                  updateField(teacher.id, "firstName", parts.slice(1).join(" ") || "");
+                                }}
+                                className={`font-semibold text-sm truncate ${isVacant ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}`}
+                                placeholder="F.I.O ni kiriting..."
+                              />
+                            </div>
+                            <div className="text-[10px] text-muted-foreground/60 mt-0.5 flex items-center gap-1.5">
+                              <span className="font-mono">{teacher.employeeId}</span>
+                              {isVacant && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                  Vakant
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="min-w-0">
+                            <InlineEdit
+                              value={teacher.specialization || "Mutaxassislik..."}
+                              onSave={(val) => updateField(teacher.id, "specialization", val)}
+                              className="font-medium text-sm text-foreground truncate"
+                            />
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {teacher.department || "Kafedra belgilanmagan"}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1 max-h-8 overflow-hidden max-w-[250px] items-center">
+                            {teacherSubs.length > 0 ? (
+                              teacherSubs.slice(0, 3).map((ts: any) => {
+                                const sub = subjects.find(s => s.id === ts.subjectId);
+                                return (
+                                  <Badge key={ts.id} variant="outline" className="text-[9px] py-0 px-1 border-border text-muted-foreground whitespace-nowrap bg-muted/20">
+                                    {sub?.name || 'Mavjud emas'}
+                                  </Badge>
+                                );
+                              })
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/40 italic">Biriktirilmagan</span>
+                            )}
+                            {teacherSubs.length > 3 && (
+                              <span className="text-[10px] text-muted-foreground font-medium pl-1">
+                                +{teacherSubs.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-blue-500/70 flex-shrink-0" />
+                            <InlineEdit
+                              value={teacher.maxHoursPerWeek || 30}
+                              onSave={(val) => updateField(teacher.id, "maxHoursPerWeek", parseInt(val) || 30)}
+                              type="number"
+                              className="font-semibold text-foreground w-12"
+                            />
+                            <span className="text-xs text-muted-foreground/70">soat</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {teacherUnavail.length > 0 ? (
+                            <button 
+                              onClick={() => setUnavailTeacher(teacher)}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-semibold text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition-all cursor-pointer"
+                              title="Cheklovlarni tahrirlash"
+                            >
+                              <CalendarX className="h-3.5 w-3.5" />
+                              <span>{teacherUnavail.length} ta dars yopiq</span>
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => setUnavailTeacher(teacher)}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted border border-border transition-all cursor-pointer"
+                              title="Cheklov qo'shish"
+                            >
+                              <CalendarX className="h-3.5 w-3.5 opacity-60" />
+                              <span>Cheklov yo'q</span>
+                            </button>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right pr-4">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="sr-only">Menyuni ochish</span>
+                                <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40 border-border">
+                              <DropdownMenuItem onClick={() => handleEdit(teacher)} className="text-sm cursor-pointer">
+                                <Edit className="mr-2 h-4 w-4" />
+                                Tahrirlash
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setDeletingId(teacher.id)} className="text-sm text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-950 cursor-pointer">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                O'chirish
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-16">
+                <div className="w-14 h-14 bg-muted rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Search className="h-6 w-6 text-muted-foreground/40" />
+                </div>
+                <p className="text-muted-foreground font-medium">Qidiruv bo'yicha hech qanday o'qituvchi topilmadi</p>
+                <Button variant="outline" className="mt-4 border-border hover:bg-muted text-foreground rounded-xl" onClick={() => setSearch("")}>
+                  Qidiruvni tozalash
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* MODALS */}
