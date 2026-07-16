@@ -30,14 +30,14 @@ export default function Login() {
             <span className="text-blue-400">oson boshqaring</span>
           </h1>
           <p className="text-slate-400 text-lg mb-12">
-            Avtomatik jadval yaratish, o'qituvchi va xona boshqarish — barchasi bir joyda.
+            Avtomatik dars jadvalini yaratish, o‘qituvchilar va xonalarni boshqarish — barchasi bir joyda.
           </p>
 
           <div className="space-y-6">
             {[
-              { icon: Calendar, color: "bg-blue-500/20 text-blue-400", title: "Avtomatik jadval", desc: "Bir tugma bilan to'liq haftalik dars jadvalini yarating" },
-              { icon: Users, color: "bg-green-500/20 text-green-400", title: "O'qituvchi boshqaruvi", desc: "O'qituvchilar va ularning dars yuklamasini kuzatib boring" },
-              { icon: BookOpen, color: "bg-purple-500/20 text-purple-400", title: "Ziddiyatsiz jadval", desc: "Xona va o'qituvchi ziddiyatlarini avtomatik aniqlang" },
+              { icon: Calendar, color: "bg-blue-500/20 text-blue-400", title: "Avtomatik jadval", desc: "Bir bosishda to‘liq haftalik dars jadvalini yaratish" },
+              { icon: Users, color: "bg-green-500/20 text-green-400", title: "O‘qituvchilar boshqaruvi", desc: "O‘qituvchilar va ularning dars yuklamalarini kuzatish" },
+              { icon: BookOpen, color: "bg-purple-500/20 text-purple-400", title: "Ziddiyatsiz dars jadvali", desc: "Xonalar va o‘qituvchilar ziddiyatlarini avtomatik aniqlash" },
             ].map(({ icon: Icon, color, title, desc }) => (
               <div key={title} className="flex items-start space-x-4">
                 <div className={`w-10 h-10 ${color.split(" ")[0]} rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5`}>
@@ -52,18 +52,18 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="text-slate-600 text-sm">© 2024 Maktab Dars Jadvali tizimi</div>
+        <div className="text-slate-600 text-sm">© {new Date().getFullYear()} Maktab Dars Jadvali tizimi</div>
       </div>
 
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
-          <div className="bg-card rounded-2xl shadow-2xl p-8">
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-2xl p-8 relative overflow-hidden">
             <div className="text-center mb-8">
-              <div className="mx-auto w-14 h-14 bg-primary rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-                <School className="h-7 w-7 text-primary-foreground" />
+              <div className="mx-auto w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/20">
+                <School className="h-7 w-7 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-foreground">Kirish</h2>
-              <p className="text-muted-foreground text-sm mt-1">Tizimga kirish uchun kodingizni kiriting</p>
+              <h2 className="text-2xl font-bold text-white">Kirish</h2>
+              <p className="text-slate-400 text-sm mt-1">Tizimga kirish uchun email va parolingizni kiriting</p>
             </div>
             <LoginForm />
           </div>

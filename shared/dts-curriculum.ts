@@ -107,11 +107,21 @@ export const DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     hours: { 8: 1, 9: 1, 10: 1, 11: 1 },
   },
 
-  // 11. Tarbiya (Sinf soati / Kelajak soati) — 1–11-sinf
+  // 11. Tarbiya — 1–11-sinf (alohida oddiy fan; sinf soati EMAS)
   {
     name: "Tarbiya",
-    codes: ["TARB", "SINF"],
-    keywords: ["tarbiya", "sinf soati", "kelajak soati"],
+    codes: ["TARB"],
+    keywords: ["tarbiya"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
+  },
+
+  // 11a. Kelajak soati (Sinf soati) — 1–11-sinf, sinf rahbari o'tadi.
+  // DTS jami soatlariga KIRMAYDI (isClassHourSubject bilan barcha jami/norma
+  // hisoblaridan chiqariladi), lekin jadvalda dushanba 1-soatga qo'yiladi.
+  {
+    name: "Kelajak soati",
+    codes: ["KELS", "SINF"],
+    keywords: ["kelajak soati", "sinf soati"],
     hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
   },
 
@@ -309,6 +319,13 @@ export const RUSSIAN_DTS_CURRICULUM_2025: DtsCurriculumEntry[] = [
     name: "Tarbiya",
     codes: ["TARB"],
     keywords: ["tarbiya", "vospitanie"],
+    hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
+  },
+  // Kelajak soati (Sinf soati) — DTS jami soatlariga kirmaydi (yuqoridagi izohga qarang)
+  {
+    name: "Kelajak soati",
+    codes: ["KELS", "SINF"],
+    keywords: ["kelajak soati", "sinf soati"],
     hours: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1, 11: 1 },
   },
   // Faza 2 tuzatishi: bu 5 ta fan avvalgi RUSSIAN_DTS_CURRICULUM_2025'da umuman

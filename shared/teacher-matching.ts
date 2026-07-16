@@ -65,12 +65,11 @@ export function scoreTeacherForSubject(
   const teacherGradeLevels = resolveTeacherGradeLevels(teacher, language);
   const isPrimaryTeacher = teacherGradeLevels.includes("primary");
 
-  // Sinf soati (Tarbiya/Kelajak soati) — sinf rahbari belgilangan bo'lsa, faqat u o'tadi.
+  // Sinf soati (Kelajak soati) — sinf rahbari belgilangan bo'lsa, faqat u o'tadi.
   // Yuqori sinf rahbari mutaxassisligidan qat'i nazar oladi (specialty tekshiruvisiz).
+  // Bu soat dars yuklamasidan tashqari — maxHoursPerWeek limiti qo'llanmaydi.
   if (isClassHourSubject(ctx.subjectName) && ctx.classTeacherId != null) {
     if (teacher.id !== ctx.classTeacherId) return -1;
-    const rahbarMaxHours = teacher.maxHoursPerWeek || 30;
-    if (currentHours + ctx.weeklyHours > rahbarMaxHours) return -1;
     return 1000 - currentHours;
   }
 

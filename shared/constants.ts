@@ -8,6 +8,7 @@ export const PRIMARY_TEACHER_ALLOWED_SUBJECTS = [
   "o'qish savodxonligi",
   "tarbiya",
   "sinf soati",
+  "kelajak soati",
   "tabiiy fanlar",
   "tasviriy san'at",
   "texnologiya",
@@ -28,16 +29,12 @@ export function isPrimaryTeacherAllowedSubject(subjectName: string): boolean {
 /**
  * "Sinf soati" (Kelajak soati) darsini aniqlaydi — 3271-son nizomga ko'ra bu dars
  * sinf rahbari tomonidan, belgilangan vaqtda (default: dushanba 1-soat) o'tiladi.
- * DTS'da bu dars "Tarbiya" nomi bilan yuritiladi.
+ * Sinf o'quv soatiga va o'qituvchi dars yuklamasiga hisoblanmaydi.
+ * "Tarbiya" — alohida oddiy DTS fani, sinf soati EMAS.
  */
 export function isClassHourSubject(subjectName: string): boolean {
   const name = subjectName.toLowerCase().trim();
-  // startsWith — "Jismoniy tarbiya" ni yanglish moslashdan saqlaydi
-  return (
-    name.startsWith("tarbiya") ||
-    name.includes("sinf soati") ||
-    name.includes("kelajak soati")
-  );
+  return name.includes("sinf soati") || name.includes("kelajak soati");
 }
 
 /** Sinf soati uchun standart vaqt: dushanba (1), 1-dars. */
@@ -45,6 +42,21 @@ export const DEFAULT_CLASS_HOUR_SLOT = { dayOfWeek: 1, periodNumber: 1 };
 
 /** app_settings jadvalidagi sinf soati vaqti kaliti. */
 export const CLASS_HOUR_SLOT_SETTING_KEY = "classHourSlot";
+
+/** schedule_conflicts.conflictType → foydalanuvchiga ko'rinadigan nom. */
+export const CONFLICT_TYPE_LABELS: Record<string, string> = {
+  room: "Xona ziddiyati",
+  teacher: "O'qituvchi ziddiyati",
+  unavailability: "Bandlik ziddiyati",
+  schedule_overlap: "SanPiN/yuklama ziddiyati",
+  class_hour_slot: "Sinf soati vaqti",
+  room_capacity: "Xona sig'imi yetarli emas",
+  room_type: "Mos xona turi topilmadi",
+};
+
+export function getConflictTypeLabel(conflictType: string): string {
+  return CONFLICT_TYPE_LABELS[conflictType] || "Sinf ziddiyati";
+}
 
 /**
  * classes.grade matn maydonidan raqamli sinf darajasini oladi.
@@ -67,6 +79,40 @@ export const ROOM_TYPE_LABELS: Record<string, string> = {
 };
 
 export const ROOM_TYPES = Object.keys(ROOM_TYPE_LABELS);
+
+/**
+ * Maxsus jihozlangan xonalar fanga biriktiriladi: Fizika va Kimyo ikkalasi ham
+ * roomType="lab" bo'lsa-da, ular ALOHIDA laboratoriyalar. Xona fanga tegishliligi
+ * nomi orqali aniqlanadi ("Fizika laboratoriyasi" → Fizika), shuning uchun na sxema,
+ * na qo'shimcha biriktirish jadvali kerak.
+ */
+function normalizeRoomText(s: string): string {
+  return s.toLowerCase().replace(/[^a-zа-яʼ'0-9\s]/gi, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Xona shu fanga atalganmi (nomida fan nomi bormi)? */
+export function roomMatchesSubject(roomName: string, subjectName: string): boolean {
+  const room = normalizeRoomText(roomName);
+  const subject = normalizeRoomText(subjectName);
+  if (!room || !subject) return false;
+  // Fan nomining birinchi so'zi yetarli: "Informatika va axborot texnologiyalari" → "informatika"
+  const key = subject.split(" ")[0];
+  if (key.length < 4) return false;
+  return room.includes(key);
+}
+
+/** Fanga atalgan maxsus xona uchun standart nom: "Fizika laboratoriyasi". */
+export function subjectRoomName(subjectName: string, roomType: string): string {
+  const short = subjectName.split(/\s+/)[0];
+  switch (roomType) {
+    case "lab": return `${short} laboratoriyasi`;
+    case "computer": return `${short} xonasi`;
+    case "music": return `${short} xonasi`;
+    case "art": return `${short} xonasi`;
+    case "gym": return "Sport zali";
+    default: return `${short} xonasi`;
+  }
+}
 
 /**
  * SanPiN №0341-16 bo'yicha fanlarning murakkablik darajasi (ballar 1-11)
@@ -106,6 +152,7 @@ export const SUBJECT_METADATA: Record<string, { complexity: number; category: Su
   
   "tarbiya": { complexity: 6, category: "other" },
   "sinf soati": { complexity: 6, category: "other" },
+  "kelajak soati": { complexity: 6, category: "other" },
   
   "jismoniy tarbiya": { complexity: 5, category: "dynamic" },
   "chqbt": { complexity: 5, category: "dynamic" },

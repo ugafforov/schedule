@@ -14,9 +14,12 @@ Kodda qoʻllanish joylari:
 Tizim tomonidan buzilishi mumkin boʻlmagan qoidalar:
 
 - **Ziddiyatlarning yoʻqligi (Clash-Free):** bir vaqtda bitta oʻqituvchi, bitta sinf yoki bitta xona ikki joyda boʻlolmaydi.
-- **Resurslar mavjudligi:** laboratoriya (Kimyo, Fizika), sport zali va kompyuter xonalari faqat oʻz ixtisosligidagi fanlar uchun va boʻsh vaqtida taqsimlanadi.
 - **Mehnat shartnomasi meʼyorlari:** oʻqituvchining haftalik maksimal yuklamasi (stavkasi) va metodik kunlari qatʼiy saqlanadi.
-- **Sinf sigʻimi:** xonadagi oʻquvchilar soni uning fizik sigʻimidan oshmaydi.
+- **SanPiN kunlik dars limiti:** `getMaxHoursPerDay` (1-4 sinf — 5, 5-11 sinf — 7) qatʼiy shart: limit toʻlgan kunga dars qoʻyilmaydi (post-processing/gap optimizatsiyasi ham buni buzolmaydi).
+- **Sinf soati (Kelajak soati):** har bir sinfda haftasiga 1 soat, faqat sinf rahbari oʻtadi, `classHourSlot` sozlamasidagi vaqtga (default: dushanba 1-dars) mahkamlanadi (pinned) va hech qanday optimizatsiya uni koʻchira olmaydi. **Sinfning oʻquv soatiga ham, oʻqituvchining dars yuklamasiga ham hisoblanmaydi** (`isClassHourSubject`, `shared/constants.ts`). "Tarbiya" — alohida oddiy DTS fani, sinf soati EMAS.
+
+**Murosa qilinadigan (soft) resurs cheklovlari** — dars yoʻqolmasligi uchun:
+- **Xona turi va sigʻimi:** laboratoriya/sport zali/kompyuter xonasi afzal koʻriladi, ammo boʻsh yoki sigʻimi yetarli xona topilmasa dars tashlab ketilmaydi — boshqa xonaga qoʻyiladi va sabab `room_capacity` / `room_type` ziddiyati sifatida qayd etiladi (masalan: yagona laboratoriya sigʻimi 24, sinfda 25 oʻquvchi).
 
 ## 2. Pedagogik va fiziologik tavsiyalar
 
@@ -46,7 +49,7 @@ Tizim tomonidan buzilishi mumkin boʻlmagan qoidalar:
 - Oʻqituvchi haftalik yuklamasi: 18-24 dars; bir kunda maksimal 6-7 dars.
 
 ### Fanlar boʻyicha
-- **1-4 sinf majburiy:** Ona tili, Matematika, Oʻqish savodxonligi (1-2), Tarbiya, Sinf soati, Jismoniy tarbiya, Tasviriy sanʼat, Musiqa madaniyati.
+- **1-4 sinf majburiy:** Ona tili, Matematika, Oʻqish savodxonligi (1-2), Tarbiya, Jismoniy tarbiya, Tasviriy sanʼat, Musiqa madaniyati. Bularga qoʻshimcha — Kelajak soati (sinf soati, oʻquv soatiga kirmaydi).
 - **Boshlangʻich sinf oʻqituvchisi cheklovi:** gradeLevel="primary" oʻqituvchilar faqat `PRIMARY_TEACHER_ALLOWED_SUBJECTS` (`shared/constants.ts`) fanlariga va faqat oʻz sinfiga biriktiriladi. Rus tili, Ingliz tili, Musiqa, Jismoniy tarbiya — maxsus oʻqituvchilar.
 - **5-9 sinf:** Ona tili, Matematika, tabiiy fanlar (Fizika, Kimyo, Biologiya, Geografiya), chet tillari, tarix/ijtimoiy fanlar, Jismoniy tarbiya, sanʼat fanlari, Informatika/Texnologiya.
 - **10-11 sinf:** Matematika (Algebra, Geometriya), tabiiy fanlar, chet tillari, tarix/ijtimoiy, Jismoniy tarbiya, ixtiyoriy fanlar.

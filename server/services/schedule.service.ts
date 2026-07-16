@@ -2,9 +2,9 @@ import { storage } from "../storage/index";
 import { db } from "../db";
 import { scheduleEntries, timeSlots, type InsertScheduleEntry, type ScheduleEntry } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
-import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory, getMaxDailyComplexity, isClassHourSubject, CLASS_HOUR_SLOT_SETTING_KEY, DEFAULT_CLASS_HOUR_SLOT } from "@shared/constants";
+import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory, getMaxDailyComplexity, isClassHourSubject, CLASS_HOUR_SLOT_SETTING_KEY, DEFAULT_CLASS_HOUR_SLOT, roomMatchesSubject } from "@shared/constants";
 import { DomainError } from "../errors";
-import { attemptRelocations, minimizeGaps, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
+import { attemptRelocations, minimizeGaps, compactDays, balanceDays, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
 
 const DAYS = [1, 2, 3, 4, 5, 6];
 const DAY_NAMES = ["", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
@@ -110,7 +110,7 @@ function computeSoftPenalties(
   for (const cid of classIds) {
     const cdKey = `${cid}_${day}`;
     if ((classDailyCount.get(cdKey) || 0) + loadVal > maxDaily) {
-      conflicts += 50;
+      conflicts += 1000;
       reasons.push(`Sinf (${cid}) uchun kunlik dars soati oshib ketdi`);
     }
 
@@ -490,8 +490,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         teacherId: jl.groups[0]?.teacherId || 0,
         teacherId2: null,
         weeklyHours: jl.weeklyHours,
-        complexity: getSubjectComplexity(sub.name || ""),
-        category: getSubjectCategory(sub.name || ""),
+        complexity: getSubjectComplexity(sub?.name || ""),
+        category: getSubjectCategory(sub?.name || ""),
         grade: Math.max(...jl.classIds.map((cid: number) => {
           const c = targetClasses.find((cls) => cls.id === cid);
           return c ? parseInt(String(c.grade)) : 5;
@@ -513,8 +513,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         teacherId: jl.groups[0]?.teacherId || 0,
         teacherId2: null,
         weeklyHours: jl.weeklyHours,
-        complexity: getSubjectComplexity(sub.name || ""),
-        category: getSubjectCategory(sub.name || ""),
+        complexity: getSubjectComplexity(sub?.name || ""),
+        category: getSubjectCategory(sub?.name || ""),
         grade: Math.max(...jl.classIds.map((cid: number) => {
           const c = targetClasses.find((cls) => cls.id === cid);
           return c ? parseInt(String(c.grade)) : 5;
@@ -532,7 +532,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     const classStudents = lesson.isJoint && lesson.classIds
       ? lesson.classIds.reduce((sum, cid) => sum + (targetClasses.find(c => c.id === cid)?.totalStudents || 25), 0)
       : (targetClasses.find(c => c.id === lesson.classId)?.totalStudents || 25);
-    const reqType = subjectMap.get(lesson.subjectId)?.requiredRoomType || "any";
+    const reqType = (subjectMap.get(lesson.subjectId) as any)?.requiredRoomType || "any";
     // Juft dars (double period) qoidasi (docs/domain/scheduling-rules.md §2.B):
     // boshlang'ich sinfda (1-4) bir kunda bir fandan faqat 1 marta; yuqori sinfda
     // faqat laboratoriya talab qiladigan fanlar uchun bir kunda 2 martagacha ruxsat.
@@ -547,7 +547,16 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     };
   });
 
+  
+  const teacherTotalHours = new Map<number, number>();
+  for (const cs of allClassSubjects) {
+    const t1 = cs.teacherId;
+    if (t1) teacherTotalHours.set(t1, (teacherTotalHours.get(t1) || 0) + Number(cs.weeklyHours));
+    const t2 = cs.teacherId2;
+    if (t2) teacherTotalHours.set(t2, (teacherTotalHours.get(t2) || 0) + Number(cs.weeklyHours));
+  }
   const teacherUnavailCount = new Map<number, number>();
+
   for (const u of allUnavailability) {
     teacherUnavailCount.set(u.teacherId, (teacherUnavailCount.get(u.teacherId) || 0) + 1);
   }
@@ -559,14 +568,28 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     const jointA = (a.isJoint ? 1 : 0) + (a.teacherId2 ? 1 : 0);
     const jointB = (b.isJoint ? 1 : 0) + (b.teacherId2 ? 1 : 0);
     if (jointB !== jointA) return jointB - jointA;
+
+    // Maxsus xona talab qiladiganlar (gym, lab)
     const specA = a.reqType !== "any" ? 1 : 0;
     const specB = b.reqType !== "any" ? 1 : 0;
     if (specB !== specA) return specB - specA;
+
+    
     const tightA = teacherUnavailCount.get(a.teacherId) || 0;
     const tightB = teacherUnavailCount.get(b.teacherId) || 0;
     if (tightB !== tightA) return tightB - tightA;
+
+    // const totalHoursA = teacherTotalHours.get(a.teacherId) || 0;
+    // const totalHoursB = teacherTotalHours.get(b.teacherId) || 0;
+    // if (totalHoursB !== totalHoursA) return totalHoursB - totalHoursA;
+
     return b.grade - a.grade || b.complexity - a.complexity;
   });
+
+  const defaultRoomIdsOfOtherClasses = new Set<number>();
+  for (const c of targetClasses) {
+    if (c.defaultRoomId) defaultRoomIdsOfOtherClasses.add(c.defaultRoomId);
+  }
 
   const teacherBusy = new Set<string>();
   const roomBusy = new Set<string>();
@@ -644,14 +667,17 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     if (slot) {
       const day = slot.dayOfWeek;
       const loadVal = e.weekType === "always" ? 1 : 0.5;
-      const cdKey = `${e.classId}_${day}`;
-      classDailyCount.set(cdKey, (classDailyCount.get(cdKey) || 0) + loadVal);
+       const cdKey = `${e.classId}_${day}`;
+       const sub = subjectMap.get(e.subjectId);
+       const isClassHour = sub && isClassHourSubject(sub.name || "");
+       if (!isClassHour) {
+         classDailyCount.set(cdKey, (classDailyCount.get(cdKey) || 0) + loadVal);
+       }
       
       const sdKey = `${e.classId}_${e.subjectId}_${day}`;
       subjectDailyCount.set(sdKey, (subjectDailyCount.get(sdKey) || 0) + loadVal);
       
-      const sub = subjectMap.get(e.subjectId);
-      const subComp = sub ? getSubjectComplexity(sub.name || "") : 7;
+      const subComp = sub ? getSubjectComplexity(sub?.name || "") : 7;
       classDailyComplexity.set(cdKey, (classDailyComplexity.get(cdKey) || 0) + (subComp * loadVal));
 
       const sdaysKey = `${e.classId}_${e.subjectId}`;
@@ -778,12 +804,30 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
             const roomObj = allRooms.find(r => r.id === g.roomId);
             assignedRooms.push(roomObj || { id: g.roomId });
           } else {
-            // Find a free room
-            const freeRoom = candidateRooms.find(r => 
-              r.capacity >= avgCapacity &&
-              !isEntityBusy(roomBusy, r.id, slotId, lesson.weekType) &&
-              !assignedRooms.some(ar => ar.id === r.id)
-            );
+            const subjectObj = subjectMap.get(lesson.subjectId);
+            const subjectName = subjectObj?.name || "";
+            let freeRoom = null;
+            if (lesson.reqType !== "any" && subjectName) {
+              freeRoom = candidateRooms.find(r => 
+                r.capacity >= avgCapacity &&
+                !isEntityBusy(roomBusy, r.id, slotId, lesson.weekType) &&
+                !assignedRooms.some(ar => ar.id === r.id) &&
+                roomMatchesSubject(r.name, subjectName)
+              );
+            }
+            if (!freeRoom) {
+              freeRoom = candidateRooms.find(r => 
+                r.capacity >= avgCapacity &&
+                !isEntityBusy(roomBusy, r.id, slotId, lesson.weekType) &&
+                !assignedRooms.some(ar => ar.id === r.id)
+              );
+            }
+            if (!freeRoom) {
+              freeRoom = candidateRooms.find(r => 
+                !isEntityBusy(roomBusy, r.id, slotId, lesson.weekType) &&
+                !assignedRooms.some(ar => ar.id === r.id)
+              );
+            }
             if (!freeRoom) {
               roomsOk = false;
               break;
@@ -822,40 +866,43 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         // --- Existing single lesson / legacy split lesson logic ---
         // 1. Check if class studies on this day (hard constraint)
         const classStudyDays = lesson.studyDays ? lesson.studyDays.split(",").map(Number) : [1, 2, 3, 4, 5];
-        if (!classStudyDays.includes(Number(day))) {
-          continue;
-        }
+        if (!classStudyDays.includes(Number(day))) continue;
         
         // 2. Class busy check (hard constraint)
-        if (isEntityBusy(classBusy, lesson.classId, slotId, lesson.weekType)) {
-          continue;
-        }
+        if (isEntityBusy(classBusy, lesson.classId, slotId, lesson.weekType)) continue;
         
         // 3. Teacher busy checks (hard constraint)
-        if (isEntityBusy(teacherBusy, lesson.teacherId, slotId, lesson.weekType)) {
-          continue;
-        }
+        if (isEntityBusy(teacherBusy, lesson.teacherId, slotId, lesson.weekType)) continue;
         
         const tKey2 = lesson.teacherId2;
-        if (tKey2 && isEntityBusy(teacherBusy, tKey2, slotId, lesson.weekType)) {
-          continue;
-        }
+        if (tKey2 && isEntityBusy(teacherBusy, tKey2, slotId, lesson.weekType)) continue;
         
         // 4. Teacher unavailability checks (hard constraint)
-        if (unavailSet.has(`${lesson.teacherId}_${day}_${slot.periodNumber}`)) {
-          continue;
-        }
-        if (lesson.teacherId2 && unavailSet.has(`${lesson.teacherId2}_${day}_${slot.periodNumber}`)) {
-          continue;
-        }
+        if (unavailSet.has(`${lesson.teacherId}_${day}_${slot.periodNumber}`)) continue;
+        if (lesson.teacherId2 && unavailSet.has(`${lesson.teacherId2}_${day}_${slot.periodNumber}`)) continue;
         
         // 5. Room availability check (hard constraint)
         const candidateRooms = roomsByType.get(lesson.reqType) || roomsByType.get("any") || [];
         const requiredCapacity = lesson.teacherId2 ? lesson.classStudents / 2 : lesson.classStudents;
-        const suitableRooms = candidateRooms.filter(r => 
+        const subjectObj = subjectMap.get(lesson.subjectId);
+        const subjectName = subjectObj?.name || "";
+        let suitableRooms = candidateRooms.filter(r => 
           r.capacity >= requiredCapacity && 
           !isEntityBusy(roomBusy, r.id, slotId, lesson.weekType)
         );
+        if (lesson.reqType !== "any" && subjectName) {
+          const matching = suitableRooms.filter(r => roomMatchesSubject(r.name, subjectName));
+          if (matching.length > 0) suitableRooms = matching;
+        }
+        if (suitableRooms.length === 0) {
+          suitableRooms = candidateRooms.filter(r => 
+            !isEntityBusy(roomBusy, r.id, slotId, lesson.weekType)
+          );
+          if (lesson.reqType !== "any" && subjectName) {
+            const matching = suitableRooms.filter(r => roomMatchesSubject(r.name, subjectName));
+            if (matching.length > 0) suitableRooms = matching;
+          }
+        }
         
         let room1 = null, room2 = null;
         if (!lesson.teacherId2) {
@@ -866,15 +913,23 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
               if (matchedRoom) {
                 room1 = matchedRoom;
               } else {
-                continue; // Assigned/default room is busy or not suitable!
+                continue; 
               }
             } else {
               // Xona barqarorligi: o'qituvchi shu kuni allaqachon ishlatgan xona bo'sh bo'lsa, o'shani afzal ko'ramiz
               const preferredRoomId = teacherDayRoom.get(`${lesson.teacherId}_${day}`);
-              room1 = suitableRooms.find(r => r.id === preferredRoomId) || suitableRooms[0];
+              const ownDefaultRoomId = (lesson as any).defaultRoomId;
+              const sortedRooms = [...suitableRooms].sort((rA, rB) => {
+                if (rA.id === ownDefaultRoomId) return -1;
+                if (rB.id === ownDefaultRoomId) return 1;
+                const isOtherDefaultA = defaultRoomIdsOfOtherClasses.has(rA.id) ? 1 : 0;
+                const isOtherDefaultB = defaultRoomIdsOfOtherClasses.has(rB.id) ? 1 : 0;
+                return isOtherDefaultA - isOtherDefaultB;
+              });
+              room1 = sortedRooms.find(r => r.id === preferredRoomId) || sortedRooms[0];
             }
           } else {
-            continue; // No free suitable room
+            continue; 
           }
         } else {
           if (suitableRooms.length >= 2) {
@@ -891,7 +946,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
               room2 = suitableRooms[1];
             }
           } else {
-            continue; // Not enough free suitable rooms for split lesson
+            continue; 
           }
         }
 
@@ -955,8 +1010,12 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         }
         
         const loadVal = lesson.weekType === "always" ? 1 : 0.5;
+        const subName = subjectMap.get(lesson.subjectId)?.name || "";
+        const isClassHour = isClassHourSubject(subName);
         for (const cid of lesson.classIds) {
-          classDailyCount.set(`${cid}_${day}`, (classDailyCount.get(`${cid}_${day}`) || 0) + loadVal);
+          if (!isClassHour) {
+            classDailyCount.set(`${cid}_${day}`, (classDailyCount.get(`${cid}_${day}`) || 0) + loadVal);
+          }
           subjectDailyCount.set(`${cid}_${lesson.subjectId}_${day}`, (subjectDailyCount.get(`${cid}_${lesson.subjectId}_${day}`) || 0) + loadVal);
           classDailyComplexity.set(`${cid}_${day}`, (classDailyComplexity.get(`${cid}_${day}`) || 0) + (lesson.complexity * loadVal));
           const sdaysKey = `${cid}_${lesson.subjectId}`;
@@ -1021,7 +1080,11 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         }
         
         const loadVal = lesson.weekType === "always" ? 1 : 0.5;
-        classDailyCount.set(`${lesson.classId}_${day}`, (classDailyCount.get(`${lesson.classId}_${day}`) || 0) + loadVal);
+        const subName = subjectMap.get(lesson.subjectId)?.name || "";
+        const isClassHour = isClassHourSubject(subName);
+        if (!isClassHour) {
+          classDailyCount.set(`${lesson.classId}_${day}`, (classDailyCount.get(`${lesson.classId}_${day}`) || 0) + loadVal);
+        }
         subjectDailyCount.set(`${lesson.classId}_${lesson.subjectId}_${day}`, (subjectDailyCount.get(`${lesson.classId}_${lesson.subjectId}_${day}`) || 0) + loadVal);
         classDailyComplexity.set(`${lesson.classId}_${day}`, (classDailyComplexity.get(`${lesson.classId}_${day}`) || 0) + (lesson.complexity * loadVal));
         const sdaysKey = `${lesson.classId}_${lesson.subjectId}`;
@@ -1084,16 +1147,11 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         }
       }
     } else {
-      // Joylashtirib bo'lmagan darsni hisobga olish — Faza 3.3 local search'da qayta urinib ko'riladi
       pendingSkips.push({ lesson });
     }
   }
 
   // --- Faza 3.3: chegaralangan local search (retry-with-relaxation) ---
-  // Joylashtirib bo'lmagan (skipped) oddiy darslar uchun: ularni to'sib turgan, shu
-  // generatsiyada joylashtirilgan boshqa oddiy darsni bo'sh vaqtga ko'chirib, bo'shagan
-  // joyga skipped darsni qo'yishga harakat qiladi (faqat "o'qituvchi band" turidagi
-  // to'siqlar uchun — server/services/schedule-optimizer.ts).
   const resolvedSkipIndices = new Set<number>();
   const optimizableSkips = pendingSkips
     .map((p, idx) => ({ lesson: p.lesson, idx }))
@@ -1103,9 +1161,18 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     const skippedInputs: SkippedLessonInput[] = optimizableSkips.map((p) => {
       const lesson = p.lesson;
       const studyDays = lesson.studyDays ? lesson.studyDays.split(",").map(Number) : [1, 2, 3, 4, 5];
-      const candidateRooms = roomsByType.get(lesson.reqType) || roomsByType.get("any") || [];
+      let candidateRooms = roomsByType.get(lesson.reqType) || roomsByType.get("any") || [];
+      const subjectObj = subjectMap.get(lesson.subjectId);
+      const subjectName = subjectObj?.name || "";
+      if (lesson.reqType !== "any" && subjectName) {
+        const matching = candidateRooms.filter(r => roomMatchesSubject(r.name, subjectName));
+        if (matching.length > 0) candidateRooms = matching;
+      }
       const targetRoomId = (lesson as any).roomId || (lesson.reqType === "any" ? (lesson as any).defaultRoomId : null);
       let roomCandidates = candidateRooms.filter((r) => r.capacity >= lesson.classStudents).map((r) => r.id);
+      if (roomCandidates.length === 0 && candidateRooms.length > 0) {
+        roomCandidates = candidateRooms.map((r) => r.id);
+      }
       if (targetRoomId) {
         roomCandidates = roomCandidates.filter(rid => rid === targetRoomId);
       }
@@ -1121,12 +1188,10 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
 
     const optimizerSlots = activeSlots.map((s) => ({ id: s.id, dayOfWeek: Number(s.dayOfWeek) }));
     const slotById = new Map(activeSlots.map((s) => [s.id, s]));
-    // O'qituvchi shaxsiy bandligi (unavailSet) — asosiy greedy bosqichdagi hard constraint
-    // bilan bir xil tekshiruv, aks holda relocation o'qituvchini u band bo'lgan vaqtga qo'yib qo'yishi mumkin edi.
     const isTeacherFreeConsideringUnavailability = (teacherId: number, slotId: number, weekType: "always" | "surat" | "mahraj") => {
       if (isEntityBusy(teacherBusy, teacherId, slotId, weekType)) return false;
       const slot = slotById.get(slotId);
-      if (slot && unavailSet.has(`${teacherId}_${slot.dayOfWeek}_${slot.periodNumber}`)) return false;
+      if (slot && unavailSet.has(`${teacherId}_${(slot as any).dayOfWeek}_${(slot as any).periodNumber}`)) return false;
       return true;
     };
     const plans = attemptRelocations({
@@ -1136,9 +1201,6 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       isClassFree: (classId, slotId, weekType) => !isEntityBusy(classBusy, classId, slotId, weekType),
       isTeacherFree: isTeacherFreeConsideringUnavailability,
       isRoomFree: (roomId, slotId, weekType) => !isEntityBusy(roomBusy, roomId, slotId, weekType),
-      // Har bir reja topilgach DARHOL band holatini yangilaydi (optimizer o'zi chaqiradi) —
-      // shu bilan bitta chaqiruvdagi keyingi skipped darslar yangilangan holatni ko'radi va
-      // bir xil xona/slot/o'qituvchiga ikkinchi marta da'vogar bo'lmaydi.
       markClassBusy: (classId, slotId, weekType) => markEntityBusy(classBusy, classId, slotId, weekType),
       unmarkClassBusy: (classId, slotId, weekType) => unmarkEntityBusy(classBusy, classId, slotId, weekType),
       markTeacherBusy: (teacherId, slotId, weekType) => markEntityBusy(teacherBusy, teacherId, slotId, weekType),
@@ -1148,8 +1210,6 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     });
 
     for (const plan of plans) {
-      // Band holatlar allaqachon attemptRelocations ichida (mark/unmark callback orqali)
-      // yangilangan — bu yerda faqat finalSchedule'ni (haqiqiy DB yozuvlari) yangilaymiz.
       const moved = finalSchedule[plan.movedLessonIndex];
       moved.timeSlotId = plan.movedLessonNewSlotId;
 
@@ -1168,10 +1228,6 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       placedLessons++;
       resolvedSkipIndices.add(plan.skippedIndex);
     }
-
-    if (plans.length > 0) {
-      console.log(`[Optimization] ${plans.length} ta skipped dars retry-with-relaxation orqali joylashtirildi.`);
-    }
   }
 
   const skippedLessons: Array<{ classId: number; subjectId: string; reason: string }> = pendingSkips
@@ -1182,19 +1238,67 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       reason: "Barcha slotlar band yoki mos xona topilmadi",
     }));
 
-  // --- Faza 2.2: Gap minimizatsiya (post-processing) ---
-  const slotPeriodMap = new Map(activeSlots.map(s => [s.id, Number(s.periodNumber)]));
-  const slotDayMap = new Map(activeSlots.map(s => [s.id, Number(s.dayOfWeek)]));
+  // --- Faza 2.2: Optimizatsiya (Post-processing) ---
+  const slotPeriodMap = new Map<number, number>(activeSlots.map(s => [s.id, Number(s.periodNumber)]));
+  const slotDayMap = new Map<number, number>(activeSlots.map(s => [s.id, Number(s.dayOfWeek)]));
   const optimizerSlotsForGap = activeSlots.map(s => ({ id: s.id, dayOfWeek: Number(s.dayOfWeek) }));
-  const slotByIdGap = new Map(activeSlots.map(s => [s.id, s]));
+  const slotByIdGap = new Map<number, typeof activeSlots[0]>(activeSlots.map(s => [s.id, s]));
   const isTeacherFreeForGap = (teacherId: number, slotId: number, weekType: "always" | "surat" | "mahraj") => {
     if (isEntityBusy(teacherBusy, teacherId, slotId, weekType)) return false;
     const sl = slotByIdGap.get(slotId);
     if (sl && unavailSet.has(`${teacherId}_${sl.dayOfWeek}_${sl.periodNumber}`)) return false;
     return true;
   };
-  const gapSwaps = minimizeGaps({
-    schedule: finalSchedule,
+
+  const scheduleWithRoomCandidates = finalSchedule.map(entry => {
+    // Find matching precomputed lesson to know the required room type
+    const lesson = precomputedLessons.find(pl => 
+      pl.classId === entry.classId && 
+      pl.subjectId === entry.subjectId && 
+      pl.teacherId === entry.teacherId
+    );
+    const reqType = lesson ? lesson.reqType : "any";
+    let candidateRooms = roomsByType.get(reqType) || roomsByType.get("any") || [];
+    const subjectObj = lesson ? subjectMap.get(lesson.subjectId) : null;
+    const subjectName = subjectObj?.name || "";
+    if (reqType !== "any" && subjectName) {
+      const matching = candidateRooms.filter(r => roomMatchesSubject(r.name, subjectName));
+      if (matching.length > 0) candidateRooms = matching;
+    }
+    const roomCandidates = candidateRooms.length > 0 ? candidateRooms.map(r => r.id) : allRooms.map(r => r.id);
+
+    return {
+      ...entry,
+      roomCandidates,
+    };
+  });
+
+  // Klaslashtirish uchun darslarni himoyalash (Sinf soati darslari o'zgarmasligi uchun)
+  const classStudyDaysMap = new Map<number, number[]>();
+  for (const cls of allClasses) {
+    classStudyDaysMap.set(cls.id, cls.studyDays ? cls.studyDays.split(",").map(Number) : [1, 2, 3, 4, 5]);
+  }
+  const canPlaceClassOnDay = (classId: number, slotId: number) => {
+    const slot = slotByIdGap.get(slotId);
+    if (!slot) return true;
+    return classStudyDaysMap.get(classId)?.includes(Number(slot.dayOfWeek)) ?? true;
+  };
+  const classGradesMap = new Map<number, string>();
+  for (const cls of allClasses) {
+    classGradesMap.set(cls.id, cls.grade || "5");
+  }
+  const protectedEntryIndices = new Set<number>();
+  for (let i = 0; i < finalSchedule.length; i++) {
+    const entry = finalSchedule[i];
+    const sub = subjectMap.get(entry.subjectId);
+    if (sub && isClassHourSubject(sub.name || "")) {
+      protectedEntryIndices.add(i);
+    }
+  }
+
+  // Kun ichida darslarni ixchamlashtirish
+  compactDays({
+    schedule: scheduleWithRoomCandidates,
     activeSlots: optimizerSlotsForGap,
     slotPeriodMap,
     slotDayMap,
@@ -1207,15 +1311,92 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     unmarkTeacherBusy: (teacherId, slotId, weekType) => unmarkEntityBusy(teacherBusy, teacherId, slotId, weekType),
     markRoomBusy: (roomId, slotId, weekType) => markEntityBusy(roomBusy, roomId, slotId, weekType),
     unmarkRoomBusy: (roomId, slotId, weekType) => unmarkEntityBusy(roomBusy, roomId, slotId, weekType),
+    protectedIndices: protectedEntryIndices,
   });
-  if (gapSwaps > 0) {
-    console.log(`[GapMinimize] ${gapSwaps} ta swap bajarildi.`);
+
+  // Kunlararo darslarni balanslash
+  balanceDays({
+    schedule: scheduleWithRoomCandidates,
+    activeSlots: optimizerSlotsForGap,
+    slotPeriodMap,
+    slotDayMap,
+    isClassFree: (classId, slotId, weekType) => !isEntityBusy(classBusy, classId, slotId, weekType),
+    isTeacherFree: isTeacherFreeForGap,
+    isRoomFree: (roomId, slotId, weekType) => !isEntityBusy(roomBusy, roomId, slotId, weekType),
+    markClassBusy: (classId, slotId, weekType) => markEntityBusy(classBusy, classId, slotId, weekType),
+    unmarkClassBusy: (classId, slotId, weekType) => unmarkEntityBusy(classBusy, classId, slotId, weekType),
+    markTeacherBusy: (teacherId, slotId, weekType) => markEntityBusy(teacherBusy, teacherId, slotId, weekType),
+    unmarkTeacherBusy: (teacherId, slotId, weekType) => unmarkEntityBusy(teacherBusy, teacherId, slotId, weekType),
+    markRoomBusy: (roomId, slotId, weekType) => markEntityBusy(roomBusy, roomId, slotId, weekType),
+    unmarkRoomBusy: (roomId, slotId, weekType) => unmarkEntityBusy(roomBusy, roomId, slotId, weekType),
+    protectedIndices: protectedEntryIndices,
+    canPlaceClassOnDay,
+    classStudyDays: classStudyDaysMap,
+    classGrades: classGradesMap,
+  });
+
+  // Kun ichidagi oyna (gap) larni minimizatsiya
+  minimizeGaps({
+    schedule: scheduleWithRoomCandidates,
+    activeSlots: optimizerSlotsForGap,
+    slotPeriodMap,
+    slotDayMap,
+    isClassFree: (classId, slotId, weekType) => !isEntityBusy(classBusy, classId, slotId, weekType),
+    isTeacherFree: isTeacherFreeForGap,
+    isRoomFree: (roomId, slotId, weekType) => !isEntityBusy(roomBusy, roomId, slotId, weekType),
+    markClassBusy: (classId, slotId, weekType) => markEntityBusy(classBusy, classId, slotId, weekType),
+    unmarkClassBusy: (classId, slotId, weekType) => unmarkEntityBusy(classBusy, classId, slotId, weekType),
+    markTeacherBusy: (teacherId, slotId, weekType) => markEntityBusy(teacherBusy, teacherId, slotId, weekType),
+    unmarkTeacherBusy: (teacherId, slotId, weekType) => unmarkEntityBusy(teacherBusy, teacherId, slotId, weekType),
+    markRoomBusy: (roomId, slotId, weekType) => markEntityBusy(roomBusy, roomId, slotId, weekType),
+    unmarkRoomBusy: (roomId, slotId, weekType) => unmarkEntityBusy(roomBusy, roomId, slotId, weekType),
+    protectedIndices: protectedEntryIndices,
+  });
+
+  // Yopilgan optimizatsiya natijalarini qo'llash
+  for (let i = 0; i < finalSchedule.length; i++) {
+    finalSchedule[i].timeSlotId = scheduleWithRoomCandidates[i].timeSlotId;
+    finalSchedule[i].roomId = scheduleWithRoomCandidates[i].roomId;
   }
 
   // --- Faza 3: Post-validatsiya ---
   const hardViolations = validateSchedule(finalSchedule, activeSlots, unavailSet);
   if (hardViolations.length > 0) {
     console.error(`[PostValidation] ${hardViolations.length} ta qat'iy shart buzilishi aniqlandi:`, hardViolations);
+  }
+
+  // Xona sig'imi va turi muvofiqligini tekshirish (conflict_type: room_capacity / room_type)
+  const classMap = new Map(targetClasses.map(c => [c.id, c]));
+  const roomMap = new Map(allRooms.map(r => [r.id, r]));
+  for (const entry of finalSchedule) {
+    const classObj = classMap.get(entry.classId);
+    const room = roomMap.get(entry.roomId);
+    const lesson = precomputedLessons.find(pl => 
+      pl.classId === entry.classId && 
+      pl.subjectId === entry.subjectId && 
+      pl.teacherId === entry.teacherId
+    );
+    if (!lesson) continue;
+
+    const requiredCapacity = lesson.teacherId2 ? lesson.classStudents / 2 : lesson.classStudents;
+    if (classObj && room) {
+      if (room.capacity < requiredCapacity) {
+        generatedConflicts.push({
+          conflictType: "room_capacity",
+          description: `Sinf o'quvchilari soni (${Math.ceil(requiredCapacity)}) xona sig'imidan (${room.capacity}) ko'p — xona: ${room.name}`,
+          severity: "low",
+          _key: { classId: entry.classId, subjectId: entry.subjectId, teacherId: entry.teacherId, timeSlotId: entry.timeSlotId, weekType: (entry.weekType || "always") as "always" | "surat" | "mahraj" },
+        });
+      }
+      if (lesson.reqType !== "any" && room.roomType !== lesson.reqType) {
+        generatedConflicts.push({
+          conflictType: "room_type",
+          description: `Xona turi mos kelmaydi: talab ${lesson.reqType}, berildi ${room.roomType} — xona: ${room.name}`,
+          severity: "low",
+          _key: { classId: entry.classId, subjectId: entry.subjectId, teacherId: entry.teacherId, timeSlotId: entry.timeSlotId, weekType: (entry.weekType || "always") as "always" | "surat" | "mahraj" },
+        });
+      }
+    }
   }
 
   // --- Sifat hisoboti ---
@@ -1243,7 +1424,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
 
     const sub = subjectMap.get(entry.subjectId);
     if (sub) {
-      const cat = getSubjectCategory(sub.name);
+      const cat = getSubjectCategory(sub?.name || "");
       if (cat === "dynamic" && period <= 3) complexityViolations++;
       if (cat === "mental" && period >= 5) complexityViolations++;
     }

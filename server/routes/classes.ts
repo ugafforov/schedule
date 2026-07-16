@@ -38,6 +38,9 @@ export const classRoutes = new Hono()
     const cls = await storage.createClass(data);
     if (Array.isArray(body.subjects) && body.subjects.length > 0) {
       await storage.setClassSubjects(cls.id, body.subjects);
+    } else {
+      // Sinf soati (Kelajak soati) — har bir sinfda 1 soat, sinf rahbariga
+      await storage.syncClassHourTeacher(cls.id, cls.classTeacherId ?? null);
     }
     return c.json(cls, 201);
   })
@@ -54,6 +57,10 @@ export const classRoutes = new Hono()
     if (!result) return c.json({ message: "Sinf topilmadi" }, 404);
     if (Array.isArray(body.subjects)) {
       await storage.setClassSubjects(id, body.subjects);
+    }
+    if (body.classTeacherId !== undefined) {
+      // Rahbar o'zgardi — sinf soati (Kelajak soati) biriktiruvi yangi rahbarga o'tadi
+      await storage.syncClassHourTeacher(id, body.classTeacherId ?? null);
     }
     return c.json(result);
   })

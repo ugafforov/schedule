@@ -44,6 +44,7 @@ export interface IStorage {
   getClassSubjects(classId: number): Promise<ClassSubject[]>;
   setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; roomId?: number | null; weeklyHours: number }>): Promise<void>;
   getAllClassSubjects(): Promise<ClassSubject[]>;
+  syncClassHourTeacher(classId: number, teacherId: number | null): Promise<void>;
 
   getRooms(): Promise<Room[]>;
   createRoom(data: InsertRoom): Promise<Room>;

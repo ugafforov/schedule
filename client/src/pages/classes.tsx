@@ -13,6 +13,7 @@ import { Plus, Search, Edit, Trash2, GraduationCap, Users, X, BookOpen, ChevronR
 
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, Room } from "@shared/schema";
+import { isClassHourSubject } from "@shared/constants";
 import { ExcelImportDialog } from "@/components/bulk/excel-import-dialog";
 import { InlineEdit, InlineSelect } from "@/components/ui/inline-edit";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -730,7 +731,8 @@ export default function Classes() {
               )}
               {form.subjects.length > 0 && (
                 <div className="text-xs text-muted-foreground border-t border-border pt-2">
-                  Jami: <span className="font-semibold text-foreground">{form.subjects.reduce((s, x) => s + x.weeklyHours, 0)}</span> soat/hafta
+                  Jami: <span className="font-semibold text-foreground">{form.subjects.reduce((s, x) => s + (isClassHourSubject(subjectName(x.subjectId)) ? 0 : x.weeklyHours), 0)}</span> soat/hafta
+                  {form.subjects.some(x => isClassHourSubject(subjectName(x.subjectId))) && <span className="ml-1">(+ sinf soati)</span>}
                 </div>
               )}
             </div>

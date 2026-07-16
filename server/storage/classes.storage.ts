@@ -1,9 +1,10 @@
 import { db } from "../db";
-import { 
-  classes, classSubjects, jointLessons, jointLessonClasses, jointLessonGroups, teachers, rooms, scheduleEntries,
-  type Class, type InsertClass, type ClassSubject 
+import {
+  classes, classSubjects, subjects, jointLessons, jointLessonClasses, jointLessonGroups, teachers, rooms, scheduleEntries,
+  type Class, type InsertClass, type ClassSubject
 } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { isClassHourSubject } from "@shared/constants";
+import { eq, sql, inArray } from "drizzle-orm";
 
 export class ClassStorage {
   async getClasses(): Promise<Class[]> {
@@ -47,17 +48,93 @@ export class ClassStorage {
     return results as any;
   }
   async setClassSubjects(classId: number, items: Array<{ subjectId: number; teacherId: number | null; roomId?: number | null; weeklyHours: number }>): Promise<void> {
+    // Sinf soati (Kelajak soati) har bir sinfda 1 soatdan sinf rahbariga biriktirilishi SHART.
+    // Saqlanayotgan ro'yxatda u bo'lmasa, avtomatik qo'shamiz (to'liq tozalashda emas —
+    // items bo'sh bo'lsa foydalanuvchi ataylab hammasini o'chirmoqda).
+    let classHourRow: { subjectId: number; teacherId: number | null; roomId: null; weeklyHours: number } | null = null;
+    if (items.length > 0) {
+      const activeSubjects = await db.select({ id: subjects.id, name: subjects.name })
+        .from(subjects)
+        .where(eq(subjects.isActive, true));
+      const classHourSubject = activeSubjects.find(s => isClassHourSubject(s.name));
+      const alreadyIncluded = classHourSubject
+        ? items.some(i => i.subjectId === classHourSubject.id)
+        : true;
+      if (classHourSubject && !alreadyIncluded) {
+        const [cls] = await db.select({ classTeacherId: classes.classTeacherId })
+          .from(classes)
+          .where(eq(classes.id, classId));
+        classHourRow = {
+          subjectId: classHourSubject.id,
+          teacherId: cls?.classTeacherId ?? null,
+          roomId: null,
+          weeklyHours: 1,
+        };
+      }
+    }
+
     await db.transaction(async (tx) => {
-      await tx.delete(classSubjects).where(eq(classSubjects.classId, classId));
       if (items.length > 0) {
-        await tx.insert(classSubjects).values(items.map(item => ({
+        const activeSubjects = await tx.select({ id: subjects.id, name: subjects.name })
+          .from(subjects)
+          .where(eq(subjects.isActive, true));
+        const classHourSubject = activeSubjects.find(s => isClassHourSubject(s.name));
+        if (classHourSubject) {
+          const classHourItem = items.find(i => i.subjectId === classHourSubject.id);
+          if (classHourItem) {
+            await tx.update(classes)
+              .set({ classTeacherId: classHourItem.teacherId })
+              .where(eq(classes.id, classId));
+          }
+        }
+      }
+
+      await tx.delete(classSubjects).where(eq(classSubjects.classId, classId));
+      const rows = [
+        ...items.map(item => ({
           classId,
           subjectId: item.subjectId,
           teacherId: item.teacherId,
           roomId: item.roomId || null,
           weeklyHours: item.weeklyHours,
-        })));
+        })),
+        ...(classHourRow ? [{ classId, ...classHourRow }] : []),
+      ];
+      if (rows.length > 0) {
+        await tx.insert(classSubjects).values(rows);
       }
+    });
+  }
+
+  /**
+   * Sinf soati (Kelajak soati) biriktiruvini sinf rahbariga moslaydi:
+   * qatori bo'lsa — o'qituvchisini yangilaydi, bo'lmasa — 1 soatlik qator qo'shadi.
+   * Sinf rahbari o'zgarganda va yangi sinf yaratilganda chaqiriladi.
+   */
+  async syncClassHourTeacher(classId: number, teacherId: number | null): Promise<void> {
+    const rows = await db.select({ id: classSubjects.id, name: subjects.name })
+      .from(classSubjects)
+      .innerJoin(subjects, eq(classSubjects.subjectId, subjects.id))
+      .where(eq(classSubjects.classId, classId));
+    const classHourIds = rows.filter(r => isClassHourSubject(r.name)).map(r => r.id);
+
+    if (classHourIds.length > 0) {
+      await db.update(classSubjects).set({ teacherId }).where(inArray(classSubjects.id, classHourIds));
+      return;
+    }
+
+    const activeSubjects = await db.select({ id: subjects.id, name: subjects.name })
+      .from(subjects)
+      .where(eq(subjects.isActive, true));
+    const classHourSubject = activeSubjects.find(s => isClassHourSubject(s.name));
+    if (!classHourSubject) return; // "Kelajak soati" fani hali yaratilmagan
+
+    await db.insert(classSubjects).values({
+      classId,
+      subjectId: classHourSubject.id,
+      teacherId,
+      roomId: null,
+      weeklyHours: 1,
     });
   }
 

@@ -57,63 +57,63 @@ export function LoginForm() {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {error && (
         <Alert variant="destructive" className="border-red-500/20 bg-red-500/10">
-          <AlertDescription className="text-red-700 dark:text-red-400">{error}</AlertDescription>
+          <AlertDescription className="text-red-400">{error}</AlertDescription>
         </Alert>
       )}
 
       {/* Email */}
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-foreground font-medium">
+        <Label htmlFor="email" className="text-slate-300 font-medium">
           Email
         </Label>
         <div className="relative">
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 h-4 w-4" />
           <Input
             id="email"
             type="email"
             placeholder="email@maktab.uz"
             autoComplete="email"
             {...register("email")}
-            className="pl-10 h-11 border-border focus:border-blue-500 focus:ring-blue-500"
+            className="pl-10 h-11 bg-slate-950/50 border-slate-800 focus:border-blue-500/50 focus:ring-blue-500/50 text-white placeholder:text-slate-500"
           />
         </div>
         {errors.email && (
-          <p className="text-sm text-red-600">{errors.email.message}</p>
+          <p className="text-xs text-red-400 mt-1">{errors.email.message}</p>
         )}
       </div>
 
       {/* Parol */}
       <div className="space-y-2">
-        <Label htmlFor="password" className="text-foreground font-medium">
+        <Label htmlFor="password" className="text-slate-300 font-medium">
           Parol
         </Label>
         <div className="relative">
-          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 h-4 w-4" />
           <Input
             id="password"
             type={showPassword ? "text" : "password"}
             placeholder="Parolingizni kiriting"
             autoComplete="current-password"
             {...register("password")}
-            className="pl-10 pr-10 h-11 border-border focus:border-blue-500 focus:ring-blue-500"
+            className="pl-10 pr-10 h-11 bg-slate-950/50 border-slate-800 focus:border-blue-500/50 focus:ring-blue-500/50 text-white placeholder:text-slate-500"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
             tabIndex={-1}
           >
             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
         </div>
         {errors.password && (
-          <p className="text-sm text-red-600">{errors.password.message}</p>
+          <p className="text-xs text-red-400 mt-1">{errors.password.message}</p>
         )}
       </div>
 
       <Button
         type="submit"
-        className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-lg shadow-sm"
+        className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg shadow-lg shadow-blue-500/10 transition-all duration-200"
         disabled={isSubmitting}
       >
         {isSubmitting ? (

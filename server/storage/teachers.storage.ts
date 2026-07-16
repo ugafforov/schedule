@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { teachers, teacherSubjects, teacherUnavailability, type Teacher, type InsertTeacher, type TeacherSubject, type TeacherUnavailability } from "@shared/schema";
+import { teachers, teacherSubjects, teacherUnavailability, classes, type Teacher, type InsertTeacher, type TeacherSubject, type TeacherUnavailability } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export class TeacherStorage {
@@ -21,6 +21,7 @@ export class TeacherStorage {
     return r;
   }
   async deleteTeacher(id: number): Promise<boolean> {
+    await db.update(classes).set({ classTeacherId: null }).where(eq(classes.classTeacherId, id));
     const r = await db.update(teachers).set({ isActive: false }).where(eq(teachers.id, id));
     return (r.rowCount || 0) > 0;
   }

@@ -4,14 +4,18 @@ import {
   DTS_CURRICULUM_2026, RUSSIAN_DTS_CURRICULUM_2026,
   type DtsCurriculumEntry,
 } from "./dts-curriculum";
+import { isClassHourSubject } from "./constants";
 
 // Fayl boshidagi izohda e'lon qilingan rasmiy jami haftalik soatlar (121-son buyruq, 10.04.2025)
 const EXPECTED_TOTALS: Record<number, number> = {
   1: 21, 2: 24, 3: 24, 4: 24, 5: 29, 6: 30, 7: 35, 8: 33, 9: 34, 10: 31, 11: 31,
 };
 
+// Kelajak soati (sinf soati) o'quv soatiga kirmaydi — jami hisobidan chiqariladi
 function totalHoursForGrade(entries: DtsCurriculumEntry[], grade: number): number {
-  return entries.reduce((sum, e) => sum + (e.hours[grade] ?? 0), 0);
+  return entries
+    .filter((e) => !isClassHourSubject(e.name))
+    .reduce((sum, e) => sum + (e.hours[grade] ?? 0), 0);
 }
 
 describe("DTS_CURRICULUM_2025 (o'zbek) — ichki konsistentlik", () => {

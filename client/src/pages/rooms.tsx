@@ -175,84 +175,45 @@ function BulkAddRooms({ open, onClose, onSuccess }: { open: boolean; onClose: ()
 }
 
 /* ── Room Recommendation Dialog ──────────────────────────────────────────── */
-function RoomRecommendationDialog({ open, onClose, shifts, setShifts, reserve, setReserve, data, isLoading, existingRooms = [] }: any) {
+function RoomRecommendationDialog({ open, onClose, shifts, setShifts, reserve, setReserve, data, isLoading }: any) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const bulkCreateMutation = useMutation({
-    mutationFn: async (roomsToCreate: any[]) => {
-      await apiRequest("POST", "/api/rooms/bulk", { rooms: roomsToCreate });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/rooms"] });
+    qc.invalidateQueries({ queryKey: ["/api/rooms/recommendation"] });
+    qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+  };
+
+  // Tavsiyani to'liq qo'llash: yangi xonalar + sig'imni oshirish + umumiy xonani fanga biriktirish
+  const applyMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const res = await apiRequest("POST", "/api/rooms/apply-recommendation", payload);
+      return res.json();
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/rooms"] });
-      qc.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
-      toast({ title: "Muvaffaqiyat", description: "Barcha yetishmayotgan xonalar muvaffaqiyatli qo'shildi!" });
-      onClose();
+    onSuccess: (res: any) => {
+      invalidate();
+      toast({ title: "Tavsiya qo'llandi", description: res?.message || "Xonalar yangilandi." });
     },
     onError: (e: any) => {
-      toast({ title: "Xatolik", description: e.message || "Xonalarni qo'shib bo'lmadi", variant: "destructive" });
-    }
+      toast({ title: "Xatolik", description: e.message || "Tavsiyani qo'llab bo'lmadi", variant: "destructive" });
+    },
   });
 
-  const shortages = data?.recommendations?.filter((r: any) => r.shortage > 0) || [];
-  const hasShortages = shortages.length > 0;
-
-  const handleAddMissingRooms = () => {
-    if (!data?.recommendations) return;
-    
-    const existingNumbers = new Set(existingRooms.map((r: any) => r.roomNumber.toLowerCase().trim()));
-    const newRoomsToCreate: any[] = [];
-    
-    const prefixes: Record<string, string> = {
-      classroom: "1", // Floor 1
-      computer: "2",  // Floor 2
-      gym: "3",       // Floor 3 / Gym
-      lab: "4",       // Floor 4 / Lab
-      music: "5",     // Floor 5
-      art: "6"        // Floor 6
-    };
-
-    for (const r of data.recommendations) {
-      if (r.shortage <= 0) continue;
-      
-      const typeLabel = ROOM_TYPE_LABELS[r.roomType] || r.roomType;
-      let countCreated = 0;
-      let suffix = 1;
-      const basePrefix = prefixes[r.roomType] || "9";
-
-      while (countCreated < r.shortage) {
-        const roomNum = `${basePrefix}${suffix.toString().padStart(2, "0")}`;
-        if (!existingNumbers.has(roomNum.toLowerCase())) {
-          newRoomsToCreate.push({
-            name: `${typeLabel} ${roomNum}`,
-            roomNumber: roomNum,
-            roomType: r.roomType,
-            capacity: r.roomType === "gym" ? 50 : (r.roomType === "classroom" ? 30 : 24),
-            building: "Asosiy bino",
-            floor: basePrefix,
-            isActive: true
-          });
-          existingNumbers.add(roomNum.toLowerCase());
-          countCreated++;
-        }
-        suffix++;
-      }
-    }
-
-    if (newRoomsToCreate.length > 0) {
-      bulkCreateMutation.mutate(newRoomsToCreate);
-    }
-  };
+  const suggestedRooms: any[] = data?.allSuggestedRooms || [];
+  const capacityUpgrades: any[] = data?.capacityUpgrades || [];
+  const roomRenames: any[] = data?.roomRenames || [];
+  const actionCount = suggestedRooms.length + capacityUpgrades.length + roomRenames.length;
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <LayoutGrid className="h-5 w-5 text-indigo-500" /> Xonalar ehtiyoji tahlili
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4 py-2">
           <div className="flex items-center gap-4 p-3 bg-muted/40 rounded-lg border border-border">
             <div className="space-y-1 flex-1">
@@ -286,41 +247,61 @@ function RoomRecommendationDialog({ open, onClose, shifts, setShifts, reserve, s
             </div>
           </div>
 
-          <div className="border border-border rounded-lg overflow-hidden">
+          <div className="border border-border rounded-lg overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-muted text-muted-foreground text-[11px] uppercase">
                 <tr>
-                  <th className="px-4 py-2">Xona turi</th>
-                  <th className="px-4 py-2 text-center">Jami soat</th>
-                  <th className="px-4 py-2 text-center">Mavjud</th>
-                  <th className="px-4 py-2 text-center text-blue-600 dark:text-blue-400">Tavsiya</th>
-                  <th className="px-4 py-2 text-center">Holat</th>
+                  <th className="px-3 py-2">Xona turi</th>
+                  <th className="px-3 py-2 text-center">Jami soat</th>
+                  <th className="px-3 py-2 text-center">Kerakli sig'im</th>
+                  <th className="px-3 py-2 text-center">Mavjud / yaroqli</th>
+                  <th className="px-3 py-2 text-center text-blue-600 dark:text-blue-400">Tavsiya</th>
+                  <th className="px-3 py-2 text-center">Bandlik</th>
+                  <th className="px-3 py-2 text-center">Holat</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
                 {isLoading ? (
-                  <tr><td colSpan={5} className="text-center py-8 text-muted-foreground">Yuklanmoqda...</td></tr>
-                ) : data?.recommendations?.map((r: any) => {
+                  <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Yuklanmoqda...</td></tr>
+                ) : data?.recommendations?.filter((r: any) => r.needed > 0 || r.available > 0).map((r: any) => {
                   const info = ROOM_TYPE_DISPLAY[r.roomType] || ROOM_TYPE_DISPLAY.classroom;
                   const Icon = info.icon;
                   const isShortage = r.shortage > 0;
+                  const hasUndersized = r.undersized?.length > 0;
                   return (
-                    <tr key={r.roomType} className="hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-2 flex items-center gap-2">
-                        <div className={`p-1 rounded ${info.bg} ${info.color}`}><Icon className="h-4 w-4" /></div>
-                        <span className="font-medium">{ROOM_TYPE_LABELS[r.roomType] || r.roomType}</span>
+                    <tr key={r.roomType} className="hover:bg-muted/20 transition-colors align-top">
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1 rounded ${info.bg} ${info.color}`}><Icon className="h-4 w-4" /></div>
+                          <span className="font-medium">{r.label}</span>
+                        </div>
+                        {r.notes?.length > 0 && (
+                          <ul className="mt-1 ml-1 space-y-0.5">
+                            {r.notes.map((n: string, i: number) => (
+                              <li key={i} className="text-[11px] text-muted-foreground leading-snug">• {n}</li>
+                            ))}
+                          </ul>
+                        )}
                       </td>
-                      <td className="px-4 py-2 text-center font-mono">{r.requiredHours}</td>
-                      <td className="px-4 py-2 text-center font-mono">{r.available}</td>
-                      <td className="px-4 py-2 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{r.needed}</td>
-                      <td className="px-4 py-2">
+                      <td className="px-3 py-2 text-center font-mono">{r.requiredHours}</td>
+                      <td className="px-3 py-2 text-center font-mono">{r.requiredCapacity || "—"}</td>
+                      <td className="px-3 py-2 text-center font-mono">
+                        <span className={hasUndersized ? "text-amber-600 dark:text-amber-400 font-semibold" : ""}>
+                          {r.available} / {r.usable}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-center font-mono font-bold text-blue-600 dark:text-blue-400">{r.needed}</td>
+                      <td className="px-3 py-2 text-center font-mono text-muted-foreground">
+                        {r.needed > 0 ? `${r.utilizationPct}%` : "—"}
+                      </td>
+                      <td className="px-3 py-2">
                         <div className="flex justify-center">
                           {isShortage ? (
-                            <Badge variant="destructive" className="bg-red-500/10 text-red-600 hover:bg-red-500/20 shadow-none border-red-500/20">
+                            <Badge variant="destructive" className="bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 shadow-none border-red-500/20 whitespace-nowrap">
                               {r.shortage} ta yetishmayapti
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                            <Badge variant="outline" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
                               Yetarli
                             </Badge>
                           )}
@@ -332,16 +313,149 @@ function RoomRecommendationDialog({ open, onClose, shifts, setShifts, reserve, s
               </tbody>
             </table>
           </div>
+
+          {/* Maxsus xonalar — fan bo'yicha taqsimot (Fizika, Kimyo, Biologiya alohida) */}
+          {data?.recommendations?.filter((r: any) => r.subjects?.length > 0).map((r: any) => (
+            <div key={`sub-${r.roomType}`} className="border border-border rounded-lg overflow-x-auto">
+              <div className="px-3 py-2 bg-muted/60 text-xs font-semibold text-foreground">
+                {r.label} — fanlar bo'yicha (har bir fanga alohida jihozlangan xona)
+              </div>
+              <table className="w-full text-sm text-left">
+                <thead className="bg-muted/30 text-muted-foreground text-[11px] uppercase">
+                  <tr>
+                    <th className="px-3 py-1.5">Fan</th>
+                    <th className="px-3 py-1.5 text-center">Soat</th>
+                    <th className="px-3 py-1.5 text-center">Sinf / o'qit.</th>
+                    <th className="px-3 py-1.5">O'z xonasi</th>
+                    <th className="px-3 py-1.5 text-center text-blue-600 dark:text-blue-400">Tavsiya</th>
+                    <th className="px-3 py-1.5 text-center">Holat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {r.subjects.map((s: any) => (
+                    <tr key={s.subjectId} className="hover:bg-muted/20 align-top">
+                      <td className="px-3 py-1.5">
+                        <span className="font-medium">{s.subjectName}</span>
+                        {s.notes?.length > 0 && (
+                          <ul className="mt-0.5 space-y-0.5">
+                            {s.notes.map((n: string, i: number) => (
+                              <li key={i} className="text-[11px] text-muted-foreground leading-snug">• {n}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-center font-mono">{s.requiredHours}</td>
+                      <td className="px-3 py-1.5 text-center font-mono text-muted-foreground">
+                        {s.classCount} / {s.teacherCount}
+                      </td>
+                      <td className="px-3 py-1.5 text-xs">
+                        {s.ownRooms.length === 0 ? (
+                          <span className="text-muted-foreground">— yo'q</span>
+                        ) : (
+                          <ul className="space-y-0.5">
+                            {s.ownRooms.map((room: any) => (
+                              <li key={room.id} className={room.usable ? "" : "text-amber-600 dark:text-amber-400"}>
+                                {room.name} ({room.capacity} o'rin{room.usable ? "" : " — sig'im yetmaydi"})
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-center font-mono font-bold text-blue-600 dark:text-blue-400">
+                        {s.needed}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <div className="flex justify-center">
+                          {s.shortage > 0 ? (
+                            <Badge variant="destructive" className="bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 shadow-none whitespace-nowrap">
+                              {s.shortage} ta kerak
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
+                              Yetarli
+                            </Badge>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+
+          {roomRenames.length > 0 && (
+            <div className="p-3 rounded-lg border border-teal-500/20 bg-teal-500/10 space-y-2">
+              <p className="text-sm font-semibold text-teal-700 dark:text-teal-400">
+                Mavjud xonani fanga biriktirish ({roomRenames.length} ta)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Bu xonalar hech bir fanga atalmagan. Fan nomi bilan atalgach, jadval tuzuvchi o'sha fan darslarini
+                aynan shu xonaga joylaydi — yangi xona qurishdan tejamli.
+              </p>
+              <ul className="space-y-1">
+                {roomRenames.map((r: any) => (
+                  <li key={r.roomId} className="text-xs text-foreground">
+                    <span className="font-medium">{r.currentName}</span> → <span className="font-medium">{r.suggestedName}</span>
+                    {r.suggestedCapacity !== r.currentCapacity && ` (${r.currentCapacity} → ${r.suggestedCapacity} o'rin)`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {capacityUpgrades.length > 0 && (
+            <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/10 space-y-2">
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                Sig'imi yetarli bo'lmagan xonalar ({capacityUpgrades.length} ta)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Bu xonalar jadval tuzishda ishlatilmaydi — sig'imni oshirish yangi xona qo'shishdan arzonroq yechim.
+              </p>
+              <ul className="space-y-1">
+                {capacityUpgrades.map((u: any) => (
+                  <li key={u.roomId} className="text-xs text-foreground">
+                    <span className="font-medium">{u.roomName}</span>: {u.currentCapacity} → {u.suggestedCapacity} o'rin
+                    <span className="text-muted-foreground"> — {u.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {suggestedRooms.length > 0 && (
+            <div className="p-3 rounded-lg border border-indigo-500/20 bg-indigo-500/10 space-y-2">
+              <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-400">
+                Yangi qo'shiladigan xonalar ({suggestedRooms.length} ta)
+              </p>
+              <ul className="space-y-1">
+                {suggestedRooms.map((r: any) => (
+                  <li key={r.roomNumber} className="text-xs text-foreground">
+                    <span className="font-medium">{r.name}</span> — {ROOM_TYPE_LABELS[r.roomType] || r.roomType},
+                    {" "}{r.capacity} o'rin, {r.floor}-qavat
+                    {r.subjectName && <span className="text-muted-foreground"> ({r.subjectName} fani uchun)</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
+
         <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
           <div>
-            {hasShortages && (
-              <Button 
-                onClick={handleAddMissingRooms} 
-                disabled={bulkCreateMutation.isPending}
+            {actionCount > 0 && (
+              <Button
+                onClick={() => applyMutation.mutate({
+                  create: suggestedRooms,
+                  upgrades: capacityUpgrades,
+                  renames: roomRenames,
+                })}
+                disabled={applyMutation.isPending}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
               >
-                {bulkCreateMutation.isPending ? "Yaratilmoqda..." : "Yetishmayotgan barcha xonalarni yaratish"}
+                {applyMutation.isPending
+                  ? "Bajarilmoqda..."
+                  : `Tavsiyani qo'llash (${actionCount} ta amal)`}
               </Button>
             )}
           </div>
@@ -700,9 +814,8 @@ export default function Rooms() {
         setShifts={setAnalyzeShifts} 
         reserve={analyzeReserve} 
         setReserve={setAnalyzeReserve} 
-        data={recommendationData} 
-        isLoading={isRecommendationLoading} 
-        existingRooms={rooms}
+        data={recommendationData}
+        isLoading={isRecommendationLoading}
       />
     </div>
   );

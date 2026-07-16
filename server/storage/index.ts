@@ -58,6 +58,7 @@ class DatabaseStorage implements IStorage {
   getClassSubjects = this.classes.getClassSubjects.bind(this.classes);
   getAllClassSubjects = this.classes.getAllClassSubjects.bind(this.classes);
   setClassSubjects = this.classes.setClassSubjects.bind(this.classes);
+  syncClassHourTeacher = this.classes.syncClassHourTeacher.bind(this.classes);
   getJointLessons = this.classes.getJointLessons.bind(this.classes);
   getJointLessonById = this.classes.getJointLessonById.bind(this.classes);
   createJointLesson = this.classes.createJointLesson.bind(this.classes);

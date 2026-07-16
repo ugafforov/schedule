@@ -7,7 +7,13 @@ import { getCurriculumForGrade, getAutoAssignments, getSpecialty } from "./curri
 const DEFAULT_MAX_HOURS = 30;
 
 import { findClassPrimaryTeacherId, isPrimaryTeacherFromSpecialty, pickBestTeacher, scoreTeacherForSubject } from "@shared/teacher-matching";
-import { parseGrade } from "@shared/constants";
+import { parseGrade, isClassHourSubject } from "@shared/constants";
+
+/** Sinf soati (Kelajak soati) dars yuklamasiga kirmaydi — yuklama hisobida 0 sanaladi. */
+function loadableHours(allSubjects: Subject[], subjectId: number, hours: number): number {
+  const s = allSubjects.find(x => x.id === subjectId);
+  return s && isClassHourSubject(s.name) ? 0 : hours;
+}
 
 interface AssignmentEntry {
   classId: number;
@@ -82,6 +88,20 @@ export async function autoGenerateTeachers() {
       processedSubjectIds.add(subject.id);
       const specialty = getSpecialty(subjectName, cls.grade, cls.language || "uz");
 
+      // Sinf soati (Kelajak soati) — faqat sinf rahbari o'tadi; vakant o'qituvchi
+      // yaratilmaydi va umumiy taqsimlash navbatiga tushmaydi.
+      if (isClassHourSubject(subjectName)) {
+        newAssignments.push({
+          classId: cls.id,
+          subjectId: subject.id,
+          teacherId: cls.classTeacherId ?? null,
+          weeklyHours: hours as number,
+          specialty,
+          grade: cls.grade,
+        });
+        continue;
+      }
+
       const existing = existingClassSubjects.find(
         (cs) => cs.classId === cls.id && cs.subjectId === subject!.id
       );
@@ -149,7 +169,7 @@ export async function autoGenerateTeachers() {
         if (!rahbar) continue;
         let load = 0;
         for (const list of Array.from(updatedAssignmentsByClass.values())) {
-          for (const x of list) if (x.teacherId === rahbar.id) load += x.weeklyHours;
+          for (const x of list) if (x.teacherId === rahbar.id) load += loadableHours(allSubjects, x.subjectId, x.weeklyHours);
         }
         if (load + a.weeklyHours <= (rahbar.maxHoursPerWeek || DEFAULT_MAX_HOURS)) {
           a.teacherId = rahbar.id;
@@ -165,7 +185,7 @@ export async function autoGenerateTeachers() {
       for (const list of Array.from(updatedAssignmentsByClass.values())) {
         for (const a of list) {
           if (a.teacherId === teacher.id) {
-            currentLoad += a.weeklyHours;
+            currentLoad += loadableHours(allSubjects, a.subjectId, a.weeklyHours);
             teacherClassId = a.classId;
           }
         }
@@ -349,7 +369,7 @@ function assignTeachersToEntries(
 
     if (best) {
       cs.teacherId = best.id;
-      teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
+      teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + loadableHours(allSubjects, cs.subjectId, cs.weeklyHours));
       if (!teacherClassMap.has(best.id)) teacherClassMap.set(best.id, new Set());
       teacherClassMap.get(best.id)!.add(cs.classId);
       assignedCount++;
@@ -430,6 +450,17 @@ export async function autoDistributeUnassignedOnly(classIds?: number[]) {
 
   await syncPrimaryTeacherGradeLevels(allTeachers);
 
+  // Kelajak soatini sinf rahbariga biriktirish (o'qituvchi bo'sh bo'lsa)
+  for (const cs of allClassSubjects) {
+    const sub = allSubjects.find(s => s.id === cs.subjectId);
+    if (sub && isClassHourSubject(sub.name) && !cs.teacherId) {
+      const cls = allClasses.find(c => c.id === cs.classId);
+      if (cls && cls.classTeacherId) {
+        cs.teacherId = cls.classTeacherId;
+      }
+    }
+  }
+
   const teacherSubjectMap = new Map<number, Set<number>>();
   for (const ts of allTeacherSubjects) {
     if (!teacherSubjectMap.has(ts.teacherId)) teacherSubjectMap.set(ts.teacherId, new Set());
@@ -440,7 +471,7 @@ export async function autoDistributeUnassignedOnly(classIds?: number[]) {
   const teacherClassMap = new Map<number, Set<number>>();
   for (const cs of allClassSubjects) {
     if (cs.teacherId) {
-      teacherLoadMap.set(cs.teacherId, (teacherLoadMap.get(cs.teacherId) || 0) + cs.weeklyHours);
+      teacherLoadMap.set(cs.teacherId, (teacherLoadMap.get(cs.teacherId) || 0) + loadableHours(allSubjects, cs.subjectId, cs.weeklyHours));
       if (!teacherClassMap.has(cs.teacherId)) teacherClassMap.set(cs.teacherId, new Set());
       teacherClassMap.get(cs.teacherId)!.add(cs.classId);
     }
@@ -470,7 +501,7 @@ export async function autoDistributeUnassignedOnly(classIds?: number[]) {
 
     if (best) {
       cs.teacherId = best.id;
-      teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + cs.weeklyHours);
+      teacherLoadMap.set(best.id, (teacherLoadMap.get(best.id) || 0) + loadableHours(allSubjects, cs.subjectId, cs.weeklyHours));
       if (!teacherClassMap.has(best.id)) teacherClassMap.set(best.id, new Set());
       teacherClassMap.get(best.id)!.add(cs.classId);
       assignedCount++;
@@ -527,9 +558,17 @@ export async function autoDistributeAllForceReassign(classIds?: number[]) {
   for (const cs of allClassSubjects) {
     const shouldReset = !classIds || classIds.length === 0 || classIds.includes(cs.classId);
     if (shouldReset) {
-      cs.teacherId = null;
-    } else if (cs.teacherId) {
-      teacherLoadMap.set(cs.teacherId, (teacherLoadMap.get(cs.teacherId) || 0) + cs.weeklyHours);
+      const sub = allSubjects.find(s => s.id === cs.subjectId);
+      const isClassHour = sub && isClassHourSubject(sub.name);
+      if (isClassHour) {
+        const cls = allClasses.find(c => c.id === cs.classId);
+        cs.teacherId = cls?.classTeacherId ?? null;
+      } else {
+        cs.teacherId = null;
+      }
+    }
+    if (cs.teacherId) {
+      teacherLoadMap.set(cs.teacherId, (teacherLoadMap.get(cs.teacherId) || 0) + loadableHours(allSubjects, cs.subjectId, cs.weeklyHours));
       if (!teacherClassMap.has(cs.teacherId)) teacherClassMap.set(cs.teacherId, new Set());
       teacherClassMap.get(cs.teacherId)!.add(cs.classId);
     }
@@ -611,7 +650,7 @@ export async function autoAssignDtsForClasses(classIds: number[]) {
   const teacherClassMap = new Map<number, Set<number>>();
   for (const cs of allClassSubjects) {
     if (cs.teacherId) {
-      teacherLoadMap.set(cs.teacherId, (teacherLoadMap.get(cs.teacherId) || 0) + cs.weeklyHours);
+      teacherLoadMap.set(cs.teacherId, (teacherLoadMap.get(cs.teacherId) || 0) + loadableHours(allSubjects, cs.subjectId, cs.weeklyHours));
       if (!teacherClassMap.has(cs.teacherId)) teacherClassMap.set(cs.teacherId, new Set());
       teacherClassMap.get(cs.teacherId)!.add(cs.classId);
     }
@@ -662,7 +701,7 @@ export async function autoAssignDtsForClasses(classIds: number[]) {
           );
           if (teacher) {
             teacherId = teacher.id;
-            teacherLoadMap.set(teacher.id, (teacherLoadMap.get(teacher.id) || 0) + dtsEntry.weeklyHours);
+            teacherLoadMap.set(teacher.id, (teacherLoadMap.get(teacher.id) || 0) + loadableHours(allSubjects, dtsEntry.subjectId, dtsEntry.weeklyHours));
             if (!teacherClassMap.has(teacher.id)) teacherClassMap.set(teacher.id, new Set());
             teacherClassMap.get(teacher.id)!.add(cls.id);
             assignedCount++;

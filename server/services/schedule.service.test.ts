@@ -357,7 +357,7 @@ describe("generateSchedule — Sinf soati pinning (3271-son nizom)", () => {
     (storage.getRooms as any).mockResolvedValue(fixture.rooms);
     (storage.getSubjects as any).mockResolvedValue([
       ...fixture.subjects,
-      { id: 3, name: "Tarbiya", code: "TARB", requiredRoomType: "any", isActive: true },
+      { id: 3, name: "Kelajak soati", code: "KELS", requiredRoomType: "any", isActive: true },
     ]);
     (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
     (storage.getTeachers as any).mockResolvedValue([]);
@@ -370,13 +370,13 @@ describe("generateSchedule — Sinf soati pinning (3271-son nizom)", () => {
     (storage.createConflict as any).mockResolvedValue({});
   });
 
-  function tarbiyaEntries() {
+  function classHourEntries() {
     const mockCalls = (storage.createScheduleEntriesBulk as any).mock.calls;
     const entries = mockCalls[0][0];
     return entries.filter((e: any) => e.subjectId === 3);
   }
 
-  it("Tarbiya har sinfda default slotga (dushanba 1-dars) tushadi", async () => {
+  it("Kelajak soati har sinfda default slotga (dushanba 1-dars) tushadi", async () => {
     (storage.getAllClassSubjects as any).mockResolvedValue([
       { id: 1, classId: 1, subjectId: 3, teacherId: 30, teacherId2: null, weeklyHours: 1 },
       { id: 2, classId: 2, subjectId: 3, teacherId: 40, teacherId2: null, weeklyHours: 1 },
@@ -387,7 +387,7 @@ describe("generateSchedule — Sinf soati pinning (3271-son nizom)", () => {
     expect(result.coverage).toBe(100);
 
     const slots = buildTimeSlots();
-    for (const e of tarbiyaEntries()) {
+    for (const e of classHourEntries()) {
       const slot = slots.find(s => s.id === e.timeSlotId)!;
       expect(Number(slot.dayOfWeek)).toBe(1);
       expect(Number(slot.periodNumber)).toBe(1);
@@ -402,7 +402,7 @@ describe("generateSchedule — Sinf soati pinning (3271-son nizom)", () => {
 
     await generateSchedule({});
     const slots = buildTimeSlots();
-    const [e] = tarbiyaEntries();
+    const [e] = classHourEntries();
     const slot = slots.find(s => s.id === e.timeSlotId)!;
     expect(Number(slot.dayOfWeek)).toBe(3);
     expect(Number(slot.periodNumber)).toBe(2);
@@ -418,7 +418,7 @@ describe("generateSchedule — Sinf soati pinning (3271-son nizom)", () => {
     expect(result.coverage).toBe(100); // fallback tufayli baribir joylashadi
 
     const slots = buildTimeSlots();
-    const pinnedCount = tarbiyaEntries().filter((e: any) => {
+    const pinnedCount = classHourEntries().filter((e: any) => {
       const slot = slots.find(s => s.id === e.timeSlotId)!;
       return Number(slot.dayOfWeek) === 1 && Number(slot.periodNumber) === 1;
     }).length;
@@ -426,5 +426,259 @@ describe("generateSchedule — Sinf soati pinning (3271-son nizom)", () => {
 
     const conflictCalls = (storage.createConflict as any).mock.calls.map((c: any[]) => c[0]);
     expect(conflictCalls.some((c: any) => c.conflictType === "class_hour_slot" && c.severity === "low")).toBe(true);
+  });
+});
+
+describe("generateSchedule — SanPiN kunlik limit (qat'iy shart)", () => {
+  const slots = buildTimeSlots();
+
+  function mockBase() {
+    vi.clearAllMocks();
+    (storage.getTimeSlots as any).mockResolvedValue(slots);
+    (storage.getRooms as any).mockResolvedValue([
+      { id: 1, name: "101", capacity: 30, roomType: "any", isActive: true },
+      { id: 2, name: "102", capacity: 30, roomType: "any", isActive: true },
+    ]);
+    (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
+    (storage.getTeachers as any).mockResolvedValue([]);
+    (storage.getJointLessons as any).mockResolvedValue([]);
+    (storage.getScheduleEntries as any).mockResolvedValue([]);
+    (storage.getSetting as any).mockResolvedValue(undefined);
+    (storage.createScheduleEntriesBulk as any).mockImplementation(async (entries: any[]) =>
+      entries.map((e, i) => ({ ...e, id: i + 1 }))
+    );
+    (storage.createConflict as any).mockResolvedValue({});
+  }
+
+  function lessonsPerDay(entries: any[]) {
+    const perDay = new Map<number, number>();
+    for (const e of entries) {
+      const slot = slots.find(s => s.id === e.timeSlotId)!;
+      perDay.set(slot.dayOfWeek, (perDay.get(slot.dayOfWeek) || 0) + 1);
+    }
+    return perDay;
+  }
+
+  it("1-sinfda hech bir kunda 5 tadan ko'p dars bo'lmaydi", async () => {
+    mockBase();
+    // 1-sinf, 5 o'quv kuni, 20 soat — kunlik limit 5, ya'ni aynan 4 soatdan
+    (storage.getClasses as any).mockResolvedValue([
+      { id: 1, name: "1-A", grade: "1", language: "uz", studyDays: "1,2,3,4,5", totalStudents: 25, isActive: true },
+    ]);
+    (storage.getSubjects as any).mockResolvedValue([
+      { id: 1, name: "Ona tili", code: "ONA", requiredRoomType: "any", isActive: true },
+      { id: 2, name: "Matematika", code: "MATH", requiredRoomType: "any", isActive: true },
+    ]);
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 1, teacherId: 10, teacherId2: null, weeklyHours: 10 },
+      { id: 2, classId: 1, subjectId: 2, teacherId: 11, teacherId2: null, weeklyHours: 10 },
+    ]);
+
+    await generateSchedule({});
+    const entries = (storage.createScheduleEntriesBulk as any).mock.calls[0][0];
+    for (const [, count] of lessonsPerDay(entries)) {
+      expect(count).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it("sinf soati kunlik limitdan tashqarida — limit to'lgan kunga ham qo'yiladi", async () => {
+    mockBase();
+    // 1-sinf: 25 soat oddiy dars (5 kun x 5) — barcha kunlar to'la; ustiga sinf soati
+    (storage.getClasses as any).mockResolvedValue([
+      { id: 1, name: "1-A", grade: "1", language: "uz", studyDays: "1,2,3,4,5", totalStudents: 25, isActive: true, classTeacherId: 30 },
+    ]);
+    (storage.getSubjects as any).mockResolvedValue([
+      { id: 1, name: "Ona tili", code: "ONA", requiredRoomType: "any", isActive: true },
+      { id: 2, name: "Matematika", code: "MATH", requiredRoomType: "any", isActive: true },
+      { id: 3, name: "Kelajak soati", code: "KELS", requiredRoomType: "any", isActive: true },
+    ]);
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 1, teacherId: 10, teacherId2: null, weeklyHours: 13 },
+      { id: 2, classId: 1, subjectId: 2, teacherId: 11, teacherId2: null, weeklyHours: 12 },
+      { id: 3, classId: 1, subjectId: 3, teacherId: 30, teacherId2: null, weeklyHours: 1 },
+    ]);
+
+    const result = await generateSchedule({});
+    const entries = (storage.createScheduleEntriesBulk as any).mock.calls[0][0];
+
+    // Sinf soati o'z joyida (dushanba 1-dars), oddiy darslar esa 5/kun limitida
+    const classHour = entries.find((e: any) => e.subjectId === 3);
+    expect(classHour).toBeDefined();
+    const chSlot = slots.find(s => s.id === classHour.timeSlotId)!;
+    expect(chSlot.dayOfWeek).toBe(1);
+    expect(chSlot.periodNumber).toBe(1);
+
+    const academicPerDay = lessonsPerDay(entries.filter((e: any) => e.subjectId !== 3));
+    for (const [, count] of academicPerDay) {
+      expect(count).toBeLessThanOrEqual(5);
+    }
+    expect(result.coverage).toBe(100);
+  });
+});
+
+describe("generateSchedule — uy xonasi (defaultRoomId) afzallik, qat'iy shart emas", () => {
+  it("REGRESSIYA: boshqa sinf uy xonasini egallasa ham sinf soati o'z slotida qoladi", async () => {
+    vi.clearAllMocks();
+    (storage.getTimeSlots as any).mockResolvedValue(buildTimeSlots());
+    // Ikkala sinfning sinf soati ham dushanba 1-darsga mahkamlangan.
+    // 2-sinfda uy xonasi yo'q — u erkin xona tanlaydi; 1-sinfning uy xonasi = 1.
+    // Ilgari 2-sinf 1-xonani egallab, 1-sinfning mahkamlangan darsi joyini yo'qotardi.
+    (storage.getClasses as any).mockResolvedValue([
+      { id: 1, name: "1-A", grade: "1", language: "uz", studyDays: "1,2,3,4,5", totalStudents: 25, isActive: true, defaultRoomId: 1, classTeacherId: 30 },
+      { id: 2, name: "2-A", grade: "2", language: "uz", studyDays: "1,2,3,4,5", totalStudents: 25, isActive: true, defaultRoomId: null, classTeacherId: 40 },
+    ]);
+    (storage.getRooms as any).mockResolvedValue([
+      { id: 1, name: "101", capacity: 30, roomType: "classroom", isActive: true },
+      { id: 2, name: "102", capacity: 30, roomType: "classroom", isActive: true },
+    ]);
+    (storage.getSubjects as any).mockResolvedValue([
+      { id: 3, name: "Kelajak soati", code: "KELS", requiredRoomType: "any", isActive: true },
+    ]);
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 3, teacherId: 30, teacherId2: null, weeklyHours: 1 },
+      { id: 2, classId: 2, subjectId: 3, teacherId: 40, teacherId2: null, weeklyHours: 1 },
+    ]);
+    (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
+    (storage.getTeachers as any).mockResolvedValue([]);
+    (storage.getJointLessons as any).mockResolvedValue([]);
+    (storage.getScheduleEntries as any).mockResolvedValue([]);
+    (storage.getSetting as any).mockResolvedValue(undefined);
+    (storage.createScheduleEntriesBulk as any).mockImplementation(async (entries: any[]) =>
+      entries.map((e, i) => ({ ...e, id: i + 1 }))
+    );
+    (storage.createConflict as any).mockResolvedValue({});
+
+    await generateSchedule({});
+
+    const slots = buildTimeSlots();
+    const entries = (storage.createScheduleEntriesBulk as any).mock.calls[0][0];
+    // Ikkala sinfning ham sinf soati dushanba 1-darsda
+    expect(entries).toHaveLength(2);
+    for (const e of entries) {
+      const slot = slots.find(s => s.id === e.timeSlotId)!;
+      expect(slot.dayOfWeek).toBe(1);
+      expect(slot.periodNumber).toBe(1);
+    }
+    // 1-A o'z uy xonasida (1), 2-A esa boshqa sinfning uy xonasini olmagan (2)
+    const oneA = entries.find((e: any) => e.classId === 1)!;
+    const twoA = entries.find((e: any) => e.classId === 2)!;
+    expect(oneA.roomId).toBe(1);
+    expect(twoA.roomId).toBe(2);
+  });
+});
+
+describe("generateSchedule — xona murosasi (lab sig'imi to'sig'i)", () => {
+  it("sig'imi yetmasa ham lab darsi joylashadi va room_capacity konflikti qayd etiladi", async () => {
+    vi.clearAllMocks();
+    (storage.getTimeSlots as any).mockResolvedValue(buildTimeSlots());
+    (storage.getClasses as any).mockResolvedValue([
+      { id: 1, name: "7-A", grade: "7", language: "uz", studyDays: "1,2,3,4,5,6", totalStudents: 25, isActive: true },
+    ]);
+    // Yagona laboratoriya sig'imi 24 < 25 o'quvchi — ilgari Fizika umuman joylashmasdi
+    (storage.getRooms as any).mockResolvedValue([
+      { id: 1, name: "101", capacity: 30, roomType: "classroom", isActive: true },
+      { id: 2, name: "Laboratoriya 401", capacity: 24, roomType: "lab", isActive: true },
+    ]);
+    (storage.getSubjects as any).mockResolvedValue([
+      { id: 1, name: "Fizika", code: "FIZ", requiredRoomType: "lab", isActive: true },
+    ]);
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 1, teacherId: 10, teacherId2: null, weeklyHours: 2 },
+    ]);
+    (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
+    (storage.getTeachers as any).mockResolvedValue([]);
+    (storage.getJointLessons as any).mockResolvedValue([]);
+    (storage.getScheduleEntries as any).mockResolvedValue([]);
+    (storage.getSetting as any).mockResolvedValue(undefined);
+    (storage.createScheduleEntriesBulk as any).mockImplementation(async (entries: any[]) =>
+      entries.map((e, i) => ({ ...e, id: i + 1 }))
+    );
+    (storage.createConflict as any).mockResolvedValue({});
+
+    const result = await generateSchedule({});
+
+    expect(result.coverage).toBe(100);
+    const entries = (storage.createScheduleEntriesBulk as any).mock.calls[0][0];
+    expect(entries).toHaveLength(2);
+    expect(entries.every((e: any) => e.roomId === 2)).toBe(true); // baribir laboratoriyada
+
+    const conflictCalls = (storage.createConflict as any).mock.calls.map((c: any[]) => c[0]);
+    expect(conflictCalls.some((c: any) => c.conflictType === "room_capacity")).toBe(true);
+  });
+
+  it("Fizika o'z laboratoriyasiga, Kimyo o'zinikiga tushadi (fanga atalgan xonalar)", async () => {
+    vi.clearAllMocks();
+    (storage.getTimeSlots as any).mockResolvedValue(buildTimeSlots());
+    (storage.getClasses as any).mockResolvedValue([
+      { id: 1, name: "7-A", grade: "7", language: "uz", studyDays: "1,2,3,4,5,6", totalStudents: 25, isActive: true },
+    ]);
+    (storage.getRooms as any).mockResolvedValue([
+      { id: 1, name: "101", capacity: 30, roomType: "classroom", isActive: true },
+      { id: 2, name: "Fizika laboratoriyasi", capacity: 30, roomType: "lab", isActive: true },
+      { id: 3, name: "Kimyo laboratoriyasi", capacity: 30, roomType: "lab", isActive: true },
+    ]);
+    (storage.getSubjects as any).mockResolvedValue([
+      { id: 1, name: "Fizika", code: "FIZ", requiredRoomType: "lab", isActive: true },
+      { id: 2, name: "Kimyo", code: "KIM", requiredRoomType: "lab", isActive: true },
+    ]);
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 1, teacherId: 10, teacherId2: null, weeklyHours: 2 },
+      { id: 2, classId: 1, subjectId: 2, teacherId: 11, teacherId2: null, weeklyHours: 2 },
+    ]);
+    (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
+    (storage.getTeachers as any).mockResolvedValue([]);
+    (storage.getJointLessons as any).mockResolvedValue([]);
+    (storage.getScheduleEntries as any).mockResolvedValue([]);
+    (storage.getSetting as any).mockResolvedValue(undefined);
+    (storage.createScheduleEntriesBulk as any).mockImplementation(async (entries: any[]) =>
+      entries.map((e, i) => ({ ...e, id: i + 1 }))
+    );
+    (storage.createConflict as any).mockResolvedValue({});
+
+    const result = await generateSchedule({});
+    expect(result.coverage).toBe(100);
+
+    const entries = (storage.createScheduleEntriesBulk as any).mock.calls[0][0];
+    const fizika = entries.filter((e: any) => e.subjectId === 1);
+    const kimyo = entries.filter((e: any) => e.subjectId === 2);
+    expect(fizika).toHaveLength(2);
+    expect(kimyo).toHaveLength(2);
+    expect(fizika.every((e: any) => e.roomId === 2)).toBe(true); // Fizika laboratoriyasi
+    expect(kimyo.every((e: any) => e.roomId === 3)).toBe(true);  // Kimyo laboratoriyasi
+  });
+
+  it("talab qilingan turdagi xona umuman bo'lmasa, boshqa xonaga qo'yiladi (room_type)", async () => {
+    vi.clearAllMocks();
+    (storage.getTimeSlots as any).mockResolvedValue(buildTimeSlots());
+    (storage.getClasses as any).mockResolvedValue([
+      { id: 1, name: "7-A", grade: "7", language: "uz", studyDays: "1,2,3,4,5,6", totalStudents: 25, isActive: true },
+    ]);
+    (storage.getRooms as any).mockResolvedValue([
+      { id: 1, name: "101", capacity: 30, roomType: "classroom", isActive: true },
+    ]);
+    (storage.getSubjects as any).mockResolvedValue([
+      { id: 1, name: "Kimyo", code: "KIM", requiredRoomType: "lab", isActive: true },
+    ]);
+    (storage.getAllClassSubjects as any).mockResolvedValue([
+      { id: 1, classId: 1, subjectId: 1, teacherId: 10, teacherId2: null, weeklyHours: 2 },
+    ]);
+    (storage.getAllTeacherUnavailability as any).mockResolvedValue([]);
+    (storage.getTeachers as any).mockResolvedValue([]);
+    (storage.getJointLessons as any).mockResolvedValue([]);
+    (storage.getScheduleEntries as any).mockResolvedValue([]);
+    (storage.getSetting as any).mockResolvedValue(undefined);
+    (storage.createScheduleEntriesBulk as any).mockImplementation(async (entries: any[]) =>
+      entries.map((e, i) => ({ ...e, id: i + 1 }))
+    );
+    (storage.createConflict as any).mockResolvedValue({});
+
+    const result = await generateSchedule({});
+
+    expect(result.coverage).toBe(100);
+    const entries = (storage.createScheduleEntriesBulk as any).mock.calls[0][0];
+    expect(entries.every((e: any) => e.roomId === 1)).toBe(true);
+
+    const conflictCalls = (storage.createConflict as any).mock.calls.map((c: any[]) => c[0]);
+    expect(conflictCalls.some((c: any) => c.conflictType === "room_type")).toBe(true);
   });
 });

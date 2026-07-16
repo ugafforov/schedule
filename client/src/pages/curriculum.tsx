@@ -12,6 +12,7 @@ import { InlineEdit } from "@/components/ui/inline-edit";
 import { BookOpen, Plus, Trash2, CheckCircle2, Copy, GraduationCap, AlertTriangle, XCircle, Info } from "lucide-react";
 import type { CurriculumPlan, CurriculumEntry, Subject } from "@shared/schema";
 import { UZBEK_CURRICULUM, RUSSIAN_CURRICULUM } from "@shared/curriculum";
+import { isClassHourSubject } from "@shared/constants";
 
 const GRADES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
@@ -80,6 +81,8 @@ function DtsAnalysis({
   const matchedStdKeys = new Set<string>();
 
   gradeEntries.forEach(entry => {
+    // Sinf soati (Kelajak soati) o'quv rejaga kirmaydi — tahlildan chiqariladi
+    if (isClassHourSubject(entry.subjectName)) return;
     let matchedKey: string | null = null;
     for (const stdKey of Object.keys(standardCurriculum)) {
       if (isSameSubject(stdKey, entry.subjectName)) {
@@ -109,6 +112,7 @@ function DtsAnalysis({
   });
 
   Object.keys(standardCurriculum).forEach(stdKey => {
+    if (isClassHourSubject(stdKey)) return;
     if (!matchedStdKeys.has(stdKey)) {
       deviations.push({
         type: "missing",
@@ -412,7 +416,8 @@ export default function CurriculumPage() {
               const gradeEntries = entries
                 .filter((e) => e.grade === grade)
                 .sort((a, b) => a.subjectName.localeCompare(b.subjectName));
-              const total = gradeEntries.reduce((sum, e) => sum + e.weeklyHours, 0);
+              // Sinf soati (Kelajak soati) o'quv soatiga kirmaydi
+              const total = gradeEntries.reduce((sum, e) => sum + (isClassHourSubject(e.subjectName) ? 0 : e.weeklyHours), 0);
               
               const filteredSuggestions = activeDbSubjects.filter(s => 
                 s.name.toLowerCase().includes(newEntryName.toLowerCase())

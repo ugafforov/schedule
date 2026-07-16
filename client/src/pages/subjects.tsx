@@ -90,7 +90,8 @@ const DTS_GROUPS: { label: string; sinf: string; color: string; subjects: DtsSub
       { name: "O'zbekiston tarixi",                     code: "UZBT",     color: "#B45309", weeklyHours: 2, requiredRoomType: "classroom", description: "7–9: 2s | 10–11: 1s" },
       { name: "Jahon tarixi",                           code: "JTAR",     color: "#92400E", weeklyHours: 1, requiredRoomType: "classroom", description: "7–11-sinf: 1s" },
       { name: "Davlat va huquq asoslari",               code: "DHQ",      color: "#EC4899", weeklyHours: 1, requiredRoomType: "classroom", description: "8–11-sinf: 1s" },
-      { name: "Tarbiya",                                code: "TARB",     color: "#14B8A6", weeklyHours: 1, requiredRoomType: "classroom", description: "1–11-sinf: 1s (sinf soati)" },
+      { name: "Tarbiya",                                code: "TARB",     color: "#14B8A6", weeklyHours: 1, requiredRoomType: "classroom", description: "1–11-sinf: 1s (alohida fan)" },
+      { name: "Kelajak soati",                          code: "KELS",     color: "#0D9488", weeklyHours: 1, requiredRoomType: "classroom", description: "1–11-sinf: 1s — sinf soati, sinf rahbari (o'quv soatiga kirmaydi)" },
     ],
   },
   {

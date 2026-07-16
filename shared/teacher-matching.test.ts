@@ -130,22 +130,22 @@ describe("pickBestTeacher", () => {
 });
 
 describe("isClassHourSubject", () => {
-  it("Tarbiya / Sinf soati / Kelajak soati fanlarini taniydi", () => {
-    expect(isClassHourSubject("Tarbiya")).toBe(true);
+  it("Sinf soati / Kelajak soati fanlarini taniydi", () => {
     expect(isClassHourSubject("Sinf soati")).toBe(true);
     expect(isClassHourSubject("Kelajak soati")).toBe(true);
   });
 
-  it("Jismoniy tarbiya sinf soati emas", () => {
+  it("Tarbiya — alohida oddiy fan, sinf soati EMAS", () => {
+    expect(isClassHourSubject("Tarbiya")).toBe(false);
     expect(isClassHourSubject("Jismoniy tarbiya")).toBe(false);
     expect(isClassHourSubject("Matematika")).toBe(false);
   });
 });
 
 describe("sinf soati override (sinf rahbari)", () => {
-  const tarbiyaCtx: TeacherMatchContext = {
+  const kelajakCtx: TeacherMatchContext = {
     subjectId: 20,
-    subjectName: "Tarbiya",
+    subjectName: "Kelajak soati",
     classGrade: "8",
     weeklyHours: 1,
     classId: 7,
@@ -156,7 +156,7 @@ describe("sinf soati override (sinf rahbari)", () => {
     const fizik = makeTeacher({ id: 3, specialization: "Fizika" });
     const score = scoreTeacherForSubject(
       { teacher: fizik, teacherSubjectIds: [], currentHours: 10 },
-      tarbiyaCtx,
+      kelajakCtx,
     );
     expect(score).toBeGreaterThan(0);
   });
@@ -164,22 +164,31 @@ describe("sinf soati override (sinf rahbari)", () => {
   it("rahbar bo'lmagan o'qituvchi sinf soatini ololmaydi", () => {
     const boshqa = makeTeacher({ id: 5, specialization: "Tarbiya" });
     expect(
-      scoreTeacherForSubject({ teacher: boshqa, teacherSubjectIds: [20], currentHours: 0 }, tarbiyaCtx),
+      scoreTeacherForSubject({ teacher: boshqa, teacherSubjectIds: [20], currentHours: 0 }, kelajakCtx),
     ).toBe(-1);
   });
 
-  it("rahbar limiti oshsa -1", () => {
+  it("sinf soati yuklamadan tashqari — rahbar limiti to'lgan bo'lsa ham oladi", () => {
     const fizik = makeTeacher({ id: 3, maxHoursPerWeek: 10 });
     expect(
-      scoreTeacherForSubject({ teacher: fizik, teacherSubjectIds: [], currentHours: 10 }, tarbiyaCtx),
-    ).toBe(-1);
+      scoreTeacherForSubject({ teacher: fizik, teacherSubjectIds: [], currentHours: 10 }, kelajakCtx),
+    ).toBeGreaterThan(0);
   });
 
   it("rahbar belgilanmagan bo'lsa eski xatti-harakat saqlanadi", () => {
     const tarbiyachi = makeTeacher({ id: 5, specialization: "Tarbiya" });
     const score = scoreTeacherForSubject(
       { teacher: tarbiyachi, teacherSubjectIds: [20], currentHours: 0 },
-      { ...tarbiyaCtx, classTeacherId: undefined },
+      { ...kelajakCtx, classTeacherId: undefined, subjectName: "Tarbiya" },
+    );
+    expect(score).toBeGreaterThanOrEqual(0);
+  });
+
+  it("Tarbiya oddiy fan — sinf rahbari bo'lmagan o'qituvchi ham o'ta oladi", () => {
+    const tarbiyachi = makeTeacher({ id: 5, specialization: "Tarbiya" });
+    const score = scoreTeacherForSubject(
+      { teacher: tarbiyachi, teacherSubjectIds: [20], currentHours: 0 },
+      { ...kelajakCtx, subjectName: "Tarbiya" },
     );
     expect(score).toBeGreaterThanOrEqual(0);
   });

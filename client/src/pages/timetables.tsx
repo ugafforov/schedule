@@ -33,6 +33,7 @@ import * as XLSX from "xlsx-js-style";
 
 import { apiRequest } from "@/lib/queryClient";
 import type { Class, Subject, Teacher, Room, TimeSlot, ScheduleEntry } from "@shared/schema";
+import { getConflictTypeLabel } from "@shared/constants";
 
 const DAYS = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma"];
 
@@ -1766,10 +1767,7 @@ export default function Timetables() {
                         {conflicts.map((c: any, idx: number) => (
                           <div key={c.id || idx} className="p-2 rounded bg-red-500/10 border border-red-500/20 text-[10px] text-foreground">
                             <p className="font-bold text-red-500 mb-0.5">
-                              {c.conflictType === "room" ? "Xona ziddiyati" :
-                               c.conflictType === "teacher" ? "O'qituvchi ziddiyati" :
-                               c.conflictType === "unavailability" ? "Bandlik ziddiyati" :
-                               c.conflictType === "schedule_overlap" ? "SanPiN/yuklama ziddiyati" : "Sinf ziddiyati"}
+                              {getConflictTypeLabel(c.conflictType)}
                             </p>
                             <p className="leading-relaxed text-muted-foreground">{c.description}</p>
                           </div>

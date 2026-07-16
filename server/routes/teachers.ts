@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { insertTeacherSchema, teacherSubjects, classSubjects, teachers } from "@shared/schema";
+import { insertTeacherSchema, teacherSubjects, classSubjects, teachers, classes } from "@shared/schema";
 import { storage } from "../storage/index";
 import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
@@ -8,7 +8,7 @@ import { db } from "../db";
 import { eq, and, sql } from "drizzle-orm";
 import { autoGenerateTeachers } from "../services/teacher.service";
 import { getSpecialty, getCurriculumForGrade } from "../services/curriculum.service";
-import { parseGrade } from "@shared/constants";
+import { parseGrade, isClassHourSubject } from "@shared/constants";
 
 // Bulk teacher validation schema
 const bulkTeacherSchema = z.object({
@@ -74,6 +74,7 @@ const getTeacherLoadLogic = async () => {
       teacherName: `${t.firstName} ${t.lastName}`.trim() || `O'qituvchi #${t.id}`,
       maxHours: t.maxHoursPerWeek || 30,
       totalAssignedHours: 0,
+      classHourCount: 0,
       subjects: [],
     });
   }
@@ -81,8 +82,13 @@ const getTeacherLoadLogic = async () => {
     if (!cs.teacherId) continue;
     const entry = teacherMap.get(cs.teacherId);
     if (!entry) continue;
-    entry.totalAssignedHours += cs.weeklyHours;
     const sub = allSubjects.find((s) => s.id === cs.subjectId);
+    // Sinf soati (Kelajak soati) dars yuklamasiga kirmaydi — alohida sanaladi
+    if (sub && isClassHourSubject(sub.name)) {
+      entry.classHourCount += cs.weeklyHours;
+    } else {
+      entry.totalAssignedHours += cs.weeklyHours;
+    }
     if (sub && !entry.subjects.includes(sub.name)) entry.subjects.push(sub.name);
   }
 
@@ -124,6 +130,8 @@ const getTeacherRecommendationLogic = async () => {
     ]);
 
     for (const subName of Array.from(subjectsToAnalyze)) {
+      // Sinf soati (Kelajak soati) — sinf rahbari o'tadi, o'qituvchi vakansiyasi talab qilmaydi
+      if (isClassHourSubject(subName)) continue;
       const subject = allSubjects.find((s) => s.name.toLowerCase() === subName.toLowerCase());
       const specialty = getSpecialty(subName, String(cls.grade), classLang);
       const hours =
@@ -269,7 +277,10 @@ export const teacherRoutes = new Hono()
   .delete("/:id", requireAdmin, async (c) => {
     const idParam = c.req.param("id");
     if (idParam === "all") {
-      await db.update(teachers).set({ isActive: false });
+      await db.transaction(async (tx) => {
+        await tx.update(classes).set({ classTeacherId: null });
+        await tx.update(teachers).set({ isActive: false });
+      });
       return c.body(null, 204);
     }
     const id = parseInt(idParam);
@@ -282,7 +293,10 @@ export const teacherRoutes = new Hono()
 
   // Clear all (soft delete)
   .post("/clear-all", requireAdmin, strictRateLimit, async (c) => {
-    await db.update(teachers).set({ isActive: false });
+    await db.transaction(async (tx) => {
+      await tx.update(classes).set({ classTeacherId: null });
+      await tx.update(teachers).set({ isActive: false });
+    });
     return c.json({ message: "Barcha o'qituvchilar muvaffaqiyatli tozalandi" });
   })
 

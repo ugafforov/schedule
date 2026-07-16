@@ -50,6 +50,8 @@ interface TeacherLoadData {
     teacherName: string;
     maxHours: number;
     totalAssignedHours: number;
+    /** Sinf soati (Kelajak soati) — dars yuklamasidan tashqari soat */
+    classHourCount: number;
     subjects: string[];
   }>;
 }
@@ -126,8 +128,12 @@ function ClearAssignmentsDialog({
 function getPreferredRoomId(subject: Subject | undefined, selectedClass: Class | undefined, rooms: Room[]): number | null {
   if (!subject) return selectedClass?.defaultRoomId || null;
   if (subject.requiredRoomType && subject.requiredRoomType !== "any" && subject.requiredRoomType !== "classroom") {
-    const matchingRoom = rooms.find(r => r.roomType === subject.requiredRoomType);
-    if (matchingRoom) return matchingRoom.id;
+    const typeRooms = rooms.filter(r => r.roomType === subject.requiredRoomType);
+    // Fanga atalgan xona ustuvor: Fizika "Fizika laboratoriyasi"ga tushsin,
+    // Kimyo laboratoriyasiga emas. Topilmasa — turdagi istalgan xona.
+    const ownRoom = typeRooms.find(r => roomMatchesSubject(r.name, subject.name));
+    if (ownRoom) return ownRoom.id;
+    if (typeRooms.length > 0) return typeRooms[0].id;
   }
   return selectedClass?.defaultRoomId || null;
 }
@@ -293,7 +299,7 @@ function AutoAssignDialog({ open, onClose, onConfirm, selectedClass, subjects, t
   );
 }
 
-import { PRIMARY_TEACHER_ALLOWED_SUBJECTS, isPrimaryTeacherAllowedSubject } from "@shared/constants";
+import { PRIMARY_TEACHER_ALLOWED_SUBJECTS, isPrimaryTeacherAllowedSubject, isClassHourSubject, roomMatchesSubject } from "@shared/constants";
 import { pickBestTeacher } from "@shared/teacher-matching";
 
 function pickTeacherForSubject(
@@ -764,7 +770,7 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
           if (subject && !isPrimaryTeacherAllowedSubject(subject.name)) {
             toast({
               title: "Ruxsat etilmagan biriktirish",
-              description: `Boshlang'ich sinf o'qituvchilari "${subject.name}" faniga biriktirilmaydi. Faqat: Ona tili, Matematika, O'qish savodxonligi, Tarbiya, Sinf soati.`,
+              description: `Boshlang'ich sinf o'qituvchilari "${subject.name}" faniga biriktirilmaydi. Faqat: Ona tili, Matematika, O'qish savodxonligi, Tarbiya, Kelajak soati.`,
               variant: "destructive"
             });
             return; // Biriktirish amalga oshmaydi
@@ -805,7 +811,11 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
     toast({ title: "Fanlar biriktirildi", description: `${newA.length} ta fan DTS bo'yicha qo'shildi/yangilandi` });
   };
 
-  const totalHours = assignments.reduce((s, a) => s + (a.weeklyHours || 0), 0);
+  // Sinf soati (Kelajak soati) o'quv soatiga kirmaydi
+  const totalHours = assignments.reduce((s, a) => {
+    const sub = subjects.find(x => x.id === a.subjectId);
+    return s + (sub && isClassHourSubject(sub.name) ? 0 : (a.weeklyHours || 0));
+  }, 0);
 
   // Teacher load lookup for dropdown hints
   const { data: loadData } = useQuery<TeacherLoadData>({
@@ -1652,6 +1662,14 @@ function YukHisobi({ teachers }: { teachers: Teacher[] }) {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
+                        {t.classHourCount > 0 && (
+                          <span
+                            className="text-xs font-medium px-2 py-0.5 rounded-full border border-teal-500/20 bg-teal-500/10 text-teal-700 dark:text-teal-400"
+                            title="Sinf soati (Kelajak soati) — dars yuklamasiga kirmaydi"
+                          >
+                            +{t.classHourCount} sinf soati
+                          </span>
+                        )}
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${loadBg(pct)}`}>
                           {t.totalAssignedHours}/{t.maxHours} soat
                         </span>
@@ -1713,7 +1731,7 @@ function ClassCurriculumAnalysis({
 
   if (isLoading || !activePlan) return null;
 
-  const gradeEntries = entries.filter(e => e.grade === grade);
+  const gradeEntries = entries.filter(e => e.grade === grade && !isClassHourSubject(e.subjectName));
   
   const deviations: {
     type: "missing" | "extra" | "hours_diff";
@@ -1724,7 +1742,8 @@ function ClassCurriculumAnalysis({
 
   const matchedEntryIds = new Set<number>();
 
-  // Compare actual assignments to active plan entries
+  // Compare actual assignments to active plan entries.
+  // Sinf soati (Kelajak soati) o'quv rejaga kirmaydi — solishtiruvdan chiqariladi.
   const actualSubjects = assignments.map(a => {
     const sub = subjects.find(s => s.id === a.subjectId);
     return {
@@ -1732,7 +1751,7 @@ function ClassCurriculumAnalysis({
       subjectName: sub?.name || "Noma'lum fan",
       weeklyHours: a.weeklyHours
     };
-  });
+  }).filter(a => !isClassHourSubject(a.subjectName));
 
   const isMatch = (dbSubjName: string, planSubjName: string) => {
     const n1 = dbSubjName.toLowerCase().replace(/\s+/g, ' ').trim().replace(/[()]/g, '').replace("science", "").trim();
