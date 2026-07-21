@@ -4,16 +4,33 @@ import { execSync } from "child_process";
 if (process.env.NODE_ENV === "development") {
   const portToFree = Number(process.env.PORT) || 5001;
   try {
-    const pids = execSync(`lsof -t -sTCP:LISTEN -i:${portToFree}`).toString().trim().split("\n").filter(Boolean);
-    for (const pid of pids) {
-      const pidNum = Number(pid);
-      if (pidNum && pidNum !== process.pid) {
-        console.log(`[Port Cleanup] Port ${portToFree} is in use by process ${pidNum}. Killing it...`);
-        execSync(`kill -9 ${pidNum}`);
+    if (process.platform === "win32") {
+      const out = execSync(`netstat -ano -p TCP`).toString();
+      const pids = Array.from(new Set(
+        out.split("\n")
+          .filter(line => line.includes(`:${portToFree} `) && line.includes("LISTENING"))
+          .map(line => line.trim().split(/\s+/).pop())
+          .filter(Boolean)
+      ));
+      for (const pid of pids) {
+        const pidNum = Number(pid);
+        if (pidNum && pidNum !== process.pid) {
+          console.log(`[Port Cleanup] Port ${portToFree} is in use by process ${pidNum}. Killing it...`);
+          execSync(`taskkill /F /PID ${pidNum}`);
+        }
+      }
+    } else {
+      const pids = execSync(`lsof -t -sTCP:LISTEN -i:${portToFree}`).toString().trim().split("\n").filter(Boolean);
+      for (const pid of pids) {
+        const pidNum = Number(pid);
+        if (pidNum && pidNum !== process.pid) {
+          console.log(`[Port Cleanup] Port ${portToFree} is in use by process ${pidNum}. Killing it...`);
+          execSync(`kill -9 ${pidNum}`);
+        }
       }
     }
   } catch (e) {
-    // ignore lsof errors
+    // ignore port-cleanup errors
   }
 }
 

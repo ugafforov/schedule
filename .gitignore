@@ -61,6 +61,10 @@ CLAUDE.local.md
 .claude/settings.local.json
 .playwright-mcp/
 
+# Lokal muhit sozlamalari (mashinaga xos yo'llar — masalan Windows'da
+# npm skriptlari uchun script-shell=.../Git/bin/bash.exe)
+.npmrc
+
 # Misc
 curriculum_layout.txt
 curriculum_text.txt
