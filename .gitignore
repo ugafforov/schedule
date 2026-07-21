@@ -61,8 +61,8 @@ CLAUDE.local.md
 .claude/settings.local.json
 .playwright-mcp/
 
-# Lokal muhit sozlamalari (mashinaga xos yo'llar — masalan Windows'da
-# npm skriptlari uchun script-shell=.../Git/bin/bash.exe)
+# npm lokal sozlamalari — ko'pincha auth-token saqlaydi, commit qilinmaydi
+# (platformalararo NODE_ENV uchun script-shell emas, cross-env ishlatiladi)
 .npmrc
 
 # Misc
