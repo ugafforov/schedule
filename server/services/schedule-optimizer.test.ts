@@ -49,11 +49,11 @@ describe("attemptRelocations", () => {
     const checkers = buildCheckersAndMutators(busy);
 
     const placedLessons: MovablePlacedLesson[] = [
-      { index: 0, classId: 10, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+      { index: 0, classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
     ];
 
     const skippedLessons: SkippedLessonInput[] = [
-      { skippedIndex: 0, classId: 20, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
+      { skippedIndex: 0, classId: 20, subjectId: 1, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
     ];
     // Skipped lesson uchun sinf 20 faqat slot 1'da bo'sh deb faraz qilamiz
     // (boshqa barcha sloterda sinf 20 band) — shuning uchun faqat slot1 ustida ishlaymiz.
@@ -84,10 +84,10 @@ describe("attemptRelocations", () => {
     const checkers = buildCheckersAndMutators(busy);
 
     const placedLessons: MovablePlacedLesson[] = [
-      { index: 0, classId: 10, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+      { index: 0, classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
     ];
     const skippedLessons: SkippedLessonInput[] = [
-      { skippedIndex: 0, classId: 20, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
+      { skippedIndex: 0, classId: 20, subjectId: 1, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
     ];
 
     const plans = attemptRelocations({ skippedLessons, placedLessons, activeSlots, ...checkers });
@@ -99,11 +99,11 @@ describe("attemptRelocations", () => {
     const checkers = buildCheckersAndMutators(busy);
 
     const placedLessons: MovablePlacedLesson[] = [
-      { index: 0, classId: 10, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+      { index: 0, classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
     ];
     const skippedLessons: SkippedLessonInput[] = [
-      { skippedIndex: 0, classId: 20, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
-      { skippedIndex: 1, classId: 30, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
+      { skippedIndex: 0, classId: 20, subjectId: 1, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
+      { skippedIndex: 1, classId: 30, subjectId: 1, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
     ];
 
     const plans = attemptRelocations({ skippedLessons, placedLessons, activeSlots, ...checkers });
@@ -128,12 +128,12 @@ describe("attemptRelocations", () => {
     const checkers = buildCheckersAndMutators(busy);
 
     const placedLessons: MovablePlacedLesson[] = [
-      { index: 0, classId: 10, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
-      { index: 1, classId: 11, teacherId: 2, roomId: 101, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+      { index: 0, classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+      { index: 1, classId: 11, subjectId: 1, teacherId: 2, roomId: 101, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
     ];
     const skippedLessons: SkippedLessonInput[] = [
-      { skippedIndex: 0, classId: 20, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
-      { skippedIndex: 1, classId: 21, teacherId: 2, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
+      { skippedIndex: 0, classId: 20, subjectId: 1, teacherId: 1, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
+      { skippedIndex: 1, classId: 21, subjectId: 1, teacherId: 2, weekType: "always", studyDays: [1, 2], roomCandidates: [200] },
     ];
 
     const plans = attemptRelocations({ skippedLessons, placedLessons, activeSlots, ...checkers });
@@ -156,11 +156,11 @@ describe("attemptRelocations", () => {
     const checkers = buildCheckersAndMutators(busy);
 
     const placedLessons: MovablePlacedLesson[] = [
-      { index: 0, classId: 10, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+      { index: 0, classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
     ];
 
     const skippedLessons: SkippedLessonInput[] = [
-      { skippedIndex: 0, classId: 20, teacherId: 5, weekType: "always", studyDays: [1, 2], roomCandidates: [100] },
+      { skippedIndex: 0, classId: 20, subjectId: 1, teacherId: 5, weekType: "always", studyDays: [1, 2], roomCandidates: [100] },
     ];
     // Skipped dars uchun sinf 20 faqat slot 1'da bo'sh deb faraz qilamiz
     busy.add("class_20_2");
@@ -194,10 +194,10 @@ describe("attemptRelocations", () => {
     const checkers = buildCheckersAndMutators(busy);
 
     const placedLessons: MovablePlacedLesson[] = [
-      { index: 0, classId: 10, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
+      { index: 0, classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 1, weekType: "always", studyDays: [1, 2] },
     ];
     const skippedLessons: SkippedLessonInput[] = [
-      { skippedIndex: 0, classId: 20, teacherId: 5, weekType: "always", studyDays: [1, 2], roomCandidates: [100] },
+      { skippedIndex: 0, classId: 20, subjectId: 1, teacherId: 5, weekType: "always", studyDays: [1, 2], roomCandidates: [100] },
     ];
 
     const plans = attemptRelocations({ skippedLessons, placedLessons, activeSlots, ...checkers });
@@ -387,5 +387,47 @@ describe("compactDays — kun ichidagi oynalar", () => {
     const moves = compactDays(buildParams(schedule));
     expect(moves).toBe(0);
     expect(schedule[2].timeSlotId).toBe(15);
+  });
+
+  // Domen qoidasi (docs/domain/scheduling-rules.md): juft darslar (ketma-ket ikki soat
+  // bir xil fan) boshlang'ich sinflarda taqiqlanadi. Optimizatsiya buni buzmasligi kerak.
+  describe("boshlang'ich sinf juft dars taqiqi", () => {
+    type SubjEntry = Entry & { subjectId: number };
+
+    // Dushanba: p1 (fan 1), p2 (fan 7), [oyna p3], p4 (fan 7).
+    // Oynani yopish uchun p4'dagi dars p3'ga surilishi kerak — lekin unda
+    // fan 7 p2 va p3'da ketma-ket bo'lib qoladi.
+    const makeSchedule = (lastSubjectId: number): SubjEntry[] => [
+      { classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 11 },
+      { classId: 10, subjectId: 7, teacherId: 2, roomId: 100, timeSlotId: 12 },
+      { classId: 10, subjectId: lastSubjectId, teacherId: 3, roomId: 100, timeSlotId: 14 },
+    ];
+
+    it("boshlang'ich sinfda ketma-ket bir xil fan hosil qiladigan ko'chirishni rad etadi", () => {
+      const schedule = makeSchedule(7);
+      const moves = compactDays(buildParams(schedule, {
+        classGrades: new Map([[10, "3"]]),
+      }));
+      expect(moves).toBe(0);
+      expect(schedule[2].timeSlotId).toBe(14); // joyida qoldi
+    });
+
+    it("yuqori sinfda (5+) xuddi shu ko'chirishga ruxsat beradi", () => {
+      const schedule = makeSchedule(7);
+      const moves = compactDays(buildParams(schedule, {
+        classGrades: new Map([[10, "7"]]),
+      }));
+      expect(moves).toBe(1);
+      expect(schedule[2].timeSlotId).toBe(13); // oyna yopildi
+    });
+
+    it("boshlang'ich sinfda fanlar har xil bo'lsa ko'chirishga to'sqinlik qilmaydi", () => {
+      const schedule = makeSchedule(8); // p2 = fan 7, ko'chadigani = fan 8
+      const moves = compactDays(buildParams(schedule, {
+        classGrades: new Map([[10, "3"]]),
+      }));
+      expect(moves).toBe(1);
+      expect(schedule[2].timeSlotId).toBe(13);
+    });
   });
 });

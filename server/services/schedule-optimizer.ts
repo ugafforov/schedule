@@ -12,9 +12,61 @@
 // qilib qo'ygan xona/slot/o'qituvchiga qarshi eski (yangilanmagan) holat asosida reja
 // tuzib, ikkala reja bir xil resursni band qilib, haqiqiy to'qnashuv yaratardi.
 
-import { getMaxHoursPerDay } from "../../shared/constants";
+import { getMaxHoursPerDay, parseGrade } from "../../shared/constants";
 
 export type WeekType = "always" | "surat" | "mahraj";
+
+export interface OptimizerScheduleEntry {
+  classId: number;
+  subjectId: number;
+  teacherId: number;
+  roomId: number;
+  timeSlotId: number;
+  weekType?: string | null;
+  isActive?: boolean | null;
+  roomCandidates?: number[];
+}
+
+function isPrimaryConsecutiveViolation(params: {
+  schedule?: OptimizerScheduleEntry[];
+  classId: number;
+  subjectId: number;
+  targetSlotId: number;
+  weekType: string;
+  classGrades?: Map<number, string>;
+  slotPeriodMap?: Map<number, number>;
+  slotDayMap?: Map<number, number>;
+  excludeEntryIdx?: number;
+}): boolean {
+  const grade = params.classGrades?.get(params.classId) || "5";
+  if (parseGrade(grade) > 4) return false; // Faqat 1-4 boshlang'ich sinflar uchun
+
+  // Kerakli kontekst berilmasa tekshirilmaydi (eski xatti-harakat).
+  if (!params.schedule || !params.slotPeriodMap || !params.slotDayMap) return false;
+
+  const targetPeriod = params.slotPeriodMap.get(params.targetSlotId);
+  const targetDay = params.slotDayMap.get(params.targetSlotId);
+  if (targetPeriod === undefined || targetDay === undefined) return false;
+
+  for (let i = 0; i < params.schedule.length; i++) {
+    if (i === params.excludeEntryIdx) continue;
+    const e = params.schedule[i];
+    if (e.classId !== params.classId || e.subjectId !== params.subjectId) continue;
+
+    const day = params.slotDayMap.get(e.timeSlotId);
+    const period = params.slotPeriodMap.get(e.timeSlotId);
+    if (day !== targetDay || period === undefined) continue;
+
+    const wt = e.weekType || "always";
+    const conflict = wt === "always" || params.weekType === "always" || wt === params.weekType;
+    if (!conflict) continue;
+
+    if (Math.abs(period - targetPeriod) === 1) {
+      return true;
+    }
+  }
+  return false;
+}
 
 export interface OptimizerSlot {
   id: number;
@@ -24,6 +76,7 @@ export interface OptimizerSlot {
 export interface MovablePlacedLesson {
   index: number; // chaqiruvchining finalSchedule massividagi indeksi
   classId: number;
+  subjectId: number;
   teacherId: number;
   roomId: number;
   timeSlotId: number;
@@ -34,6 +87,7 @@ export interface MovablePlacedLesson {
 export interface SkippedLessonInput {
   skippedIndex: number; // chaqiruvchining pending-skip ro'yxatidagi indeksi
   classId: number;
+  subjectId: number;
   teacherId: number;
   weekType: WeekType;
   studyDays: number[];
@@ -81,6 +135,11 @@ export function attemptRelocations(params: {
   unmarkRoomBusy: (roomId: number, slotId: number, weekType: WeekType) => void;
   /** SanPiN kunlik limit tekshiruvi — berilmasa tekshirilmaydi (eski xatti-harakat). */
   canPlaceClassOnDay?: CanPlaceClassOnDay;
+  /** Boshlang'ich sinf juft dars tekshiruvi uchun kontekst — berilmasa tekshirilmaydi. */
+  fullSchedule?: OptimizerScheduleEntry[];
+  classGrades?: Map<number, string>;
+  slotPeriodMap?: Map<number, number>;
+  slotDayMap?: Map<number, number>;
   maxAttempts?: number;
 }): RelocationPlan[] {
   const {
@@ -88,6 +147,10 @@ export function attemptRelocations(params: {
     isClassFree, isTeacherFree, isRoomFree,
     markClassBusy, unmarkClassBusy, markTeacherBusy, unmarkTeacherBusy, markRoomBusy, unmarkRoomBusy,
     canPlaceClassOnDay,
+    fullSchedule,
+    classGrades,
+    slotPeriodMap,
+    slotDayMap,
     maxAttempts = 200,
   } = params;
   const canPlace: CanPlaceClassOnDay = canPlaceClassOnDay ?? (() => true);
@@ -95,6 +158,9 @@ export function attemptRelocations(params: {
   const plans: RelocationPlan[] = [];
   let attempts = 0;
   const relocatedLessonIndices = new Set<number>();
+
+  // Copy fullSchedule to avoid mutating caller's original array or causing duplicates
+  const currentSchedule = fullSchedule ? [...fullSchedule] : [];
 
   for (const skipped of skippedLessons) {
     if (attempts >= maxAttempts) break;
@@ -106,6 +172,18 @@ export function attemptRelocations(params: {
       if (!isClassFree(skipped.classId, slot.id, skipped.weekType)) continue;
       // SanPiN: shu kunda sinfning dars soati limiti to'lgan bo'lsa, bu slotga qo'ymaymiz
       if (!canPlace(skipped.classId, slot.id, skipped.weekType)) continue;
+
+      // Boshlang'ich sinf ketma-ket juft dars taqiqi (hard constraint)
+      if (isPrimaryConsecutiveViolation({
+        schedule: currentSchedule,
+        classId: skipped.classId,
+        subjectId: skipped.subjectId,
+        targetSlotId: slot.id,
+        weekType: skipped.weekType,
+        classGrades,
+        slotPeriodMap,
+        slotDayMap,
+      })) continue;
 
       const freeRoomId = skipped.roomCandidates.find((rid) => isRoomFree(rid, slot.id, skipped.weekType));
       const teacherFreeHere = isTeacherFree(skipped.teacherId, slot.id, skipped.weekType);
@@ -131,6 +209,19 @@ export function attemptRelocations(params: {
           if (!isRoomFree(blocker.roomId, newSlot.id, blocker.weekType)) continue;
           if (!canPlace(blocker.classId, newSlot.id, blocker.weekType, slot.id)) continue;
 
+          // Boshlang'ich sinf ketma-ket juft dars taqiqi (hard constraint)
+          if (isPrimaryConsecutiveViolation({
+            schedule: currentSchedule,
+            classId: blocker.classId,
+            subjectId: blocker.subjectId,
+            targetSlotId: newSlot.id,
+            weekType: blocker.weekType,
+            classGrades,
+            slotPeriodMap,
+            slotDayMap,
+            excludeEntryIdx: blocker.index,
+          })) continue;
+
           // Rejani DARHOL amalga oshiramiz (holatni yangilaymiz), shunda navbatdagi
           // skipped darslar bu o'zgarishni ko'radi va bir xil resursga da'vogar bo'lmaydi.
           unmarkClassBusy(blocker.classId, slot.id, blocker.weekType);
@@ -139,7 +230,14 @@ export function attemptRelocations(params: {
           markClassBusy(blocker.classId, newSlot.id, blocker.weekType);
           markTeacherBusy(blocker.teacherId, newSlot.id, blocker.weekType);
           markRoomBusy(blocker.roomId, newSlot.id, blocker.weekType);
+          
           blocker.timeSlotId = newSlot.id;
+          if (currentSchedule[blocker.index]) {
+            currentSchedule[blocker.index] = {
+              ...currentSchedule[blocker.index],
+              timeSlotId: newSlot.id,
+            };
+          }
 
           markClassBusy(skipped.classId, slot.id, skipped.weekType);
           markTeacherBusy(skipped.teacherId, slot.id, skipped.weekType);
@@ -153,6 +251,17 @@ export function attemptRelocations(params: {
             movedLessonNewSlotId: newSlot.id,
           });
           relocatedLessonIndices.add(blocker.index);
+          
+          // Yangi joylashtirilgan darsni ham currentSchedule'ga qo'shamiz
+          currentSchedule.push({
+            classId: skipped.classId,
+            subjectId: skipped.subjectId,
+            teacherId: skipped.teacherId,
+            roomId: freeRoomId,
+            timeSlotId: slot.id,
+            weekType: skipped.weekType,
+          });
+
           resolved = true;
           break;
         }
@@ -178,6 +287,19 @@ export function attemptRelocations(params: {
           if (!isRoomFree(roomBlocker.roomId, newSlot.id, roomBlocker.weekType)) continue;
           if (!canPlace(roomBlocker.classId, newSlot.id, roomBlocker.weekType, slot.id)) continue;
 
+          // Boshlang'ich sinf ketma-ket juft dars taqiqi (hard constraint)
+          if (isPrimaryConsecutiveViolation({
+            schedule: currentSchedule,
+            classId: roomBlocker.classId,
+            subjectId: roomBlocker.subjectId,
+            targetSlotId: newSlot.id,
+            weekType: roomBlocker.weekType,
+            classGrades,
+            slotPeriodMap,
+            slotDayMap,
+            excludeEntryIdx: roomBlocker.index,
+          })) continue;
+
           const freedRoomId = roomBlocker.roomId;
           unmarkClassBusy(roomBlocker.classId, slot.id, roomBlocker.weekType);
           unmarkTeacherBusy(roomBlocker.teacherId, slot.id, roomBlocker.weekType);
@@ -185,7 +307,14 @@ export function attemptRelocations(params: {
           markClassBusy(roomBlocker.classId, newSlot.id, roomBlocker.weekType);
           markTeacherBusy(roomBlocker.teacherId, newSlot.id, roomBlocker.weekType);
           markRoomBusy(freedRoomId, newSlot.id, roomBlocker.weekType);
+          
           roomBlocker.timeSlotId = newSlot.id;
+          if (currentSchedule[roomBlocker.index]) {
+            currentSchedule[roomBlocker.index] = {
+              ...currentSchedule[roomBlocker.index],
+              timeSlotId: newSlot.id,
+            };
+          }
 
           markClassBusy(skipped.classId, slot.id, skipped.weekType);
           markTeacherBusy(skipped.teacherId, slot.id, skipped.weekType);
@@ -199,6 +328,17 @@ export function attemptRelocations(params: {
             movedLessonNewSlotId: newSlot.id,
           });
           relocatedLessonIndices.add(roomBlocker.index);
+
+          // Yangi joylashtirilgan darsni ham currentSchedule'ga qo'shamiz
+          currentSchedule.push({
+            classId: skipped.classId,
+            subjectId: skipped.subjectId,
+            teacherId: skipped.teacherId,
+            roomId: freedRoomId,
+            timeSlotId: slot.id,
+            weekType: skipped.weekType,
+          });
+
           resolved = true;
           break;
         }
@@ -220,7 +360,7 @@ export function attemptRelocations(params: {
  *  - Manba kun himoyasi: 2 darsli kundan bittasini olib ketib, "1 darsli kun" yaratmaymiz.
  */
 export function minimizeGaps(params: {
-  schedule: Array<{ classId: number; teacherId: number; roomId: number; timeSlotId: number; weekType?: string | null; isActive?: boolean | null; roomCandidates?: number[] }>;
+  schedule: OptimizerScheduleEntry[];
   activeSlots: OptimizerSlot[];
   slotPeriodMap: Map<number, number>;
   slotDayMap: Map<number, number>;
@@ -237,6 +377,7 @@ export function minimizeGaps(params: {
   protectedIndices?: Set<number>;
   /** SanPiN kunlik limit tekshiruvi — berilmasa tekshirilmaydi (eski xatti-harakat). */
   canPlaceClassOnDay?: CanPlaceClassOnDay;
+  classGrades?: Map<number, string>;
   maxIterations?: number;
 }): number {
   const {
@@ -245,6 +386,7 @@ export function minimizeGaps(params: {
     markClassBusy, unmarkClassBusy, markTeacherBusy, unmarkTeacherBusy, markRoomBusy, unmarkRoomBusy,
     protectedIndices,
     canPlaceClassOnDay,
+    classGrades,
     maxIterations = 300,
   } = params;
   const canPlace: CanPlaceClassOnDay = canPlaceClassOnDay ?? (() => true);
@@ -320,6 +462,34 @@ export function minimizeGaps(params: {
         // SanPiN: oyna kunida sinfning kunlik dars limiti oshmasin
         if (!canPlace(classId, gapSlot.id, wt, entry.timeSlotId)) continue;
 
+        // Kunlik akademik dars limitini tekshirish (gapDay uchun)
+        const gapDayEntries = Array.from(periodMap.values());
+        let gapDayAcademicCount = 0;
+        for (const idx of gapDayEntries) {
+          if (!protectedIndices?.has(idx)) {
+            const ge = schedule[idx];
+            // weekType berilmagan bo'lsa "always" hisoblanadi (yuqoridagi wt bilan bir xil mantiq)
+            gapDayAcademicCount += (ge.weekType || "always") === "always" ? 1 : 0.5;
+          }
+        }
+        const grade = classGrades?.get(classId) || "5";
+        const maxAcademicLimit = getMaxHoursPerDay(grade);
+        const loadVal = wt === "always" ? 1 : 0.5;
+        if (gapDayAcademicCount + loadVal > maxAcademicLimit) continue;
+
+        // Boshlang'ich sinf ketma-ket juft dars taqiqi (hard constraint)
+        if (isPrimaryConsecutiveViolation({
+          schedule,
+          classId,
+          subjectId: entry.subjectId,
+          targetSlotId: gapSlot.id,
+          weekType: wt,
+          classGrades,
+          slotPeriodMap,
+          slotDayMap,
+          excludeEntryIdx: entryIdx,
+        })) continue;
+
         // Xona tekshiruvi: avval hozirgi xona, keyin roomCandidates'dan bo'sh topish
         let newRoomId = entry.roomId;
         if (!isRoomFree(entry.roomId, gapSlot.id, wt)) {
@@ -365,7 +535,7 @@ export function minimizeGaps(params: {
  * turgan bo'lsa, ulardan keyingi ko'chirilishi mumkin bo'lgan dars sinaladi.
  */
 export function compactDays(params: {
-  schedule: Array<{ classId: number; teacherId: number; roomId: number; timeSlotId: number; weekType?: string | null; roomCandidates?: number[] }>;
+  schedule: OptimizerScheduleEntry[];
   activeSlots: OptimizerSlot[];
   slotPeriodMap: Map<number, number>;
   slotDayMap: Map<number, number>;
@@ -379,6 +549,7 @@ export function compactDays(params: {
   markRoomBusy: (roomId: number, slotId: number, weekType: WeekType) => void;
   unmarkRoomBusy: (roomId: number, slotId: number, weekType: WeekType) => void;
   protectedIndices?: Set<number>;
+  classGrades?: Map<number, string>;
   maxIterations?: number;
 }): number {
   const {
@@ -386,6 +557,7 @@ export function compactDays(params: {
     isClassFree, isTeacherFree, isRoomFree,
     markClassBusy, unmarkClassBusy, markTeacherBusy, unmarkTeacherBusy, markRoomBusy, unmarkRoomBusy,
     protectedIndices,
+    classGrades,
     maxIterations = 300,
   } = params;
 
@@ -439,6 +611,19 @@ export function compactDays(params: {
         if (!isClassFree(classId, gapSlotId, wt)) continue;
         if (!isTeacherFree(entry.teacherId, gapSlotId, wt)) continue;
 
+        // Boshlang'ich sinf ketma-ket juft dars taqiqi (hard constraint)
+        if (isPrimaryConsecutiveViolation({
+          schedule,
+          classId,
+          subjectId: entry.subjectId,
+          targetSlotId: gapSlotId,
+          weekType: wt,
+          classGrades,
+          slotPeriodMap,
+          slotDayMap,
+          excludeEntryIdx: idx,
+        })) continue;
+
         // Xona tekshiruvi: avval hozirgi xona, keyin roomCandidates'dan bo'sh topish
         let newRoomId = entry.roomId;
         if (!isRoomFree(entry.roomId, gapSlotId, wt)) {
@@ -489,7 +674,7 @@ function findFirstGap(sortedPeriods: number[]): number {
  * tekislaydi. 6-A dushanba=1 dars, seshanba=6 dars muammosini faqat shu funksiya hal qiladi.
  */
 export function balanceDays(params: {
-  schedule: Array<{ classId: number; teacherId: number; roomId: number; timeSlotId: number; weekType?: string | null; roomCandidates?: number[] }>;
+  schedule: OptimizerScheduleEntry[];
   activeSlots: OptimizerSlot[];
   slotPeriodMap: Map<number, number>;
   slotDayMap: Map<number, number>;
@@ -616,6 +801,19 @@ export function balanceDays(params: {
           if (!isClassFree(classId, targetSlot.id, wt)) continue;
           if (!isTeacherFree(entry.teacherId, targetSlot.id, wt)) continue;
           if (!canPlace(classId, targetSlot.id, wt, entry.timeSlotId)) continue;
+
+          // Boshlang'ich sinf ketma-ket juft dars taqiqi (hard constraint)
+          if (isPrimaryConsecutiveViolation({
+            schedule,
+            classId,
+            subjectId: entry.subjectId,
+            targetSlotId: targetSlot.id,
+            weekType: wt,
+            classGrades,
+            slotPeriodMap,
+            slotDayMap,
+            excludeEntryIdx: entryIdx,
+          })) continue;
 
           // Room: try current room first, then candidates
           let newRoomId = entry.roomId;

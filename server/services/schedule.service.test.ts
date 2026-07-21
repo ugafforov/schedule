@@ -484,8 +484,9 @@ describe("generateSchedule — SanPiN kunlik limit (qat'iy shart)", () => {
   it("sinf soati kunlik limitdan tashqarida — limit to'lgan kunga ham qo'yiladi", async () => {
     mockBase();
     // 1-sinf: 25 soat oddiy dars (5 kun x 5) — barcha kunlar to'la; ustiga sinf soati
+    // 6 kun (shanba bilan) — SanPiN limit saqlanib, barcha darslar joylashishi shart
     (storage.getClasses as any).mockResolvedValue([
-      { id: 1, name: "1-A", grade: "1", language: "uz", studyDays: "1,2,3,4,5", totalStudents: 25, isActive: true, classTeacherId: 30 },
+      { id: 1, name: "1-A", grade: "1", language: "uz", studyDays: "1,2,3,4,5,6", totalStudents: 25, isActive: true, classTeacherId: 30 },
     ]);
     (storage.getSubjects as any).mockResolvedValue([
       { id: 1, name: "Ona tili", code: "ONA", requiredRoomType: "any", isActive: true },
