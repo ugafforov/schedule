@@ -2,11 +2,19 @@
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@0.0.78"]
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.78",
+        "--headless",
+        "--isolated"
+      ]
     },
     "supabase": {
       "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase@latest"]
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@0.9.0"
+      ]
     }
   }
 }

@@ -4,9 +4,9 @@
 
 [mcp_servers.playwright]
 command = "npx"
-args = ["-y", "@playwright/mcp"]
+args = ["-y", "@playwright/mcp@0.0.78", "--headless", "--isolated"]
 
 [mcp_servers.supabase]
 command = "npx"
-args = ["-y", "@supabase/mcp-server-supabase@latest"]
+args = ["-y", "@supabase/mcp-server-supabase@0.9.0"]
 env_vars = ["SUPABASE_ACCESS_TOKEN"]
