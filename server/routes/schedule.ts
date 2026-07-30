@@ -4,7 +4,7 @@ import { storage } from "../storage/index";
 import { authMiddleware, requireAdmin } from "../middleware/auth";
 import { strictRateLimit } from "../middleware/rateLimit";
 import { db } from "../db";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { generateSchedule, checkFeasibility } from "../services/schedule.service";
 import { getMaxHoursPerDay } from "@shared/constants";
 import { autoDistributeUnassignedOnly, autoDistributeAllForceReassign, autoAssignDtsForClasses } from "../services/teacher.service";
@@ -79,6 +79,19 @@ export const checkFeasibilityRoute = new Hono().use(authMiddleware)
 export const scheduleConflictsRoute = new Hono().use(authMiddleware)
   .get("/", async (c) => {
     try {
+      // 1. Har gal konfliktlarni tekshirishdan oldin BARCHA eski unresolved (hal etilmagan) konfliktlarni o'chiramiz
+      await db.execute(sql`DELETE FROM schedule_conflicts WHERE is_resolved = false`);
+
+      // 2. Agar bazada 0 ta faol dars bo'lsa (hali dars jadvali terilmagan bo'lsa), [] qaytaramiz
+      const activeEntries = await db.select({ id: scheduleEntries.id })
+        .from(scheduleEntries)
+        .where(eq(scheduleEntries.isActive, true))
+        .limit(1);
+
+      if (activeEntries.length === 0) {
+        return c.json([]);
+      }
+
       await db.execute(sql`SELECT * FROM check_schedule_conflicts()`);
     } catch (err) {
       console.error("check_schedule_conflicts error:", err);
@@ -98,8 +111,13 @@ export const scheduleConflictsRoute = new Hono().use(authMiddleware)
           teacherId: scheduleEntries.teacherId,
         })
         .from(scheduleConflicts)
-        .leftJoin(scheduleEntries, eq(scheduleConflicts.scheduleEntry1Id, scheduleEntries.id))
-        .where(eq(scheduleConflicts.isResolved, false));
+        .innerJoin(scheduleEntries, eq(scheduleConflicts.scheduleEntry1Id, scheduleEntries.id))
+        .where(
+          and(
+            eq(scheduleConflicts.isResolved, false),
+            eq(scheduleEntries.isActive, true)
+          )
+        );
       return c.json(allConflicts);
     } catch (err) {
       console.error("Fetch conflicts error:", err);

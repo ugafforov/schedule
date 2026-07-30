@@ -7,6 +7,8 @@ import {
   getSubjectComplexity,
   isPrimaryTeacherAllowedSubject,
   parseGrade,
+  roomMatchesSubject,
+  subjectRoomName,
 } from "./constants";
 
 describe("parseGrade", () => {
@@ -91,5 +93,13 @@ describe("getSanPinDayMultiplier / getMaxDailyComplexity", () => {
     expect(getMaxDailyComplexity(2, 2)).toBeCloseTo(35 * 1.2);
     // 10-11 sinf: base 56; dushanba mult 0.8
     expect(getMaxDailyComplexity(10, 1)).toBeCloseTo(56 * 0.8);
+  });
+});
+
+describe("roomMatchesSubject / subjectRoomName", () => {
+  it("Fizika va Astronomiya fanlari Fizika laboratoriyasidan birgalikda foydalanadi", () => {
+    expect(roomMatchesSubject("Fizika laboratoriyasi", "Astronomiya")).toBe(true);
+    expect(roomMatchesSubject("Fizika laboratoriyasi", "Fizika")).toBe(true);
+    expect(subjectRoomName("Astronomiya", "lab")).toBe("Fizika laboratoriyasi");
   });
 });

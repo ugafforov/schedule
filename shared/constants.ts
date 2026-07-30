@@ -48,7 +48,7 @@ export const CONFLICT_TYPE_LABELS: Record<string, string> = {
   room: "Xona ziddiyati",
   teacher: "O'qituvchi ziddiyati",
   unavailability: "Bandlik ziddiyati",
-  schedule_overlap: "SanPiN/yuklama ziddiyati",
+  schedule_overlap: "SanPiN/pedagogik tavsiya",
   class_hour_slot: "Sinf soati vaqti",
   room_capacity: "Xona sig'imi yetarli emas",
   room_type: "Mos xona turi topilmadi",
@@ -95,14 +95,53 @@ export function roomMatchesSubject(roomName: string, subjectName: string): boole
   const room = normalizeRoomText(roomName);
   const subject = normalizeRoomText(subjectName);
   if (!room || !subject) return false;
-  // Fan nomining birinchi so'zi yetarli: "Informatika va axborot texnologiyalari" → "informatika"
+
+  // Direct match or key match
   const key = subject.split(" ")[0];
-  if (key.length < 4) return false;
-  return room.includes(key);
+  if (key.length >= 4 && room.includes(key)) return true;
+
+  // Synonyms and aliases:
+  // 1. Jismoniy tarbiya / CHQBT -> Sport zali, sport maydonchasi
+  if ((subject.includes("jismoniy") || subject.includes("chaqiruv") || subject.includes("tayyorgarlik") || subject.includes("chqbt")) && (room.includes("sport") || room.includes("zali") || room.includes("maydoncha"))) {
+    return true;
+  }
+
+  // 2. Tasviriysan'at / Tasviriy san'at / Rasm -> Tasviriy xonasi, Rasm xonasi
+  if ((subject.includes("tasviriy") || subject.includes("rasm")) && (room.includes("tasviriy") || room.includes("rasm"))) {
+    return true;
+  }
+
+  // 3. Musiqa / Musiqa madaniyati -> Musiqa xonasi
+  if (subject.includes("musiqa") && room.includes("musiqa")) {
+    return true;
+  }
+
+  // 4. Informatika / Texnologiya -> Kompyuter / Informatika xonasi
+  if ((subject.includes("informatika") || subject.includes("axborot")) && (room.includes("informatika") || room.includes("kompyuter"))) {
+    return true;
+  }
+
+  // 5. Fizika / Astronomiya -> Fizika laboratoriyasi / xonasi
+  if ((subject.includes("fizika") || subject.includes("astronomiya")) && (room.includes("fizika") || room.includes("astronomiya"))) {
+    return true;
+  }
+  // 6. Kimyo -> Kimyo laboratoriyasi / xonasi
+  if (subject.includes("kimyo") && room.includes("kimyo")) return true;
+  // 7. Biologiya -> Biologiya laboratoriyasi / xonasi
+  if (subject.includes("biologiya") && room.includes("biologiya")) return true;
+
+  return false;
 }
 
 /** Fanga atalgan maxsus xona uchun standart nom: "Fizika laboratoriyasi". */
 export function subjectRoomName(subjectName: string, roomType: string): string {
+  const norm = normalizeRoomText(subjectName);
+  if (norm.includes("jismoniy") || norm.includes("chaqiruv") || norm.includes("chqbt")) return "Sport zali";
+  if (norm.includes("tasviriy") || norm.includes("rasm")) return "Tasviriy xonasi";
+  if (norm.includes("musiqa")) return "Musiqa xonasi";
+  if (norm.includes("informatika")) return "Informatika xonasi";
+  if (norm.includes("fizika") || norm.includes("astronomiya")) return "Fizika laboratoriyasi";
+
   const short = subjectName.split(/\s+/)[0];
   switch (roomType) {
     case "lab": return `${short} laboratoriyasi`;

@@ -136,6 +136,36 @@ describe("computeRoomRecommendations — fanga xos maxsus xonalar", () => {
     expect(fizika.teacherCount).toBe(1);
     expect(fizika.needed).toBe(1); // bitta o'qituvchi — ikkinchi lab behuda
   });
+
+  it("bir nechta fan bir xil turdagi xonani (masalan Sport zali) ishlatganda, nomi mos xona qayta rename bo'lib qolmaydi", () => {
+    const input = baseInput();
+    input.subjects.push(
+      { id: 10, name: "Jismoniy tarbiya", requiredRoomType: "gym" },
+      { id: 11, name: "Chaqiruvga qadar boshlang'ich tayyorgarlik", requiredRoomType: "gym" },
+    );
+    input.classSubjects.push(
+      { classId: 1, subjectId: 10, teacherId: 600, weeklyHours: 2 },
+      { classId: 1, subjectId: 11, teacherId: 601, weeklyHours: 1 },
+    );
+    input.rooms.push(
+      { id: 91, name: "Sport zali", roomNumber: "301", capacity: 50, roomType: "gym", isActive: true },
+      { id: 92, name: "Sport zali", roomNumber: "302", capacity: 50, roomType: "gym", isActive: true },
+    );
+    const result = computeRoomRecommendations(input);
+    // Nomi allaqachon "Sport zali" bo'lgan xonalarga "Sport zali -> Sport zali" kabi befoyda rename taklif qilinmasligi kerak
+    const gymRenames = result.roomRenames.filter(r => r.roomType === "gym");
+    expect(gymRenames).toHaveLength(0);
+  });
+
+  it("Astronomiya fani alohida laboratoriya xonasi talab qilmaydi (oddiy sinf / Fizika xonasi)", () => {
+    const input = baseInput();
+    input.subjects.push({ id: 50, name: "Astronomiya", requiredRoomType: "lab" });
+    input.classSubjects.push({ classId: 11, subjectId: 50, teacherId: 400, weeklyHours: 1 });
+    const result = computeRoomRecommendations(input);
+    const labRec = byType(result, "lab");
+    const astroLab = labRec.subjects.find(s => s.subjectName === "Astronomiya");
+    expect(astroLab).toBeUndefined(); // lab fanlari ro'yxatida Astronomiya alohida xona da'vo qilmaydi
+  });
 });
 
 describe("computeRoomRecommendations — oddiy xonalar", () => {

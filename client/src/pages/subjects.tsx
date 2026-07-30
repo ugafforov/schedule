@@ -108,7 +108,7 @@ const DTS_GROUPS: { label: string; sinf: string; color: string; subjects: DtsSub
     subjects: [
       { name: "Tabiiy fanlar (Science)",                code: "ATRO",     color: "#10B981", weeklyHours: 2, requiredRoomType: "classroom", description: "1–4=1s | 5=2s | 6=3s" },
       { name: "Fizika",                                 code: "FIZ",      color: "#8B5CF6", weeklyHours: 2, requiredRoomType: "lab",        description: "7–11-sinf: 2s" },
-      { name: "Astronomiya",                            code: "ASTRO",    color: "#7C3AED", weeklyHours: 1, requiredRoomType: "lab",        description: "Faqat 11-sinf: 1s" },
+      { name: "Astronomiya",                            code: "ASTRO",    color: "#7C3AED", weeklyHours: 1, requiredRoomType: "classroom",  description: "Faqat 11-sinf: 1s — oddiy sinf xonasi / Fizika xonasi" },
       { name: "Kimyo",                                  code: "KIM",      color: "#059669", weeklyHours: 2, requiredRoomType: "lab",        description: "7–11-sinf: 2s" },
       { name: "Biologiya",                              code: "BIO",      color: "#14B8A6", weeklyHours: 2, requiredRoomType: "lab",        description: "7–11-sinf: 2s" },
       { name: "Geografiya",                             code: "GEOG",     color: "#06B6D4", weeklyHours: 2, requiredRoomType: "classroom", description: "7=2s | 8–9=1.5s | 10=2s (11-sinfda yo'q)" },

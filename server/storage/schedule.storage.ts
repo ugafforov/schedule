@@ -97,6 +97,10 @@ export class ScheduleStorage {
             ));
         }
       }
+      // 4. Clear conflicts
+      await tx.update(scheduleConflicts)
+        .set({ isResolved: true })
+        .where(eq(scheduleConflicts.isResolved, false));
     });
   }
 

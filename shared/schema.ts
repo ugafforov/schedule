@@ -102,7 +102,11 @@ export const classSubjects = pgTable("class_subjects", {
   teacherId: integer("teacher_id").references(() => teachers.id),
   teacherId2: integer("teacher_id_2").references(() => teachers.id),
   roomId: integer("room_id").references(() => rooms.id, { onDelete: "set null" }),
+  roomId2: integer("room_id_2").references(() => rooms.id, { onDelete: "set null" }),
   weeklyHours: real("weekly_hours").notNull().default(2),
+  isSplit: boolean("is_split").default(false),
+  splitType: text("split_type").default("none"),
+  jointGroupId: text("joint_group_id"),
 }, (table) => ({
   classIdIdx: index("class_subjects_class_id_idx").on(table.classId),
   teacherIdIdx: index("class_subjects_teacher_id_idx").on(table.teacherId),

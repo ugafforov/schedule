@@ -4,7 +4,7 @@ import { classSubjects, teacherSubjects, type Subject, type Class, type Teacher,
 import { eq, and, sql } from "drizzle-orm";
 import { getCurriculumForGrade, getAutoAssignments, getSpecialty } from "./curriculum.service";
 
-const DEFAULT_MAX_HOURS = 30;
+const DEFAULT_MAX_HOURS = 24;
 
 import { findClassPrimaryTeacherId, isPrimaryTeacherFromSpecialty, pickBestTeacher, scoreTeacherForSubject } from "@shared/teacher-matching";
 import { parseGrade, isClassHourSubject } from "@shared/constants";
@@ -239,7 +239,8 @@ export async function autoGenerateTeachers() {
           continue;
         }
 
-        if (currentLoad + a.weeklyHours <= DEFAULT_MAX_HOURS) {
+        const OPTIMAL_VACANT_LOAD = 20;
+        if (currentLoad + a.weeklyHours <= OPTIMAL_VACANT_LOAD) {
           a.teacherId = newTeacher.id;
           currentLoad += a.weeklyHours;
           assignedSubjectIds.add(a.subjectId);

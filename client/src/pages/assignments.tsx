@@ -31,8 +31,13 @@ type TeacherWithSubjects = Teacher & { subjectIds?: number[] };
 interface Assignment {
   subjectId: number;
   teacherId: number | null;
+  teacherId2?: number | null;
   roomId: number | null;
+  roomId2?: number | null;
   weeklyHours: number;
+  isSplit?: boolean;
+  splitType?: string;
+  jointGroupId?: string | null;
 }
 
 interface TeacherLoadData {
@@ -1174,86 +1179,197 @@ function ClassAssignTab({ classes, subjects, teachers, rooms }: { classes: Class
                         {assignments.map((a, i) => {
                           const sub = subjects.find(s => s.id === a.subjectId);
                           const hasConflict = assignments.some((b, j) => j !== i && b.subjectId === a.subjectId && a.subjectId !== 0);
-                          return (
-                            <div key={i} className={`grid grid-cols-[2.2fr_2fr_1.5fr_90px_40px] gap-3 items-center p-2.5 transition-colors ${hasConflict ? "bg-red-500/5 text-foreground" : "hover:bg-muted/30 text-foreground"}`}>
-                              <Select value={a.subjectId ? String(a.subjectId) : ""} onValueChange={v => updateRow(i, "subjectId", parseInt(v))}>
-                                <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
-                                  <SelectValue placeholder="Fan tanlang">
-                                    {sub ? <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || "#3B82F6" }} />{sub.name}</span> : null}
-                                  </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {subjects.map(s => (
-                                    <SelectItem key={s.id} value={String(s.id)}>
-                                      <span className="flex items-center gap-2">
-                                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color || "#3B82F6" }} />{s.name}
-                                      </span>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                          const parallelClasses = classes.filter(c => c.id !== selectedClass?.id && c.grade === selectedClass?.grade);
 
-                              <Select value={a.teacherId ? String(a.teacherId) : "none"} onValueChange={v => updateRow(i, "teacherId", v === "none" ? null : parseInt(v))}>
-                                <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
-                                  <SelectValue placeholder="O'qituvchi (ixtiyoriy)" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none"><span className="text-muted-foreground/60">Tayinlanmagan</span></SelectItem>
-                                  {teachers.map(t => {
-                                    const hours = teacherHoursMap.get(t.id) || 0;
-                                    const max = t.maxHoursPerWeek || 30;
-                                    const pct = Math.round(hours / max * 100);
-                                    return (
-                                      <SelectItem key={t.id} value={String(t.id)}>
-                                        <span className="flex items-center justify-between gap-3 w-full">
-                                          <span>{t.firstName} {t.lastName}</span>
-                                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${pct >= 100 ? "bg-red-500/10 text-red-500 border border-red-500/20" : pct >= 80 ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : "bg-muted text-muted-foreground"}`}>
-                                            {hours}/{max}h
+                          return (
+                            <div key={i} className={`p-2.5 transition-colors space-y-2 ${hasConflict ? "bg-red-500/5 text-foreground" : "hover:bg-muted/30 text-foreground"}`}>
+                              <div className="grid grid-cols-[2.2fr_2fr_1.5fr_90px_40px] gap-3 items-center">
+                                <div className="space-y-1">
+                                  <Select value={a.subjectId ? String(a.subjectId) : ""} onValueChange={v => updateRow(i, "subjectId", parseInt(v))}>
+                                    <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
+                                      <SelectValue placeholder="Fan tanlang">
+                                        {sub ? <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color || "#3B82F6" }} />{sub.name}</span> : null}
+                                      </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {subjects.map(s => (
+                                        <SelectItem key={s.id} value={String(s.id)}>
+                                          <span className="flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color || "#3B82F6" }} />{s.name}
                                           </span>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+
+                                  {/* Badges: Split toggle & Joint link */}
+                                  {sub && (
+                                    <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!a.isSplit) {
+                                            setAssignments(p => p.map((row, idx) => idx === i ? { ...row, isSplit: true, splitType: "gender" } : row));
+                                          } else if (a.splitType === "gender") {
+                                            setAssignments(p => p.map((row, idx) => idx === i ? { ...row, isSplit: true, splitType: "half" } : row));
+                                          } else {
+                                            setAssignments(p => p.map((row, idx) => idx === i ? { ...row, isSplit: false, splitType: "none", teacherId2: null, roomId2: null } : row));
+                                          }
+                                          setIsDirty(true);
+                                        }}
+                                        className={`text-[10px] px-2 py-0.5 rounded-md font-medium border transition-all ${
+                                          a.isSplit
+                                            ? "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30"
+                                            : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                                        }`}
+                                      >
+                                        {a.isSplit ? (a.splitType === "gender" ? "🚻 O'g'il / Qiz guruhlar" : "👥 2-guruhga bo'lingan") : "👤 1 yaxlit sinf"}
+                                      </button>
+
+                                      {/* Joint parallel link dropdown */}
+                                      {parallelClasses.length > 0 && (
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button
+                                              type="button"
+                                              className={`text-[10px] px-2 py-0.5 rounded-md font-medium border transition-all ${
+                                                a.jointGroupId
+                                                  ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30"
+                                                  : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                                              }`}
+                                            >
+                                              {a.jointGroupId ? "🔗 Parallel sinf biriktirilgan" : "🔗 Parallel sinf bormi?"}
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="start" className="w-48 text-xs">
+                                            <DropdownMenuItem
+                                              onClick={() => {
+                                                setAssignments(p => p.map((row, idx) => idx === i ? { ...row, jointGroupId: null } : row));
+                                                setIsDirty(true);
+                                              }}
+                                              className="text-muted-foreground"
+                                            >
+                                              Alohida o'tish (ajratish)
+                                            </DropdownMenuItem>
+                                            {parallelClasses.map(pc => (
+                                              <DropdownMenuItem
+                                                key={pc.id}
+                                                onClick={() => {
+                                                  const jId = `joint_${selectedClass?.grade}_${a.subjectId}`;
+                                                  setAssignments(p => p.map((row, idx) => idx === i ? { ...row, jointGroupId: jId } : row));
+                                                  setIsDirty(true);
+                                                }}
+                                              >
+                                                {pc.name} bilan birga o'tish
+                                              </DropdownMenuItem>
+                                            ))}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Select value={a.teacherId ? String(a.teacherId) : "none"} onValueChange={v => updateRow(i, "teacherId", v === "none" ? null : parseInt(v))}>
+                                    <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
+                                      <SelectValue placeholder="O'qituvchi 1" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none"><span className="text-muted-foreground/60">Tayinlanmagan</span></SelectItem>
+                                      {teachers.map(t => {
+                                        const hours = teacherHoursMap.get(t.id) || 0;
+                                        const max = t.maxHoursPerWeek || 24;
+                                        const pct = Math.round(hours / max * 100);
+                                        return (
+                                          <SelectItem key={t.id} value={String(t.id)}>
+                                            <span className="flex items-center justify-between gap-3 w-full">
+                                              <span>{t.firstName} {t.lastName}</span>
+                                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${pct >= 100 ? "bg-red-500/10 text-red-500 border border-red-500/20" : pct >= 80 ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" : "bg-muted text-muted-foreground"}`}>
+                                                {hours}/{max}h
+                                              </span>
+                                            </span>
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+
+                                  {/* 2-Guruh O'qituvchisi (agar guruhga bo'lingan bo'lsa) */}
+                                  {a.isSplit && (
+                                    <Select value={a.teacherId2 ? String(a.teacherId2) : "none"} onValueChange={v => updateRow(i, "teacherId2", v === "none" ? null : parseInt(v))}>
+                                      <SelectTrigger className="h-8 text-xs border-purple-500/30 bg-purple-500/5 text-purple-700 dark:text-purple-300 shadow-none">
+                                        <SelectValue placeholder="2-Guruh o'qituvchisi" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none"><span className="text-muted-foreground/60">2-guruh tayinlanmagan</span></SelectItem>
+                                        {teachers.map(t => (
+                                          <SelectItem key={t.id} value={String(t.id)}>
+                                            {t.firstName} {t.lastName}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Select value={a.roomId ? String(a.roomId) : "default"} onValueChange={v => updateRow(i, "roomId", v === "default" ? null : parseInt(v))}>
+                                    <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
+                                      <SelectValue placeholder="Sinf xonasi 1">
+                                        {a.roomId ? (
+                                          rooms.find(r => r.id === a.roomId)?.name
+                                        ) : selectedClass?.defaultRoomId ? (
+                                          <span className="text-muted-foreground/80">
+                                            {rooms.find(r => r.id === selectedClass.defaultRoomId)?.name} (Asosiy)
+                                          </span>
+                                        ) : (
+                                          <span className="text-muted-foreground/50">Asosiy xona yo'q</span>
+                                        )}
+                                      </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="default">
+                                        <span className="text-muted-foreground/60">
+                                          {selectedClass?.defaultRoomId 
+                                            ? `Asosiy: ${rooms.find(r => r.id === selectedClass.defaultRoomId)?.name || ""}` 
+                                            : "Asosiy xona yo'q"}
                                         </span>
                                       </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
+                                      {rooms.map(r => (
+                                        <SelectItem key={r.id} value={String(r.id)}>
+                                          {r.name} ({r.roomNumber})
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
 
-                              <Select value={a.roomId ? String(a.roomId) : "default"} onValueChange={v => updateRow(i, "roomId", v === "default" ? null : parseInt(v))}>
-                                <SelectTrigger className="h-8 text-xs border-border bg-background hover:bg-muted/20 text-foreground shadow-none">
-                                  <SelectValue placeholder="Sinf xonasi">
-                                    {a.roomId ? (
-                                      rooms.find(r => r.id === a.roomId)?.name
-                                    ) : selectedClass?.defaultRoomId ? (
-                                      <span className="text-muted-foreground/80">
-                                        {rooms.find(r => r.id === selectedClass.defaultRoomId)?.name} (Asosiy)
-                                      </span>
-                                    ) : (
-                                      <span className="text-muted-foreground/50">Asosiy xona yo'q</span>
-                                    )}
-                                  </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="default">
-                                    <span className="text-muted-foreground/60">
-                                      {selectedClass?.defaultRoomId 
-                                        ? `Asosiy: ${rooms.find(r => r.id === selectedClass.defaultRoomId)?.name || ""}` 
-                                        : "Asosiy xona yo'q"}
-                                    </span>
-                                  </SelectItem>
-                                  {rooms.map(r => (
-                                    <SelectItem key={r.id} value={String(r.id)}>
-                                      {r.name} ({r.roomNumber})
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                                  {/* 2-Guruh Xonasi (agar guruhga bo'lingan bo'lsa) */}
+                                  {a.isSplit && (
+                                    <Select value={a.roomId2 ? String(a.roomId2) : "default"} onValueChange={v => updateRow(i, "roomId2", v === "default" ? null : parseInt(v))}>
+                                      <SelectTrigger className="h-8 text-xs border-purple-500/30 bg-purple-500/5 text-purple-700 dark:text-purple-300 shadow-none">
+                                        <SelectValue placeholder="2-Guruh xonasi" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="default"><span className="text-muted-foreground/60">Asosiy xona</span></SelectItem>
+                                        {rooms.map(r => (
+                                          <SelectItem key={r.id} value={String(r.id)}>
+                                            {r.name} ({r.roomNumber})
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </div>
 
-                              <Input type="number" min={1} max={10} value={a.weeklyHours}
-                                onChange={e => updateRow(i, "weeklyHours", Math.max(1, parseInt(e.target.value) || 1))}
-                                className="h-8 text-xs text-center border-border bg-background text-foreground shadow-none w-16 mx-auto" />
+                                <Input type="number" min={1} max={10} value={a.weeklyHours}
+                                  onChange={e => updateRow(i, "weeklyHours", Math.max(1, parseInt(e.target.value) || 1))}
+                                  className="h-8 text-xs text-center border-border bg-background text-foreground shadow-none w-16 mx-auto" />
 
-                              <button onClick={() => removeRow(i)} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-colors mx-auto">
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                                <button onClick={() => removeRow(i)} className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-colors mx-auto">
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             </div>
                           );
                         })}

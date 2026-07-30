@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertTriangle, Wand2, Calendar, ArrowRight, Users,
-  BookOpen, DoorOpen, GraduationCap, CheckCircle2, Clock, TrendingUp
+  BookOpen, DoorOpen, GraduationCap, CheckCircle2, Clock, TrendingUp,
+  Lightbulb, ShieldAlert
 } from "lucide-react";
 import { getConflictTypeLabel } from "@shared/constants";
 
@@ -167,45 +168,65 @@ export default function Dashboard() {
           {/* Conflicts */}
           <Card className="border border-border shadow-sm bg-card text-card-foreground">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold text-foreground flex items-center">
-                <AlertTriangle className="mr-2 h-4 w-4 text-orange-500" />
-                Jadval ziddiyatlari
+              <CardTitle className="text-base font-semibold text-foreground flex items-center justify-between">
+                <span className="flex items-center">
+                  <ShieldAlert className="mr-2 h-4 w-4 text-blue-500" />
+                  Jadval ziddiyatlari va tavsiyalari
+                </span>
+                {conflicts && conflicts.length > 0 && (
+                  <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+                    {conflicts.length} ta
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {conflictsLoading ? (
                 <div className="h-20 bg-muted animate-pulse rounded-lg" />
-              ) : conflicts.length > 0 ? (
+              ) : conflicts && conflicts.length > 0 ? (
                 <div className="space-y-2">
-                  {conflicts.slice(0, 4).map((c: any) => (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        if (c.conflictType === "teacher" || c.conflictType === "unavailability") {
-                          if (c.teacherId) {
-                            setLocation(`/timetables?viewMode=teacher&teacherId=${c.teacherId}`);
+                  {conflicts.slice(0, 5).map((c: any) => {
+                    const isHard = c.severity === "critical" || c.severity === "high" || c.conflictType === "teacher_clash" || c.conflictType === "room_clash";
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          if (c.conflictType === "teacher" || c.conflictType === "unavailability") {
+                            if (c.teacherId) {
+                              setLocation(`/timetables?viewMode=teacher&teacherId=${c.teacherId}`);
+                            } else {
+                              setLocation(`/timetables`);
+                            }
                           } else {
-                            setLocation(`/timetables`);
+                            if (c.classId) {
+                              setLocation(`/timetables?viewMode=class&classId=${c.classId}`);
+                            } else {
+                              setLocation(`/timetables`);
+                            }
                           }
-                        } else {
-                          if (c.classId) {
-                            setLocation(`/timetables?viewMode=class&classId=${c.classId}`);
-                          } else {
-                            setLocation(`/timetables`);
-                          }
-                        }
-                      }}
-                      className="w-full flex items-start text-left space-x-2.5 p-2.5 bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/15 rounded-lg transition-all group"
-                    >
-                      <AlertTriangle className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 group-hover:underline">
-                          {getConflictTypeLabel(c.conflictType)}
-                        </p>
-                        <p className="text-xs text-orange-600/90 dark:text-orange-400/90 mt-0.5 truncate">{c.description}</p>
-                      </div>
-                    </button>
-                  ))}
+                        }}
+                        className={`w-full flex items-start text-left space-x-2.5 p-2.5 rounded-lg border transition-all group ${
+                          isHard
+                            ? "bg-red-500/10 border-red-500/20 hover:bg-red-500/15"
+                            : "bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/15"
+                        }`}
+                      >
+                        {isHard ? (
+                          <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <Lightbulb className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-semibold group-hover:underline ${
+                            isHard ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"
+                          }`}>
+                            {getConflictTypeLabel(c.conflictType)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{c.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col items-center py-6 text-center">

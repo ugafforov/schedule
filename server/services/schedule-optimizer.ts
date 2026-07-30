@@ -12,7 +12,7 @@
 // qilib qo'ygan xona/slot/o'qituvchiga qarshi eski (yangilanmagan) holat asosida reja
 // tuzib, ikkala reja bir xil resursni band qilib, haqiqiy to'qnashuv yaratardi.
 
-import { getMaxHoursPerDay, parseGrade } from "../../shared/constants";
+import { getMaxHoursPerDay, parseGrade, type SubjectCategory } from "../../shared/constants";
 
 export type WeekType = "always" | "surat" | "mahraj";
 
@@ -25,6 +25,7 @@ export interface OptimizerScheduleEntry {
   weekType?: string | null;
   isActive?: boolean | null;
   roomCandidates?: number[];
+  jointLessonId?: number | null;
 }
 
 function isPrimaryConsecutiveViolation(params: {
@@ -420,9 +421,11 @@ export function minimizeGaps(params: {
       const periods = Array.from(periodMap.keys()).sort((a, b) => a - b);
       if (periods.length < 2) continue;
 
-      let hasGap = false;
-      for (let i = 1; i < periods.length; i++) {
-        if (periods[i] - periods[i - 1] > 1) { hasGap = true; break; }
+      let hasGap = periods.length > 0 && periods[0] > 1;
+      if (!hasGap) {
+        for (let i = 1; i < periods.length; i++) {
+          if (periods[i] - periods[i - 1] > 1) { hasGap = true; break; }
+        }
       }
       if (!hasGap) continue;
 
@@ -609,7 +612,72 @@ export function compactDays(params: {
         const entry = schedule[idx];
         const wt = (entry.weekType || "always") as WeekType;
         if (!isClassFree(classId, gapSlotId, wt)) continue;
-        if (!isTeacherFree(entry.teacherId, gapSlotId, wt)) continue;
+        if (!isTeacherFree(entry.teacherId, gapSlotId, wt)) {
+          let swapDone = false;
+          for (const prevPeriod of periods) {
+            if (prevPeriod >= gapPeriod) continue;
+            const prevIdx = periodMap.get(prevPeriod)!;
+            if (protectedIndices?.has(prevIdx)) continue;
+            const prevEntry = schedule[prevIdx];
+            const prevWt = (prevEntry.weekType || "always") as WeekType;
+            const prevSlotId = slotByDayPeriod.get(`${day}_${prevPeriod}`);
+            if (!prevSlotId) continue;
+
+            // Check if trailing entry can go to prevSlotId and prevEntry can go to gapSlotId
+            const entryCanGoToPrev = isTeacherFree(entry.teacherId, prevSlotId, wt);
+            const prevCanGoToGap = isTeacherFree(prevEntry.teacherId, gapSlotId, prevWt);
+
+            if (entryCanGoToPrev && prevCanGoToGap) {
+              let prevNewRoomId = prevEntry.roomId;
+              if (!isRoomFree(prevEntry.roomId, gapSlotId, prevWt)) {
+                const candidates = prevEntry.roomCandidates || [];
+                const alt = candidates.find(rid => rid !== prevEntry.roomId && isRoomFree(rid, gapSlotId, prevWt));
+                if (alt !== undefined) prevNewRoomId = alt;
+                else continue;
+              }
+
+              let entryNewRoomId = entry.roomId;
+              if (!isRoomFree(entry.roomId, prevSlotId, wt)) {
+                const candidates = entry.roomCandidates || [];
+                const alt = candidates.find(rid => rid !== entry.roomId && isRoomFree(rid, prevSlotId, wt));
+                if (alt !== undefined) entryNewRoomId = alt;
+                else continue;
+              }
+
+              const entryOldSlot = entry.timeSlotId;
+              const entryOldRoom = entry.roomId;
+              const prevOldSlot = prevEntry.timeSlotId;
+              const prevOldRoom = prevEntry.roomId;
+
+              unmarkClassBusy(entry.classId, entryOldSlot, wt);
+              unmarkTeacherBusy(entry.teacherId, entryOldSlot, wt);
+              unmarkRoomBusy(entryOldRoom, entryOldSlot, wt);
+
+              unmarkClassBusy(prevEntry.classId, prevOldSlot, prevWt);
+              unmarkTeacherBusy(prevEntry.teacherId, prevOldSlot, prevWt);
+              unmarkRoomBusy(prevOldRoom, prevOldSlot, prevWt);
+
+              prevEntry.roomId = prevNewRoomId;
+              prevEntry.timeSlotId = gapSlotId;
+              markClassBusy(prevEntry.classId, gapSlotId, prevWt);
+              markTeacherBusy(prevEntry.teacherId, gapSlotId, prevWt);
+              markRoomBusy(prevNewRoomId, gapSlotId, prevWt);
+
+              entry.roomId = entryNewRoomId;
+              entry.timeSlotId = prevSlotId;
+              markClassBusy(entry.classId, prevSlotId, wt);
+              markTeacherBusy(entry.teacherId, prevSlotId, wt);
+              markRoomBusy(entryNewRoomId, prevSlotId, wt);
+
+              moves += 2;
+              improved = true;
+              swapDone = true;
+              break;
+            }
+          }
+          if (swapDone) break;
+          continue;
+        }
 
         // Boshlang'ich sinf ketma-ket juft dars taqiqi (hard constraint)
         if (isPrimaryConsecutiveViolation({
@@ -658,6 +726,9 @@ export function compactDays(params: {
 }
 
 function findFirstGap(sortedPeriods: number[]): number {
+  if (sortedPeriods.length > 0 && sortedPeriods[0] > 1) {
+    return 1;
+  }
   for (let i = 1; i < sortedPeriods.length; i++) {
     if (sortedPeriods[i] - sortedPeriods[i - 1] > 1) {
       return sortedPeriods[i - 1] + 1;
@@ -721,6 +792,7 @@ export function balanceDays(params: {
   const classIds = new Set<number>();
   for (const e of schedule) classIds.add(e.classId);
 
+  const movedEntryIndices = new Set<number>();
   let moves = 0;
   let improved = true;
   let iteration = 0;
@@ -761,13 +833,18 @@ export function balanceDays(params: {
         if (count < lightestCount) { lightestCount = count; lightestDay = d; }
       }
 
-      // Only balance if imbalance is meaningful (heavy > targetHigh AND light < targetLow)
-      if (heaviestDay === lightestDay) continue;
-      if (heaviestCount - lightestCount <= 1) continue;
-      if (heaviestCount <= targetHigh && lightestCount >= targetLow) continue;
-
-      // Try to move the LAST lesson from heaviest day to first available slot on lightest day
       const heavyIndices = dayEntries.get(heaviestDay) || [];
+      const heavyMaxPeriod = heavyIndices.length > 0
+        ? Math.max(...heavyIndices.map(idx => slotPeriodMap.get(schedule[idx].timeSlotId) || 0))
+        : 0;
+
+      const countDiff = heaviestCount - lightestCount;
+      const isLateEndingDay = heavyMaxPeriod >= 6 && heaviestCount > targetLow && lightestCount < targetHigh;
+
+      if (heaviestDay === lightestDay) continue;
+      if (countDiff <= 0) continue;
+      if (countDiff <= 1 && !isLateEndingDay) continue;
+      if (heaviestCount <= targetHigh && lightestCount >= targetLow && !isLateEndingDay) continue;
       // Sort by period descending — pick the last period's entry
       heavyIndices.sort((a, b) => {
         const pA = slotPeriodMap.get(schedule[a].timeSlotId) || 0;
@@ -779,6 +856,7 @@ export function balanceDays(params: {
       for (const entryIdx of heavyIndices) {
         if (didMove) break;
         if (protectedIndices?.has(entryIdx)) continue;
+        if (movedEntryIndices.has(entryIdx)) continue;
         // Don't leave heaviest day with fewer than targetLow (protect from creating new imbalance)
         if (heavyIndices.length <= targetLow) break;
 
@@ -839,6 +917,7 @@ export function balanceDays(params: {
           markTeacherBusy(entry.teacherId, targetSlot.id, wt);
           markRoomBusy(newRoomId, targetSlot.id, wt);
 
+          movedEntryIndices.add(entryIdx);
           moves++;
           improved = true;
           didMove = true;
@@ -850,3 +929,178 @@ export function balanceDays(params: {
 
   return moves;
 }
+
+export function optimizeSanPinComplexity(params: {
+  schedule: OptimizerScheduleEntry[];
+  activeSlots: OptimizerSlot[];
+  slotPeriodMap: Map<number, number>;
+  slotDayMap: Map<number, number>;
+  subjectCategoryMap: Map<number, SubjectCategory>;
+  isClassFree: (classId: number, slotId: number, weekType: WeekType) => boolean;
+  isTeacherFree: (teacherId: number, slotId: number, weekType: WeekType) => boolean;
+  isRoomFree: (roomId: number, slotId: number, weekType: WeekType) => boolean;
+  markClassBusy: (classId: number, slotId: number, weekType: WeekType) => void;
+  unmarkClassBusy: (classId: number, slotId: number, weekType: WeekType) => void;
+  markTeacherBusy: (teacherId: number, slotId: number, weekType: WeekType) => void;
+  unmarkTeacherBusy: (teacherId: number, slotId: number, weekType: WeekType) => void;
+  markRoomBusy: (roomId: number, slotId: number, weekType: WeekType) => void;
+  unmarkRoomBusy: (roomId: number, slotId: number, weekType: WeekType) => void;
+  protectedIndices?: Set<number>;
+  classGrades?: Map<number, string>;
+  maxIterations?: number;
+}): number {
+  const {
+    schedule, activeSlots, slotPeriodMap, slotDayMap, subjectCategoryMap,
+    isClassFree, isTeacherFree, isRoomFree,
+    markClassBusy, unmarkClassBusy, markTeacherBusy, unmarkTeacherBusy, markRoomBusy, unmarkRoomBusy,
+    protectedIndices,
+    classGrades,
+    maxIterations = 200,
+  } = params;
+
+  // Evaluate penalty score for a lesson placement (lower is better)
+  const evalLessonPenalty = (entry: OptimizerScheduleEntry, slotId: number) => {
+    const period = slotPeriodMap.get(slotId) || 1;
+    const cat = subjectCategoryMap.get(entry.subjectId) || "other";
+    let penalty = 0;
+    if (cat === "mental") {
+      if (period === 1) penalty += 5;
+      else if (period >= 5) penalty += 8;
+      else penalty += 0; // Periods 2, 3, 4 are ideal
+    } else if (cat === "dynamic") {
+      if (period >= 2 && period <= 4) penalty += 6;
+      else penalty += 0; // Periods 1, 5, 6 are ideal
+    }
+    return penalty;
+  };
+
+  let moves = 0;
+  let improved = true;
+  let iteration = 0;
+
+  // Group schedule entries by class
+  const classEntriesMap = new Map<number, number[]>();
+  for (let i = 0; i < schedule.length; i++) {
+    const e = schedule[i];
+    if (!classEntriesMap.has(e.classId)) classEntriesMap.set(e.classId, []);
+    classEntriesMap.get(e.classId)!.push(i);
+  }
+
+  while (improved && iteration < maxIterations) {
+    improved = false;
+    iteration++;
+
+    for (const [classId, indices] of Array.from(classEntriesMap.entries())) {
+      for (let a = 0; a < indices.length; a++) {
+        const idxA = indices[a];
+        if (protectedIndices?.has(idxA)) continue;
+        const entryA = schedule[idxA];
+        const wtA = (entryA.weekType || "always") as WeekType;
+        const slotA = entryA.timeSlotId;
+        const currentPenA = evalLessonPenalty(entryA, slotA);
+
+        for (let b = a + 1; b < indices.length; b++) {
+          const idxB = indices[b];
+          if (protectedIndices?.has(idxB)) continue;
+          const entryB = schedule[idxB];
+          const wtB = (entryB.weekType || "always") as WeekType;
+          const slotB = entryB.timeSlotId;
+
+          if (slotA === slotB) continue;
+          if (wtA !== wtB) continue; // Require matching weekType for clean swap
+
+          const currentPenB = evalLessonPenalty(entryB, slotB);
+          const currentTotal = currentPenA + currentPenB;
+
+          if (currentTotal === 0) continue; // Already perfect
+
+          const newPenA = evalLessonPenalty(entryA, slotB);
+          const newPenB = evalLessonPenalty(entryB, slotA);
+          const newTotal = newPenA + newPenB;
+
+          if (newTotal >= currentTotal) continue; // Must strictly improve SanPiN penalty score
+
+          // Temporarily unmark entryA and entryB to check true availability for swap
+          unmarkClassBusy(classId, slotA, wtA);
+          unmarkTeacherBusy(entryA.teacherId, slotA, wtA);
+          unmarkRoomBusy(entryA.roomId, slotA, wtA);
+
+          unmarkClassBusy(classId, slotB, wtB);
+          unmarkTeacherBusy(entryB.teacherId, slotB, wtB);
+          unmarkRoomBusy(entryB.roomId, slotB, wtB);
+
+          const teacherAFreeAtB = isTeacherFree(entryA.teacherId, slotB, wtA);
+          const teacherBFreeAtA = isTeacherFree(entryB.teacherId, slotA, wtB);
+
+          let newRoomBForA: number | null = entryA.roomId;
+          let newRoomAForB: number | null = entryB.roomId;
+
+          if (teacherAFreeAtB && teacherBFreeAtA) {
+            if (!isRoomFree(entryA.roomId, slotB, wtA)) {
+              const candidates = entryA.roomCandidates || [];
+              const alt = candidates.find(rid => isRoomFree(rid, slotB, wtA));
+              if (alt !== undefined) newRoomBForA = alt;
+              else newRoomBForA = null;
+            }
+
+            if (!isRoomFree(entryB.roomId, slotA, wtB)) {
+              const candidates = entryB.roomCandidates || [];
+              const alt = candidates.find(rid => isRoomFree(rid, slotA, wtB));
+              if (alt !== undefined) newRoomAForB = alt;
+              else newRoomAForB = null;
+            }
+          }
+
+          if (!teacherAFreeAtB || !teacherBFreeAtA || newRoomBForA === null || newRoomAForB === null) {
+            // Restore marks and skip
+            markClassBusy(classId, slotA, wtA);
+            markTeacherBusy(entryA.teacherId, slotA, wtA);
+            markRoomBusy(entryA.roomId, slotA, wtA);
+
+            markClassBusy(classId, slotB, wtB);
+            markTeacherBusy(entryB.teacherId, slotB, wtB);
+            markRoomBusy(entryB.roomId, slotB, wtB);
+            continue;
+          }
+
+          // Check primary double-period violation for both moves
+          if (
+            isPrimaryConsecutiveViolation({ schedule, classId, subjectId: entryA.subjectId, targetSlotId: slotB, weekType: wtA, classGrades, slotPeriodMap, slotDayMap, excludeEntryIdx: idxA }) ||
+            isPrimaryConsecutiveViolation({ schedule, classId, subjectId: entryB.subjectId, targetSlotId: slotA, weekType: wtB, classGrades, slotPeriodMap, slotDayMap, excludeEntryIdx: idxB })
+          ) {
+            markClassBusy(classId, slotA, wtA);
+            markTeacherBusy(entryA.teacherId, slotA, wtA);
+            markRoomBusy(entryA.roomId, slotA, wtA);
+
+            markClassBusy(classId, slotB, wtB);
+            markTeacherBusy(entryB.teacherId, slotB, wtB);
+            markRoomBusy(entryB.roomId, slotB, wtB);
+            continue;
+          }
+
+          // Perform swap
+
+          entryA.timeSlotId = slotB;
+          entryA.roomId = newRoomBForA;
+          markClassBusy(classId, slotB, wtA);
+          markTeacherBusy(entryA.teacherId, slotB, wtA);
+          markRoomBusy(newRoomBForA, slotB, wtA);
+
+          entryB.timeSlotId = slotA;
+          entryB.roomId = newRoomAForB;
+          markClassBusy(classId, slotA, wtB);
+          markTeacherBusy(entryB.teacherId, slotA, wtB);
+          markRoomBusy(newRoomAForB, slotA, wtB);
+
+          moves++;
+          improved = true;
+          break;
+        }
+        if (improved) break;
+      }
+    }
+  }
+
+  return moves;
+}
+

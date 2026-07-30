@@ -4,7 +4,32 @@ import { scheduleEntries, timeSlots, type InsertScheduleEntry, type ScheduleEntr
 import { eq, and } from "drizzle-orm";
 import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory, getMaxDailyComplexity, isClassHourSubject, CLASS_HOUR_SLOT_SETTING_KEY, DEFAULT_CLASS_HOUR_SLOT, roomMatchesSubject } from "@shared/constants";
 import { DomainError } from "../errors";
-import { attemptRelocations, minimizeGaps, compactDays, balanceDays, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
+import { attemptRelocations, minimizeGaps, compactDays, balanceDays, optimizeSanPinComplexity, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
+import { hillClimbOptimize, evaluateSchedulePenalty } from "./schedule-hill-climber";
+
+function createPRNG(seed: number) {
+  let s = (seed ^ 0x12345678) >>> 0;
+  return function () {
+    s ^= s << 13;
+    s ^= s >>> 17;
+    s ^= s << 5;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+function stochasticShuffleLessons<T extends { pinned?: any; isJoint?: boolean }>(array: T[], rng: () => number): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    if (result[i].pinned || result[i].isJoint) continue;
+    const j = Math.floor(rng() * (i + 1));
+    if (result[j].pinned || result[j].isJoint) continue;
+
+    const temp = result[i];
+    result[i] = result[j];
+    result[j] = temp;
+  }
+  return result;
+}
 
 const DAYS = [1, 2, 3, 4, 5, 6];
 const DAY_NAMES = ["", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
@@ -103,15 +128,36 @@ function computeSoftPenalties(
   subjectDaysUsed: Map<string, Set<number>>,
   classPeriodsUsed: Map<string, Set<number>>,
   studyDaysCount: number,
+  classIdealMaxDailyMap?: Map<number, number>,
+  classTotalWeeklyHoursMap?: Map<number, number>,
+  isPinned?: boolean,
+  algorithm: "greedy_chain" | "cpsat_optimal" = "greedy_chain"
 ): { conflicts: number; reasons: string[] } {
   let conflicts = 0;
   const reasons: string[] = [];
 
+  const isCpsat = algorithm === "cpsat_optimal";
+  const frontGapWeight = isCpsat ? 2000 : 3000;
+  const middleGapWeight = isCpsat ? 2500 : 3500;
+  const quadWeight = isCpsat ? 600 : 350;
+
   for (const cid of classIds) {
     const cdKey = `${cid}_${day}`;
-    if ((classDailyCount.get(cdKey) || 0) + loadVal > maxDaily) {
+    const currentClassCount = classDailyCount.get(cdKey) || 0;
+    const newCount = currentClassCount + loadVal;
+
+    if (newCount > maxDaily) {
       conflicts += 1000;
       reasons.push(`Sinf (${cid}) uchun kunlik dars soati oshib ketdi`);
+    }
+
+    // Kvadratik teng taqsimot jarimasi (targetDaily og'ishiga)
+    const totalHours = classTotalWeeklyHoursMap?.get(cid) || 25;
+    const targetDaily = totalHours / Math.max(1, studyDaysCount);
+    const dev = newCount - targetDaily;
+    if (dev > 0.1) {
+      conflicts += Math.round(quadWeight * Math.pow(dev, 2));
+      reasons.push(`Sinf (${cid}) kunlik darslar soni teng taqsimotdan (${targetDaily.toFixed(1)} soat) oshib ketmoqda`);
     }
 
     const sdKey = `${cid}_${subjectId}_${day}`;
@@ -134,28 +180,23 @@ function computeSoftPenalties(
       reasons.push(`Sinf (${cid}) uchun "${subjectId}"-fan ketma-ket kunlarga qo'yildi (kunora tavsiya etiladi)`);
     }
 
-    // S6: Sinf jadvalida "oyna" (gap) paydo bo'lishini jarimalaymiz
-    if (wouldCreateGap(classPeriodsUsed.get(cdKey), periodNumber)) {
-      conflicts += 20;
-      reasons.push(`Sinf (${cid}) jadvalida kun ichida bo'sh oraliq (oyna) paydo bo'ladi`);
+    const existingPeriods = classPeriodsUsed.get(cdKey);
+    const allP = new Set(existingPeriods ? Array.from(existingPeriods) : []);
+    allP.add(periodNumber);
+    const periodsArr = Array.from(allP);
+    const minP = Math.min(...periodsArr);
+
+    // Front Gap: 1-dars bo'sh qolib, dars 2 yoki undan keyingi soatdan boshlanishi (belgilanmagan darslar uchun)
+    if (!isPinned && minP > 1) {
+      conflicts += frontGapWeight;
+      reasons.push(`Sinf (${cid}) uchun 1-dars bo'sh qolib, dars ${minP}-darsdan boshlanmoqda`);
     }
 
-    // S11: Haftalik murakkablik balansi
-    if (studyDaysCount > 1) {
-      const allDayTotals: number[] = [];
-      for (let d = 1; d <= 6; d++) {
-        allDayTotals.push(classDailyComplexity.get(`${cid}_${d}`) || 0);
-      }
-      const thisDayTotal = allDayTotals[day - 1] + complexity * loadVal;
-      allDayTotals[day - 1] = thisDayTotal;
-      const avg = allDayTotals.reduce((a, b) => a + b, 0) / studyDaysCount;
-      if (avg > 0) {
-        const deviation = Math.abs(thisDayTotal - avg);
-        if (deviation > avg * 0.3) {
-          conflicts += Math.round(deviation * 2);
-          reasons.push(`Sinf (${cid}) haftalik murakkablik balansi buzildi`);
-        }
-      }
+    // Middle Gap: darslar orasida bo'shliq bo'lishi
+    const maxP = Math.max(...periodsArr);
+    if (maxP - minP + 1 > periodsArr.length) {
+      conflicts += middleGapWeight;
+      reasons.push(`Sinf (${cid}) dars jadvalida o'rtada bo'sh soat (oyna) paydo bo'lmoqda`);
     }
   }
 
@@ -249,6 +290,15 @@ export function checkFeasibility(
         message: `${name}: yuklamasi yuqori (${demand}/${realCapacity})`,
       });
     }
+
+    const classCountForTeacher = classSubjects.filter(cs => cs.teacherId === t.id).map(cs => cs.classId);
+    const uniqueClassesCount = new Set(classCountForTeacher).size;
+    if (demand >= 18 && uniqueClassesCount >= 6) {
+      warnings.push({
+        type: "concurrency_bottleneck",
+        message: `${name}: 1 ta o'qituvchiga ${uniqueClassesCount} ta sinfda ${demand} soat dars biriktirilgan (to'qnashuvlar xavfi yuqori)`,
+      });
+    }
   }
 
   const roomTypes = ["classroom", "lab", "computer", "gym", "music", "art"] as const;
@@ -325,10 +375,14 @@ export function checkFeasibility(
 export interface GenerateScheduleOptions {
   classIds?: number[];
   clearExisting?: boolean;
+  algorithm?: "greedy_chain" | "cpsat_optimal";
+  seed?: number;
 }
 
 export async function generateSchedule(options: GenerateScheduleOptions) {
-  const { classIds, clearExisting } = options;
+  const { classIds, clearExisting, algorithm = "greedy_chain", seed: inputSeed } = options;
+  const baseSeed = inputSeed ?? (Date.now() + Math.floor(Math.random() * 1000000));
+  console.log(`[Solver] Running algorithm engine: ${algorithm} (Base Seed: ${baseSeed})`);
 
   if (clearExisting) {
     if (classIds?.length) {
@@ -559,7 +613,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       ...lesson,
       classStudents,
       reqType,
-      maxDaily: getMaxHoursPerDay(String(lesson.grade)),
+      maxDaily: (grade <= 4 && subjectMap.get(lesson.subjectId)?.name.toLowerCase().includes("musiqa")) ? 6 : getMaxHoursPerDay(String(lesson.grade)),
       maxSameSubject,
     };
   });
@@ -608,19 +662,31 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     if (c.defaultRoomId) defaultRoomIdsOfOtherClasses.add(c.defaultRoomId);
   }
 
-  const teacherBusy = new Set<string>();
-  const roomBusy = new Set<string>();
-  const classBusy = new Set<string>();
-  const classDailyCount = new Map<string, number>();
-  const subjectDailyCount = new Map<string, number>();
-  const classDailyComplexity = new Map<string, number>();
-  const subjectDaysUsed = new Map<string, Set<number>>();
-  const teacherDayRoom = new Map<string, number>();
-  const classPeriodsUsed = new Map<string, Set<number>>();
-  const teacherPeriodsUsed = new Map<string, Set<number>>();
-  // Boshlang'ich sinfda ketma-ket juft darsni aniqlash uchun:
-  // key: `${classId}_${subjectId}_${day}` → Set<periodNumber>
-  const classSubjectPeriods = new Map<string, Set<number>>();
+  const baseTeacherBusy = new Set<string>();
+  const baseRoomBusy = new Set<string>();
+  const baseClassBusy = new Set<string>();
+  const baseClassDailyCount = new Map<string, number>();
+  const baseSubjectDailyCount = new Map<string, number>();
+  const baseClassDailyComplexity = new Map<string, number>();
+  const baseSubjectDaysUsed = new Map<string, Set<number>>();
+  const baseTeacherDayRoom = new Map<string, number>();
+  const baseClassPeriodsUsed = new Map<string, Set<number>>();
+  const baseTeacherPeriodsUsed = new Map<string, Set<number>>();
+  const baseClassSubjectPeriods = new Map<string, Set<number>>();
+
+  const classTotalWeeklyHoursMap = new Map<number, number>();
+  for (const cs of allClassSubjects) {
+    const curr = classTotalWeeklyHoursMap.get(cs.classId) || 0;
+    classTotalWeeklyHoursMap.set(cs.classId, curr + cs.weeklyHours);
+  }
+
+  const classIdealMaxDailyMap = new Map<number, number>();
+  for (const cls of targetClasses) {
+    const totalHours = classTotalWeeklyHoursMap.get(cls.id) || 25;
+    const daysCount = cls.studyDays ? cls.studyDays.split(",").length : 5;
+    const idealMax = Math.ceil(totalHours / Math.max(1, daysCount));
+    classIdealMaxDailyMap.set(cls.id, idealMax);
+  }
 
   // Helpers to check and set week-type aware busy states
   function isEntityBusy(
@@ -678,9 +744,9 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     }
     
     // Mark as busy
-    markEntityBusy(classBusy, e.classId, e.timeSlotId, e.weekType as any);
-    markEntityBusy(teacherBusy, e.teacherId, e.timeSlotId, e.weekType as any);
-    markEntityBusy(roomBusy, e.roomId, e.timeSlotId, e.weekType as any);
+    markEntityBusy(baseClassBusy, e.classId, e.timeSlotId, e.weekType as any);
+    markEntityBusy(baseTeacherBusy, e.teacherId, e.timeSlotId, e.weekType as any);
+    markEntityBusy(baseRoomBusy, e.roomId, e.timeSlotId, e.weekType as any);
     
     // Also update daily count and subject count for class
     const slot = slots.find(s => s.id === e.timeSlotId);
@@ -689,32 +755,29 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       const loadVal = e.weekType === "always" ? 1 : 0.5;
        const cdKey = `${e.classId}_${day}`;
        const sub = subjectMap.get(e.subjectId);
-       const isClassHour = sub && isClassHourSubject(sub.name || "");
-       if (!isClassHour) {
-         classDailyCount.set(cdKey, (classDailyCount.get(cdKey) || 0) + loadVal);
-       }
+       baseClassDailyCount.set(cdKey, (baseClassDailyCount.get(cdKey) || 0) + loadVal);
       
       const sdKey = `${e.classId}_${e.subjectId}_${day}`;
-      subjectDailyCount.set(sdKey, (subjectDailyCount.get(sdKey) || 0) + loadVal);
-      if (!classSubjectPeriods.has(sdKey)) classSubjectPeriods.set(sdKey, new Set());
-      classSubjectPeriods.get(sdKey)!.add(Number(slot.periodNumber));
+      baseSubjectDailyCount.set(sdKey, (baseSubjectDailyCount.get(sdKey) || 0) + loadVal);
+      if (!baseClassSubjectPeriods.has(sdKey)) baseClassSubjectPeriods.set(sdKey, new Set());
+      baseClassSubjectPeriods.get(sdKey)!.add(Number(slot.periodNumber));
       
-      const subComp = sub ? getSubjectComplexity(sub?.name || "") : 7;
-      classDailyComplexity.set(cdKey, (classDailyComplexity.get(cdKey) || 0) + (subComp * loadVal));
+      const subComp = sub ? getSubjectComplexity(sub.name || "") : 7;
+      baseClassDailyComplexity.set(cdKey, (baseClassDailyComplexity.get(cdKey) || 0) + (subComp * loadVal));
 
       const sdaysKey = `${e.classId}_${e.subjectId}`;
-      if (!subjectDaysUsed.has(sdaysKey)) subjectDaysUsed.set(sdaysKey, new Set());
-      subjectDaysUsed.get(sdaysKey)!.add(Number(day));
+      if (!baseSubjectDaysUsed.has(sdaysKey)) baseSubjectDaysUsed.set(sdaysKey, new Set());
+      baseSubjectDaysUsed.get(sdaysKey)!.add(Number(day));
 
-      teacherDayRoom.set(`${e.teacherId}_${day}`, e.roomId);
+      baseTeacherDayRoom.set(`${e.teacherId}_${day}`, e.roomId);
 
       const cpKey = `${e.classId}_${day}`;
-      if (!classPeriodsUsed.has(cpKey)) classPeriodsUsed.set(cpKey, new Set());
-      classPeriodsUsed.get(cpKey)!.add(Number(slot.periodNumber));
+      if (!baseClassPeriodsUsed.has(cpKey)) baseClassPeriodsUsed.set(cpKey, new Set());
+      baseClassPeriodsUsed.get(cpKey)!.add(Number(slot.periodNumber));
 
       const tpKey = `${e.teacherId}_${day}`;
-      if (!teacherPeriodsUsed.has(tpKey)) teacherPeriodsUsed.set(tpKey, new Set());
-      teacherPeriodsUsed.get(tpKey)!.add(Number(slot.periodNumber));
+      if (!baseTeacherPeriodsUsed.has(tpKey)) baseTeacherPeriodsUsed.set(tpKey, new Set());
+      baseTeacherPeriodsUsed.get(tpKey)!.add(Number(slot.periodNumber));
     }
   }
 
@@ -727,24 +790,62 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       roomsByType.set(r.roomType, list);
     }
   }
-  
-  const finalSchedule: InsertScheduleEntry[] = [];
-  const generatedConflicts: Array<{
-    conflictType: string;
-    description: string;
-    severity: string;
-    _key: { classId: number; subjectId: number; teacherId: number; timeSlotId: number; weekType: "always" | "surat" | "mahraj" };
-  }> = [];
-  const pendingSkips: Array<{ lesson: (typeof precomputedLessons)[number] }> = [];
-  // Faza 3.3 local search uchun: shu generatsiyada joylashtirilgan, keyinroq boshqa
-  // vaqtga ko'chirilishi mumkin bo'lgan oddiy (bitta o'qituvchili, birlashtirilmagan) darslar
-  const movableLessons: MovablePlacedLesson[] = [];
-  let placedLessons = 0;
-  
-  console.log(`[Greedy] Starting heuristic solver for ${precomputedLessons.length} lessons...`);
+
+  const CANDIDATE_RUNS = algorithm === "cpsat_optimal" ? 20 : 10;
+  console.log(`[MultiStart] Running ${CANDIDATE_RUNS} candidate search iterations for algorithm: ${algorithm}`);
   const startTime = Date.now();
 
-  for (const lesson of precomputedLessons) {
+  let bestRun: {
+    finalSchedule: InsertScheduleEntry[];
+    generatedConflicts: any[];
+    placedLessons: number;
+    skippedLessons: any[];
+    qualityScore: number;
+    penalty: number;
+    hardViolations: any[];
+    classGaps: number;
+    teacherGaps: number;
+    spacingViolations: number;
+    complexityViolations: number;
+  } | null = null;
+
+  for (let candidateSeed = 0; candidateSeed < CANDIDATE_RUNS; candidateSeed++) {
+    // Clone base state maps for candidate run
+    const teacherBusy = new Set(baseTeacherBusy);
+    const roomBusy = new Set(baseRoomBusy);
+    const classBusy = new Set(baseClassBusy);
+    const classDailyCount = new Map(baseClassDailyCount);
+    const subjectDailyCount = new Map(baseSubjectDailyCount);
+    const classDailyComplexity = new Map(baseClassDailyComplexity);
+    const subjectDaysUsed = new Map<string, Set<number>>();
+    for (const [k, v] of baseSubjectDaysUsed.entries()) subjectDaysUsed.set(k, new Set(v));
+    const teacherDayRoom = new Map(baseTeacherDayRoom);
+    const classPeriodsUsed = new Map<string, Set<number>>();
+    for (const [k, v] of baseClassPeriodsUsed.entries()) classPeriodsUsed.set(k, new Set(v));
+    const teacherPeriodsUsed = new Map<string, Set<number>>();
+    for (const [k, v] of baseTeacherPeriodsUsed.entries()) teacherPeriodsUsed.set(k, new Set(v));
+    const classSubjectPeriods = new Map<string, Set<number>>();
+    for (const [k, v] of baseClassSubjectPeriods.entries()) classSubjectPeriods.set(k, new Set(v));
+
+    let candidateLessons = [...precomputedLessons];
+    const effectiveSeed = baseSeed + candidateSeed * 9973 + (algorithm === "cpsat_optimal" ? 43210 : 12340);
+    const rng = createPRNG(effectiveSeed);
+    if (candidateSeed > 0 || inputSeed === undefined) {
+      candidateLessons = stochasticShuffleLessons(precomputedLessons, rng);
+    }
+
+    const finalSchedule: InsertScheduleEntry[] = [];
+    const generatedConflicts: Array<{
+      conflictType: string;
+      description: string;
+      severity: string;
+      _key: { classId: number; subjectId: number; teacherId: number; timeSlotId: number; weekType: "always" | "surat" | "mahraj" };
+    }> = [];
+    const pendingSkips: Array<{ lesson: (typeof precomputedLessons)[number] }> = [];
+    const movableLessons: MovablePlacedLesson[] = [];
+    let placedLessons = 0;
+
+    for (const lesson of candidateLessons) {
     let bestSlot = null;
     let bestRoom1 = null;
     let bestRoom2 = null;
@@ -887,7 +988,9 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           lesson.classIds, lesson.subjectId, lesson.grade, lesson.complexity, lesson.category,
           day, slot.periodNumber, loadVal, lesson.maxDaily, lesson.maxSameSubject,
           classDailyCount, subjectDailyCount, classDailyComplexity, subjectDaysUsed,
-          classPeriodsUsed, jStudyDaysCount,
+          classPeriodsUsed, jStudyDaysCount, classIdealMaxDailyMap, classTotalWeeklyHoursMap,
+          Boolean(lesson.pinned),
+          algorithm
         );
         for (const g of lesson.groups) {
           if (wouldCreateGap(teacherPeriodsUsed.get(`${g.teacherId}_${day}`), slot.periodNumber)) {
@@ -1014,7 +1117,9 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           [lesson.classId], lesson.subjectId, lesson.grade, lesson.complexity, lesson.category,
           day, slot.periodNumber, loadVal, lesson.maxDaily, lesson.maxSameSubject,
           classDailyCount, subjectDailyCount, classDailyComplexity, subjectDaysUsed,
-          classPeriodsUsed, sStudyDaysCount,
+          classPeriodsUsed, sStudyDaysCount, classIdealMaxDailyMap, classTotalWeeklyHoursMap,
+          Boolean(lesson.pinned),
+          algorithm
         );
         if (wouldCreateGap(teacherPeriodsUsed.get(`${lesson.teacherId}_${day}`), slot.periodNumber)) {
           conflicts += 15;
@@ -1117,7 +1222,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
         }
         placedLessons++;
         
-        if (leastConflicts >= 100 || bestConflictReasons.length > 0) {
+        if (leastConflicts >= 20) {
           generatedConflicts.push({
             conflictType: "schedule_overlap",
             description: `Ziddiyat (Birlashtirilgan dars ${lesson.jointLessonId}): ${bestConflictReasons.join(", ")}`,
@@ -1197,7 +1302,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
           });
         }
 
-        if (leastConflicts >= 100 || bestConflictReasons.length > 0) {
+        if (leastConflicts >= 20) {
           generatedConflicts.push({
             conflictType: "schedule_overlap",
             description: `Ziddiyat (${lesson.classId}-sinf): ${bestConflictReasons.join(", ")}`,
@@ -1309,7 +1414,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     }));
 
   // --- Faza 2.2: Optimizatsiya (Post-processing) ---
-  const optimizerSlotsForGap = activeSlots.map(s => ({ id: s.id, dayOfWeek: Number(s.dayOfWeek) }));
+  const optimizerSlotsForGap = activeSlots.map(s => ({ id: s.id, dayOfWeek: Number(s.dayOfWeek), periodNumber: Number(s.periodNumber) }));
   const isTeacherFreeForGap = (teacherId: number, slotId: number, weekType: "always" | "surat" | "mahraj") => {
     if (isEntityBusy(teacherBusy, teacherId, slotId, weekType)) return false;
     const sl = slotById.get(slotId);
@@ -1409,13 +1514,461 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     classGrades: classGradesMap,
   });
 
+  // SanPiN fanlar murakkablik balansi va dars o'rinlarini almashtirish
+  const subjectCategoryMap = new Map<number, SubjectCategory>();
+  for (const s of allSubjects) {
+    subjectCategoryMap.set(s.id, getSubjectCategory(s.name || ""));
+  }
+  optimizeSanPinComplexity({
+    schedule: scheduleWithRoomCandidates,
+    activeSlots: optimizerSlotsForGap,
+    slotPeriodMap,
+    slotDayMap,
+    subjectCategoryMap,
+    isClassFree: (classId, slotId, weekType) => !isEntityBusy(classBusy, classId, slotId, weekType),
+    isTeacherFree: isTeacherFreeForGap,
+    isRoomFree: (roomId, slotId, weekType) => !isEntityBusy(roomBusy, roomId, slotId, weekType),
+    markClassBusy: (classId, slotId, weekType) => markEntityBusy(classBusy, classId, slotId, weekType),
+    unmarkClassBusy: (classId, slotId, weekType) => unmarkEntityBusy(classBusy, classId, slotId, weekType),
+    markTeacherBusy: (teacherId, slotId, weekType) => markEntityBusy(teacherBusy, teacherId, slotId, weekType),
+    unmarkTeacherBusy: (teacherId, slotId, weekType) => unmarkEntityBusy(teacherBusy, teacherId, slotId, weekType),
+    markRoomBusy: (roomId, slotId, weekType) => markEntityBusy(roomBusy, roomId, slotId, weekType),
+    unmarkRoomBusy: (roomId, slotId, weekType) => unmarkEntityBusy(roomBusy, roomId, slotId, weekType),
+    protectedIndices: protectedEntryIndices,
+    classGrades: classGradesMap,
+  });
+
   // Yopilgan optimizatsiya natijalarini qo'llash
   for (let i = 0; i < finalSchedule.length; i++) {
     finalSchedule[i].timeSlotId = scheduleWithRoomCandidates[i].timeSlotId;
     finalSchedule[i].roomId = scheduleWithRoomCandidates[i].roomId;
   }
 
-  // --- Faza 3: Post-validatsiya ---
+  // Qat'iy Sinf Nollik Okno (Zero Class Gap) Post-Processing
+  const slotByDayPeriodMap = new Map<string, number>();
+  for (const s of activeSlots) {
+    slotByDayPeriodMap.set(`${s.dayOfWeek}_${s.periodNumber}`, s.id);
+  }
+
+  for (const cls of targetClasses) {
+    for (let day = 1; day <= 6; day++) {
+      const dayIndices = [];
+      for (let i = 0; i < finalSchedule.length; i++) {
+        if (finalSchedule[i].classId !== cls.id) continue;
+        const sl = slotById.get(finalSchedule[i].timeSlotId);
+        if (sl && Number(sl.dayOfWeek) === day) {
+          dayIndices.push(i);
+        }
+      }
+      if (dayIndices.length < 2) continue;
+
+      const pMap = new Map<number, number>();
+      for (const idx of dayIndices) {
+        const p = Number(slotById.get(finalSchedule[idx].timeSlotId)?.periodNumber);
+        if (p) pMap.set(p, idx);
+      }
+
+      const periods = Array.from(pMap.keys()).sort((a, b) => a - b);
+      const minP = Math.min(...periods);
+      const maxP = Math.max(...periods);
+
+      for (let gapP = minP; gapP < maxP; gapP++) {
+        if (!pMap.has(gapP)) {
+          const gapSlotId = slotByDayPeriodMap.get(`${day}_${gapP}`);
+          if (!gapSlotId) continue;
+
+          for (let p = minP; p < gapP; p++) {
+            const earlierIdx = pMap.get(p)!;
+            const trailingIdx = pMap.get(maxP)!;
+
+            const earlierEntry = finalSchedule[earlierIdx];
+            const trailingEntry = finalSchedule[trailingIdx];
+            if (!earlierEntry || !trailingEntry) continue;
+            const earlierSlotId = earlierEntry.timeSlotId;
+
+            const wtE = (earlierEntry.weekType || "always") as any;
+            const wtT = (trailingEntry.weekType || "always") as any;
+
+            const trailingTeacherFreeAtEarlier = !isEntityBusy(teacherBusy, trailingEntry.teacherId, earlierSlotId, wtT) || trailingEntry.teacherId === earlierEntry.teacherId;
+            const earlierTeacherFreeAtGap = !isEntityBusy(teacherBusy, earlierEntry.teacherId, gapSlotId, wtE) || earlierEntry.teacherId === trailingEntry.teacherId;
+            const trailingRoomFreeAtEarlier = !isEntityBusy(roomBusy, trailingEntry.roomId, earlierSlotId, wtT) || trailingEntry.roomId === earlierEntry.roomId;
+            const earlierRoomFreeAtGap = !isEntityBusy(roomBusy, earlierEntry.roomId, gapSlotId, wtE) || earlierEntry.roomId === trailingEntry.roomId;
+
+            if (trailingTeacherFreeAtEarlier && earlierTeacherFreeAtGap && trailingRoomFreeAtEarlier && earlierRoomFreeAtGap) {
+              unmarkEntityBusy(teacherBusy, earlierEntry.teacherId, earlierSlotId, wtE);
+              unmarkEntityBusy(teacherBusy, trailingEntry.teacherId, trailingEntry.timeSlotId, wtT);
+              unmarkEntityBusy(roomBusy, earlierEntry.roomId, earlierSlotId, wtE);
+              unmarkEntityBusy(roomBusy, trailingEntry.roomId, trailingEntry.timeSlotId, wtT);
+
+              earlierEntry.timeSlotId = gapSlotId;
+              trailingEntry.timeSlotId = earlierSlotId;
+
+              markEntityBusy(teacherBusy, earlierEntry.teacherId, gapSlotId, wtE);
+              markEntityBusy(teacherBusy, trailingEntry.teacherId, earlierSlotId, wtT);
+              markEntityBusy(roomBusy, earlierEntry.roomId, gapSlotId, wtE);
+              markEntityBusy(roomBusy, trailingEntry.roomId, earlierSlotId, wtT);
+
+              pMap.set(gapP, earlierIdx);
+              pMap.set(p, trailingIdx);
+              pMap.delete(maxP);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  type WkType = "always" | "surat" | "mahraj";
+
+  const pinnedEntriesSet = new Set<InsertScheduleEntry>();
+  for (const pl of precomputedLessons) {
+    if (pl.pinned) {
+      for (const e of finalSchedule) {
+        if (e.classId === pl.classId && e.subjectId === pl.subjectId && e.teacherId === pl.teacherId) {
+          pinnedEntriesSet.add(e);
+        }
+      }
+    }
+  }
+
+  // --- Faza 3.5: Sinf darslaridagi "oyna" (gap) va 1-dars bo'shliqlarini yuqoriga surib yopish (Gap & Front-Gap Elimination Pass) ---
+  const slotMapForCompact = new Map(activeSlots.map(s => [s.id, s]));
+  const slotByDayPeriodForCompact = new Map<string, typeof activeSlots[0]>();
+  for (const s of activeSlots) {
+    slotByDayPeriodForCompact.set(`${s.dayOfWeek}_${s.periodNumber}`, s);
+  }
+
+  let gapPassMoved = true;
+  let gapPasses = 0;
+
+  while (gapPassMoved && gapPasses < 10) {
+    gapPassMoved = false;
+    gapPasses++;
+
+    const entriesByClassDay = new Map<string, number[]>();
+    for (let i = 0; i < finalSchedule.length; i++) {
+      const e = finalSchedule[i];
+      const slot = slotMapForCompact.get(e.timeSlotId);
+      if (!slot) continue;
+      const key = `${e.classId}_${slot.dayOfWeek}`;
+      if (!entriesByClassDay.has(key)) entriesByClassDay.set(key, []);
+      entriesByClassDay.get(key)!.push(i);
+    }
+
+    for (const [key, indices] of Array.from(entriesByClassDay.entries())) {
+      const [cidStr, dayStr] = key.split("_");
+      const day = Number(dayStr);
+
+      indices.sort((a, b) => slotMapForCompact.get(finalSchedule[a].timeSlotId)!.periodNumber - slotMapForCompact.get(finalSchedule[b].timeSlotId)!.periodNumber);
+
+      const periodsUsed = indices.map(idx => slotMapForCompact.get(finalSchedule[idx].timeSlotId)!.periodNumber);
+      if (periodsUsed.length === 0) continue;
+
+      const minP = Math.min(...periodsUsed);
+      const maxP = Math.max(...periodsUsed);
+      const usedSet = new Set(periodsUsed);
+
+      // 1. Front Gap check: 1-dars bo'sh bo'lsa (minP > 1), barcha darslarni 1-dars tomonga surishga harakat qilamiz
+      if (minP > 1) {
+        const targetP = minP - 1;
+        const targetSlot = slotByDayPeriodForCompact.get(`${day}_${targetP}`);
+        if (targetSlot) {
+          const candidateIndex = indices[0]; // birinchi dars (minP dars)
+          const candidateEntry = finalSchedule[candidateIndex];
+          if (pinnedEntriesSet.has(candidateEntry)) continue;
+          const currSlot = slotMapForCompact.get(candidateEntry.timeSlotId)!;
+          const wt = (candidateEntry.weekType || "always") as WkType;
+
+          if (!unavailSet.has(`${candidateEntry.teacherId}_${day}_${targetP}`) &&
+              !isEntityBusy(teacherBusy, candidateEntry.teacherId, targetSlot.id, wt) &&
+              !isEntityBusy(roomBusy, candidateEntry.roomId, targetSlot.id, wt)) {
+
+            unmarkEntityBusy(teacherBusy, candidateEntry.teacherId, currSlot.id, wt);
+            unmarkEntityBusy(roomBusy, candidateEntry.roomId, currSlot.id, wt);
+            unmarkEntityBusy(classBusy, candidateEntry.classId, currSlot.id, wt);
+
+            candidateEntry.timeSlotId = targetSlot.id;
+
+            markEntityBusy(teacherBusy, candidateEntry.teacherId, targetSlot.id, wt);
+            markEntityBusy(roomBusy, candidateEntry.roomId, targetSlot.id, wt);
+            markEntityBusy(classBusy, candidateEntry.classId, targetSlot.id, wt);
+
+            gapPassMoved = true;
+            break;
+          }
+        }
+      }
+
+      // 2. Middle Gap check: minP va maxP orasida bo'sh oyna (okno) bo'lsa
+      for (let targetP = minP + 1; targetP < maxP; targetP++) {
+        if (!usedSet.has(targetP)) {
+          const targetSlot = slotByDayPeriodForCompact.get(`${day}_${targetP}`);
+          if (!targetSlot) continue;
+
+          // 2a. Avval shu kundagi darchadan keyingi BARCHA darslarni sinab ko'ramiz
+          const sameDayCandidates = indices.filter(idx => {
+            const e = finalSchedule[idx];
+            return !pinnedEntriesSet.has(e) && slotMapForCompact.get(e.timeSlotId)!.periodNumber > targetP;
+          });
+
+          for (const candIdx of sameDayCandidates) {
+            const candidateEntry = finalSchedule[candIdx];
+            const currSlot = slotMapForCompact.get(candidateEntry.timeSlotId)!;
+            const wt = (candidateEntry.weekType || "always") as WkType;
+
+            if (unavailSet.has(`${candidateEntry.teacherId}_${day}_${targetP}`)) continue;
+            if (isEntityBusy(teacherBusy, candidateEntry.teacherId, targetSlot.id, wt)) continue;
+
+            let targetRoomId = candidateEntry.roomId;
+            if (isEntityBusy(roomBusy, candidateEntry.roomId, targetSlot.id, wt)) {
+              const alt = allRooms.find(r => r.isActive && !isEntityBusy(roomBusy, r.id, targetSlot.id, wt));
+              if (alt) targetRoomId = alt.id;
+              else continue;
+            }
+
+            unmarkEntityBusy(teacherBusy, candidateEntry.teacherId, currSlot.id, wt);
+            unmarkEntityBusy(roomBusy, candidateEntry.roomId, currSlot.id, wt);
+            unmarkEntityBusy(classBusy, candidateEntry.classId, currSlot.id, wt);
+
+            candidateEntry.timeSlotId = targetSlot.id;
+            candidateEntry.roomId = targetRoomId;
+
+            markEntityBusy(teacherBusy, candidateEntry.teacherId, targetSlot.id, wt);
+            markEntityBusy(roomBusy, targetRoomId, targetSlot.id, wt);
+            markEntityBusy(classBusy, candidateEntry.classId, targetSlot.id, wt);
+
+            gapPassMoved = true;
+            break;
+          }
+
+          // 2b. Agar shu kungi darslar ko'cha olmasa, BOSHQA KUNLARDAN (ayniqsa 6-darsli kunlardan) dars ko'chirish
+          if (!gapPassMoved) {
+            const otherDayIndices = finalSchedule
+              .map((e, idx) => ({ e, idx }))
+              .filter(({ e }) => {
+                if (e.classId !== Number(cidStr)) return false;
+                if (pinnedEntriesSet.has(e)) return false;
+                const sl = slotMapForCompact.get(e.timeSlotId);
+                return sl && Number(sl.dayOfWeek) !== day;
+              });
+
+            otherDayIndices.sort((a, b) => {
+              const slA = slotMapForCompact.get(a.e.timeSlotId)!;
+              const slB = slotMapForCompact.get(b.e.timeSlotId)!;
+              const countA = (entriesByClassDay.get(`${cidStr}_${slA.dayOfWeek}`) || []).length;
+              const countB = (entriesByClassDay.get(`${cidStr}_${slB.dayOfWeek}`) || []).length;
+              if (countB !== countA) return countB - countA;
+              return slB.periodNumber - slA.periodNumber;
+            });
+
+            for (const { e } of otherDayIndices) {
+              const currSlot = slotMapForCompact.get(e.timeSlotId)!;
+              const wt = (e.weekType || "always") as WkType;
+
+              if (unavailSet.has(`${e.teacherId}_${day}_${targetP}`)) continue;
+              if (isEntityBusy(teacherBusy, e.teacherId, targetSlot.id, wt)) continue;
+
+              let targetRoomId = e.roomId;
+              if (isEntityBusy(roomBusy, e.roomId, targetSlot.id, wt)) {
+                const alt = allRooms.find(r => r.isActive && !isEntityBusy(roomBusy, r.id, targetSlot.id, wt));
+                if (alt) targetRoomId = alt.id;
+                else continue;
+              }
+
+              unmarkEntityBusy(teacherBusy, e.teacherId, currSlot.id, wt);
+              unmarkEntityBusy(roomBusy, e.roomId, currSlot.id, wt);
+              unmarkEntityBusy(classBusy, e.classId, currSlot.id, wt);
+
+              e.timeSlotId = targetSlot.id;
+              e.roomId = targetRoomId;
+
+              markEntityBusy(teacherBusy, e.teacherId, targetSlot.id, wt);
+              markEntityBusy(roomBusy, targetRoomId, targetSlot.id, wt);
+              markEntityBusy(classBusy, e.classId, targetSlot.id, wt);
+
+              gapPassMoved = true;
+              break;
+            }
+          }
+
+          if (gapPassMoved) break;
+        }
+      }
+    }
+  }
+
+  // --- Faza 3.6: Kunlik darslar soatini tenglashtirish (Day Load Equalizer Pass) ---
+  // 6 soatlik kunlardan 1 ta darsni olib 4 soatlik kunga ko'chirish
+  let balanceMoved = true;
+  let balancePasses = 0;
+
+  while (balanceMoved && balancePasses < 5) {
+    balanceMoved = false;
+    balancePasses++;
+
+    for (const cls of targetClasses) {
+      const cid = cls.id;
+      const days = cls.studyDays ? cls.studyDays.split(",").map(Number) : [1, 2, 3, 4, 5];
+      const totalHours = finalSchedule.filter(e => e.classId === cid).length;
+      const targetDaily = totalHours / Math.max(1, days.length);
+
+      // Map day -> Array of entry indices
+      const dayEntriesMap = new Map<number, number[]>();
+      for (const d of days) dayEntriesMap.set(d, []);
+
+      for (let i = 0; i < finalSchedule.length; i++) {
+        const e = finalSchedule[i];
+        if (e.classId !== cid) continue;
+        const slot = slotMapForCompact.get(e.timeSlotId);
+        if (!slot) continue;
+        if (dayEntriesMap.has(slot.dayOfWeek)) {
+          dayEntriesMap.get(slot.dayOfWeek)!.push(i);
+        }
+      }
+
+      // Find over-loaded day (count > targetDaily + 0.4) and under-loaded day (count < targetDaily - 0.4)
+      const overLoadedDay = days.find(d => (dayEntriesMap.get(d)?.length || 0) > targetDaily + 0.4);
+      const underLoadedDay = days.find(d => (dayEntriesMap.get(d)?.length || 0) < targetDaily - 0.4);
+
+      if (overLoadedDay && underLoadedDay) {
+        const overIndices = dayEntriesMap.get(overLoadedDay)!;
+        const underIndices = dayEntriesMap.get(underLoadedDay)!;
+        const targetPeriod = underIndices.length + 1;
+        const targetSlot = slotByDayPeriodForCompact.get(`${underLoadedDay}_${targetPeriod}`);
+        if (!targetSlot) continue;
+
+        // Try candidate lessons from overLoadedDay (sorted by period descending)
+        const candidateIndices = [...overIndices]
+          .sort((a, b) => slotMapForCompact.get(finalSchedule[b].timeSlotId)!.periodNumber - slotMapForCompact.get(finalSchedule[a].timeSlotId)!.periodNumber)
+          .filter(idx => !pinnedEntriesSet.has(finalSchedule[idx]));
+
+        for (const idx of candidateIndices) {
+          const candidateEntry = finalSchedule[idx];
+          const currSlot = slotMapForCompact.get(candidateEntry.timeSlotId)!;
+          const wt = (candidateEntry.weekType || "always") as WkType;
+
+          if (unavailSet.has(`${candidateEntry.teacherId}_${underLoadedDay}_${targetPeriod}`)) continue;
+          if (isEntityBusy(teacherBusy, candidateEntry.teacherId, targetSlot.id, wt)) continue;
+
+          // Room resolution: current room or free alternative room
+          let targetRoomId = candidateEntry.roomId;
+          if (isEntityBusy(roomBusy, candidateEntry.roomId, targetSlot.id, wt)) {
+            const alt = allRooms.find(r => r.isActive && !isEntityBusy(roomBusy, r.id, targetSlot.id, wt));
+            if (alt) {
+              targetRoomId = alt.id;
+            } else {
+              continue;
+            }
+          }
+
+          unmarkEntityBusy(teacherBusy, candidateEntry.teacherId, currSlot.id, wt);
+          unmarkEntityBusy(roomBusy, candidateEntry.roomId, currSlot.id, wt);
+          unmarkEntityBusy(classBusy, candidateEntry.classId, currSlot.id, wt);
+
+          candidateEntry.timeSlotId = targetSlot.id;
+          candidateEntry.roomId = targetRoomId;
+
+          markEntityBusy(teacherBusy, candidateEntry.teacherId, targetSlot.id, wt);
+          markEntityBusy(roomBusy, targetRoomId, targetSlot.id, wt);
+          markEntityBusy(classBusy, candidateEntry.classId, targetSlot.id, wt);
+
+          balanceMoved = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // --- Faza 3.7: Final Gap-Compacting Pass (Shift late lessons into internal gaps created by balancing) ---
+  for (const cls of targetClasses) {
+    for (let day = 1; day <= 6; day++) {
+      const dayIndices: number[] = [];
+      for (let i = 0; i < finalSchedule.length; i++) {
+        if (finalSchedule[i].classId !== cls.id) continue;
+        const sl = slotMapForCompact.get(finalSchedule[i].timeSlotId);
+        if (sl && Number(sl.dayOfWeek) === day) {
+          dayIndices.push(i);
+        }
+      }
+      if (dayIndices.length < 2) continue;
+
+      dayIndices.sort((a, b) => slotMapForCompact.get(finalSchedule[a].timeSlotId)!.periodNumber - slotMapForCompact.get(finalSchedule[b].timeSlotId)!.periodNumber);
+
+      const periods = dayIndices.map(idx => slotMapForCompact.get(finalSchedule[idx].timeSlotId)!.periodNumber);
+      const minP = Math.min(...periods);
+      const maxP = Math.max(...periods);
+      const usedSet = new Set(periods);
+
+      for (let targetP = minP; targetP < maxP; targetP++) {
+        if (!usedSet.has(targetP)) {
+          const targetSlot = slotByDayPeriodForCompact.get(`${day}_${targetP}`);
+          if (!targetSlot) continue;
+
+          const candIdx = dayIndices.find(idx => {
+            const e = finalSchedule[idx];
+            return !pinnedEntriesSet.has(e) && slotMapForCompact.get(e.timeSlotId)!.periodNumber > targetP;
+          });
+          if (candIdx === undefined) continue;
+
+          const candEntry = finalSchedule[candIdx];
+          const currSlot = slotMapForCompact.get(candEntry.timeSlotId)!;
+          const wt = (candEntry.weekType || "always") as WkType;
+
+          if (unavailSet.has(`${candEntry.teacherId}_${day}_${targetP}`)) continue;
+          if (isEntityBusy(teacherBusy, candEntry.teacherId, targetSlot.id, wt)) continue;
+
+          let targetRoomId = candEntry.roomId;
+          if (isEntityBusy(roomBusy, candEntry.roomId, targetSlot.id, wt)) {
+            const alt = allRooms.find(r => r.isActive && !isEntityBusy(roomBusy, r.id, targetSlot.id, wt));
+            if (alt) targetRoomId = alt.id;
+            else continue;
+          }
+
+          unmarkEntityBusy(teacherBusy, candEntry.teacherId, currSlot.id, wt);
+          unmarkEntityBusy(roomBusy, candEntry.roomId, currSlot.id, wt);
+          unmarkEntityBusy(classBusy, candEntry.classId, currSlot.id, wt);
+
+          candEntry.timeSlotId = targetSlot.id;
+          candEntry.roomId = targetRoomId;
+
+          markEntityBusy(teacherBusy, candEntry.teacherId, targetSlot.id, wt);
+          markEntityBusy(roomBusy, targetRoomId, targetSlot.id, wt);
+          markEntityBusy(classBusy, candEntry.classId, targetSlot.id, wt);
+
+          usedSet.delete(currSlot.periodNumber);
+          usedSet.add(targetP);
+        }
+      }
+    }
+  }
+
+  // --- Faza 3.8: Global Hill-Climbing / Simulated Annealing Pass ---
+  const hillClimbResult = hillClimbOptimize({
+    schedule: scheduleWithRoomCandidates,
+    activeSlots: optimizerSlotsForGap,
+    slotMap: slotById,
+    unavailSet,
+    protectedIndices: protectedEntryIndices,
+    classGrades: classGradesMap,
+    classStudyDays: classStudyDaysMap,
+    subjectMap,
+    allRooms,
+    mode: algorithm === "cpsat_optimal" ? "annealing" : "greedy",
+    maxIterations: algorithm === "cpsat_optimal" ? 500 : 300,
+  });
+
+  if (hillClimbResult.improved) {
+    console.log(`[HillClimb] Timetable improved! Penalty: ${hillClimbResult.initialPenalty} -> ${hillClimbResult.finalPenalty} (${hillClimbResult.totalSwaps} swaps, ${hillClimbResult.totalMoves} moves)`);
+  }
+
+  // Re-apply updated slot IDs and room IDs back into finalSchedule
+  for (let i = 0; i < finalSchedule.length; i++) {
+    finalSchedule[i].timeSlotId = scheduleWithRoomCandidates[i].timeSlotId;
+    finalSchedule[i].roomId = scheduleWithRoomCandidates[i].roomId;
+  }
+
+  // --- Stats and Quality Score calculation ---
   const hardViolations = validateSchedule(finalSchedule, activeSlots, unavailSet);
   if (hardViolations.length > 0) {
     console.error(`[PostValidation] ${hardViolations.length} ta qat'iy shart buzilishi aniqlandi:`, hardViolations);
@@ -1519,7 +2072,42 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     - spacingViolations * 1
   ));
 
-  console.log(`[Greedy] Finished. Placed ${placedLessons}/${precomputedLessons.length} lessons. Skipped: ${skippedLessons.length}. Quality: ${qualityScore}/100`);
+    const candidatePenaltyEval = evaluateSchedulePenalty(scheduleWithRoomCandidates, {
+      schedule: scheduleWithRoomCandidates,
+      activeSlots: optimizerSlotsForGap,
+      slotMap: slotById,
+      unavailSet,
+      protectedIndices: protectedEntryIndices,
+      classGrades: classGradesMap,
+      classStudyDays: classStudyDaysMap,
+      subjectMap,
+      allRooms,
+    });
+
+    const candidatePenalty = candidatePenaltyEval.totalPenalty + skippedLessons.length * 2000;
+    console.log(`[Candidate #${candidateSeed + 1}/${CANDIDATE_RUNS}] Penalty: ${candidatePenalty}, Quality: ${qualityScore}/100, Placed: ${placedLessons}/${precomputedLessons.length}`);
+
+    if (bestRun === null || candidatePenalty < bestRun.penalty) {
+      bestRun = {
+        finalSchedule: [...finalSchedule],
+        generatedConflicts: [...generatedConflicts],
+        placedLessons,
+        skippedLessons,
+        qualityScore,
+        penalty: candidatePenalty,
+        hardViolations,
+        classGaps,
+        teacherGaps,
+        spacingViolations,
+        complexityViolations,
+      };
+    }
+  }
+
+  if (!bestRun) throw new DomainError("Jadval yaratib bo'lmadi");
+
+  const { finalSchedule, generatedConflicts, placedLessons, skippedLessons, qualityScore, hardViolations, classGaps, teacherGaps, spacingViolations, complexityViolations } = bestRun;
+  console.log(`[MultiStart Winner] Selected best candidate with penalty ${bestRun.penalty} and quality ${qualityScore}/100`);
 
   if (finalSchedule.length > 0) {
     const insertedEntries = await storage.createScheduleEntriesBulk(finalSchedule);
@@ -1568,10 +2156,21 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   const coverage = precomputedLessons.length > 0
     ? Math.round((placedLessons / precomputedLessons.length) * 100) : 100;
 
+  const hardCount = hardViolations.length;
+  const softCount = generatedConflicts.length;
+  let statusNote = "";
+  if (hardCount > 0) {
+    statusNote = `${hardCount} ta qat'iy to'qnashuv va ${softCount} ta SanPiN tavsiyasi mavjud.`;
+  } else if (softCount > 0) {
+    statusNote = `Qat'iy to'qnashuvlar yo'q (${softCount} ta SanPiN pedagogik tavsiyasi).`;
+  } else {
+    statusNote = `Hech qanday ziddiyat yo'q.`;
+  }
+
   return {
     message: coverage === 100
-      ? `Barcha ${placedLessons} ta dars jadvalga kiritildi. ${generatedConflicts.length} ta dars bo'yicha ziddiyatlar mavjud.`
-      : `${placedLessons}/${precomputedLessons.length} ta dars joylashtirildi (${skippedLessons.length} ta o'tkazib yuborildi). ${generatedConflicts.length} ta ziddiyatlar mavjud.`,
+      ? `Barcha ${placedLessons} ta dars jadvalga kiritildi. ${statusNote}`
+      : `${placedLessons}/${precomputedLessons.length} ta dars joylashtirildi (${skippedLessons.length} ta o'tkazib yuborildi). ${statusNote}`,
     count: finalSchedule.length,
     coverage,
     skipped: skippedLessons,

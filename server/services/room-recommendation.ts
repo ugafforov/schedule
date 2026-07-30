@@ -156,7 +156,10 @@ function suggestCapacity(roomType: string, requiredCapacity: number): number {
   return Math.ceil((base * 1.1) / 5) * 5; // 10% zaxira, 5 taga yaxlitlash (25 → 30)
 }
 
-function normalizeType(t: string | null | undefined): string {
+function normalizeType(t: string | null | undefined, subjectName?: string): string {
+  if (subjectName && subjectName.toLowerCase().includes("astronomiya")) {
+    return "classroom"; // Astronomiya alohida maxsus xona talab qilmaydi
+  }
   const v = (t || "classroom").trim();
   return v === "any" || v === "" ? "classroom" : v; // "any" — amalda oddiy sinf xonasi
 }
@@ -185,7 +188,7 @@ export function computeRoomRecommendations(input: RoomRecommendationInput): Room
     const sub = subjectById.get(cs.subjectId);
     if (!cls || !sub) continue;
 
-    const roomType = normalizeType(sub.requiredRoomType);
+    const roomType = normalizeType(sub.requiredRoomType, sub.name);
     const students = cls.totalStudents || 25;
     // Guruhga bo'lingan dars (2 o'qituvchi) — sinf ikkiga bo'linadi
     const needCapacity = cs.teacherId2 ? Math.ceil(students / 2) : students;
@@ -258,9 +261,11 @@ export function computeRoomRecommendations(input: RoomRecommendationInput): Room
         const need = neededRooms(d.hours, concurrency);
 
         // Fanga atalgan mavjud xonalar (nomi bo'yicha)
-        const ownRooms = roomsOfType.filter(
+        const matchingRooms = roomsOfType.filter(
           r => !claimedRoomIds.has(r.id) && roomMatchesSubject(r.name, d.subjectName),
         );
+        // Faqat shu fanga KERAKLI miqdordagi xonalarni band qilamiz (ortiqchasini boshqa fanlar yoki umumiy pul ishlatishi uchun)
+        const ownRooms = matchingRooms.slice(0, need > 0 ? need : matchingRooms.length);
         for (const r of ownRooms) claimedRoomIds.add(r.id);
 
         const subjectNotes: string[] = [];
@@ -286,18 +291,25 @@ export function computeRoomRecommendations(input: RoomRecommendationInput): Room
           const suggestedCapacity = generic.capacity >= d.capacity
             ? generic.capacity
             : suggestCapacity(type, d.capacity);
-          roomRenames.push({
-            roomId: generic.id,
-            currentName: generic.name,
-            suggestedName: subjectRoomName(d.subjectName, type),
-            subjectId: d.subjectId,
-            subjectName: d.subjectName,
-            roomType: type,
-            currentCapacity: generic.capacity,
-            suggestedCapacity,
-            reason: `"${generic.name}" hech bir fanga atalmagan — uni ${d.subjectName} fani xonasi qilib belgilash yangi xona qurishdan tejamli.`,
-          });
-          ownRooms.push({ ...generic, name: subjectRoomName(d.subjectName, type), capacity: suggestedCapacity });
+          const suggestedName = subjectRoomName(d.subjectName, type);
+
+          const isNameDifferent = generic.name !== suggestedName && !roomMatchesSubject(generic.name, d.subjectName);
+          const isCapacityDifferent = generic.capacity < suggestedCapacity;
+
+          if (isNameDifferent || isCapacityDifferent) {
+            roomRenames.push({
+              roomId: generic.id,
+              currentName: generic.name,
+              suggestedName: isNameDifferent ? suggestedName : generic.name,
+              subjectId: d.subjectId,
+              subjectName: d.subjectName,
+              roomType: type,
+              currentCapacity: generic.capacity,
+              suggestedCapacity,
+              reason: `"${generic.name}" hech bir fanga atalmagan — uni ${d.subjectName} fani xonasi qilib belgilash yangi xona qurishdan tejamli.`,
+            });
+          }
+          ownRooms.push({ ...generic, name: suggestedName, capacity: suggestedCapacity });
           usable++;
           missing--;
         }

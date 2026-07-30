@@ -12,7 +12,7 @@ import {
   Wand2, Trash2, ChevronLeft, ChevronRight,
   AlertTriangle, CheckCircle2, Printer, Clock, RefreshCw,
   BookOpen, Users, DoorOpen, GraduationCap, UserCheck, GripVertical, FileText, FileSpreadsheet,
-  Move, Pencil, Link2
+  Move, Pencil, Link2, Lightbulb, ShieldAlert, Sparkles, Cpu, Layers, ShieldCheck
 } from "lucide-react";
 
 
@@ -427,6 +427,8 @@ export default function Timetables() {
     const qTeacherId = searchParams.get("teacherId");
     return qTeacherId ? parseInt(qTeacherId) : null;
   });
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [modalFilter, setModalFilter] = useState<"all" | "hard" | "soft">("all");
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -460,6 +462,19 @@ export default function Timetables() {
   const [editEntry, setEditEntry] = useState<ScheduleEntry | null>(null);
   const [editForm, setEditForm] = useState<{ subjectId: number; teacherId: number; roomId: number; weekType: string } | null>(null);
   const [generatorResult, setGeneratorResult] = useState<any>(null);
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<"greedy_chain" | "cpsat_optimal">("greedy_chain");
+  const [showAlgoModal, setShowAlgoModal] = useState(false);
+  const [pendingTarget, setPendingTarget] = useState<{ classIds?: number[] } | null>(null);
+  const [progressStep, setProgressStep] = useState(0);
+  const [progressPercent, setProgressPercent] = useState(0);
+
+  const generationSteps = useMemo(() => [
+    { label: "Cheklovlar tahlili", desc: "Sinflar, o'qituvchilar va xonalar imkoniyatlari tekshirilmoqda...", pct: 20, icon: Sparkles },
+    { label: "Yuklamalar balansi", desc: "Kunlik darslar soni va SanPiN murakkablik balansi tenglashtirilmoqda...", pct: 45, icon: Cpu },
+    { label: "Optimal vaqtlar tanlovi", desc: "Xonalar va o'qituvchilar bandligi muvofiqlashtirilmoqda...", pct: 70, icon: Layers },
+    { label: "Oynalarni optimallashtirish", desc: "Darslar orasidagi bo'shliqlar yopilmoqda...", pct: 90, icon: ShieldCheck },
+    { label: "Yakunlash", desc: "Jadval saqlanmoqda va tekshirilmoqda...", pct: 98, icon: CheckCircle2 },
+  ], []);
   const [activeDragEntry, setActiveDragEntry] = useState<ScheduleEntry | null>(null);
   const [activeDragNewSubject, setActiveDragNewSubject] = useState<{ subjectId: number; teacherId?: number; classId: number } | null>(null);
   const [conflictWarning, setConflictWarning] = useState<{
@@ -1120,9 +1135,11 @@ export default function Timetables() {
   }, [entries]);
 
   const generateMutation = useMutation({
-    mutationFn: async ({ classIds }: { classIds?: number[] }) => {
+    mutationFn: async ({ classIds, algorithm }: { classIds?: number[]; algorithm?: "greedy_chain" | "cpsat_optimal" }) => {
       const res = await apiRequest("POST", "/api/generate-schedule", {
-        classIds: classIds || [], clearExisting
+        classIds: classIds || [],
+        clearExisting,
+        algorithm: algorithm || selectedAlgorithm,
       });
       return res.json();
     },
@@ -1136,6 +1153,28 @@ export default function Timetables() {
       toast({ title: "Xatolik", description: e.message || "Jadval yaratishda xatolik", variant: "destructive" });
     },
   });
+
+  useEffect(() => {
+    let timer: any;
+    if (generateMutation.isPending) {
+      setProgressStep(0);
+      setProgressPercent(15);
+      let step = 0;
+      timer = setInterval(() => {
+        step++;
+        if (step < generationSteps.length) {
+          setProgressStep(step);
+          setProgressPercent(generationSteps[step].pct);
+        } else {
+          clearInterval(timer);
+        }
+      }, 750);
+    } else {
+      setProgressStep(0);
+      setProgressPercent(0);
+    }
+    return () => clearInterval(timer);
+  }, [generateMutation.isPending, generationSteps]);
 
   const clearMutation = useMutation({
     mutationFn: async () => {
@@ -1652,11 +1691,8 @@ export default function Timetables() {
             <div className="flex items-center space-x-3">
               <Button
                 onClick={() => {
-                  if (clearExisting) {
-                    setGenerateTarget({});
-                  } else {
-                    generateMutation.mutate({});
-                  }
+                  setPendingTarget({});
+                  setShowAlgoModal(true);
                 }}
                 disabled={generateMutation.isPending || classes.length === 0 || rooms.length === 0}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -1667,16 +1703,78 @@ export default function Timetables() {
               </Button>
               {selectedClassId !== "all" && viewMode === "class" && (
                 <Button variant="outline" onClick={() => {
-                  if (clearExisting) {
-                    setGenerateTarget({ classIds: [selectedClassId as number] });
-                  } else {
-                    generateMutation.mutate({ classIds: [selectedClassId as number] });
-                  }
+                  setPendingTarget({ classIds: [selectedClassId as number] });
+                  setShowAlgoModal(true);
                 }} disabled={generateMutation.isPending} className="border-border">
                   Faqat "{classes.find(c => c.id === selectedClassId)?.name}" sinfi uchun
                 </Button>
               )}
             </div>
+
+            {/* Animated Generation Progress Card */}
+            {generateMutation.isPending && (
+              <div className="mt-4 p-4 rounded-xl border border-blue-500/30 bg-blue-500/5 backdrop-blur-md transition-all duration-300 animate-in fade-in zoom-in-95 shadow-lg">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="relative flex items-center justify-center">
+                      <Sparkles className="h-5 w-5 text-blue-500 animate-pulse" />
+                      <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping" />
+                    </div>
+                    <span className="text-sm font-bold text-foreground">
+                      Dars jadvali sun'iy intellekt algoritmi ishlamoqda...
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 font-bold font-mono">
+                    {progressPercent}%
+                  </Badge>
+                </div>
+
+                {/* Progress Bar Container */}
+                <div className="w-full bg-muted/40 h-3 rounded-full overflow-hidden mb-4 p-0.5 border border-border/50 shadow-inner">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-500 ease-out shadow-sm"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+
+                {/* Steps Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                  {generationSteps.map((step, idx) => {
+                    const StepIcon = step.icon;
+                    const isActive = idx === progressStep;
+                    const isDone = idx < progressStep;
+                    return (
+                      <div 
+                        key={idx}
+                        className={`flex flex-col items-center text-center p-2.5 rounded-lg transition-all duration-300 border ${
+                          isActive 
+                            ? "bg-blue-500/15 border-blue-500/50 shadow-md scale-105" 
+                            : isDone 
+                            ? "bg-emerald-500/10 border-emerald-500/30 opacity-90" 
+                            : "bg-muted/20 border-border/20 opacity-40"
+                        }`}
+                      >
+                        <div className={`p-1.5 rounded-full mb-1 transition-all duration-300 ${
+                          isActive 
+                            ? "bg-blue-500 text-white animate-bounce shadow-md" 
+                            : isDone 
+                            ? "bg-emerald-500 text-white" 
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> : <StepIcon className="h-3.5 w-3.5" />}
+                        </div>
+                        <p className="text-[11px] font-semibold line-clamp-1 leading-tight text-foreground">{step.label}</p>
+                        {isActive && (
+                          <p className="text-[9px] font-medium text-blue-600 dark:text-blue-300 animate-pulse mt-0.5 leading-tight">
+                            {step.desc}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {(classes.length === 0 || rooms.length === 0) && (
               <p className="text-xs text-red-500 mt-2">⚠ Jadval yaratish uchun avval sinflar va xonalar qo'shing, keyin sinflarga fan va o'qituvchi belgilang.</p>
@@ -1746,44 +1844,69 @@ export default function Timetables() {
 
             {/* Conflicts + Count */}
             <div className="flex items-center space-x-2">
-              {conflicts.length > 0 ? (
-                <TooltipProvider>
-                  <Tooltip delayDuration={150}>
-                    <TooltipTrigger asChild>
+              {(() => {
+                const hardConflicts = conflicts.filter((c: any) => c.severity === "critical" || c.severity === "high" || c.conflictType === "teacher_clash" || c.conflictType === "room_clash");
+                const softConflicts = conflicts.filter((c: any) => !hardConflicts.includes(c));
+
+                return (
+                  <>
+                    {hardConflicts.length > 0 ? (
+                      <TooltipProvider>
+                        <Tooltip delayDuration={150}>
+                          <TooltipTrigger asChild>
+                            <Badge 
+                              variant="destructive" 
+                              className="text-[10px] h-5 px-1.5 cursor-pointer hover:bg-red-600 transition-colors shadow-sm select-none flex items-center gap-0.5"
+                              onClick={() => {
+                                setModalFilter("hard");
+                                setConflictModalOpen(true);
+                              }}
+                            >
+                              <AlertTriangle className="h-2.5 w-2.5 animate-bounce" />{hardConflicts.length} ta to'qnashuv
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" align="end" className="w-72 p-2.5 text-card-foreground bg-card border border-border shadow-lg rounded-lg z-50">
+                            <p className="text-[11px] font-medium text-foreground">Qat'iy to'qnashuvlar mavjud. Batafsil ko'rish uchun bosing.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
                       <Badge 
-                        variant="destructive" 
-                        className="text-[10px] h-5 px-1.5 cursor-pointer hover:bg-red-600 transition-colors shadow-sm select-none"
-                        onClick={() => setLocation("/")}
+                        variant="secondary" 
+                        className="text-[10px] h-5 px-1.5 cursor-pointer bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm flex items-center gap-0.5 hover:bg-emerald-500/20 transition-colors"
+                        onClick={() => {
+                          setModalFilter("all");
+                          setConflictModalOpen(true);
+                        }}
                       >
-                        <AlertTriangle className="mr-0.5 h-2.5 w-2.5 animate-bounce" />{conflicts.length} ta ziddiyat
+                        <CheckCircle2 className="h-2.5 w-2.5" />To'qnashuvlar yo'q
                       </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" align="end" className="w-80 p-3 max-h-60 overflow-y-auto bg-card border border-border shadow-lg text-card-foreground rounded-lg z-50">
-                      <div className="space-y-2">
-                        <p className="font-bold text-xs text-foreground border-b border-border pb-1 mb-1.5 flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3 text-red-500" />
-                          Mavjud ziddiyatlar:
-                        </p>
-                        {conflicts.map((c: any, idx: number) => (
-                          <div key={c.id || idx} className="p-2 rounded bg-red-500/10 border border-red-500/20 text-[10px] text-foreground">
-                            <p className="font-bold text-red-500 mb-0.5">
-                              {getConflictTypeLabel(c.conflictType)}
-                            </p>
-                            <p className="leading-relaxed text-muted-foreground">{c.description}</p>
-                          </div>
-                        ))}
-                        <p className="text-[9px] text-blue-500 dark:text-blue-400 text-center pt-1 border-t border-border mt-1.5 font-medium cursor-pointer">
-                          Bosh sahifaga o'tish va to'liq ko'rish uchun bosing
-                        </p>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : (
-                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />Ziddiyatsiz
-                </Badge>
-              )}
+                    )}
+
+                    {softConflicts.length > 0 && (
+                      <TooltipProvider>
+                        <Tooltip delayDuration={150}>
+                          <TooltipTrigger asChild>
+                            <Badge 
+                              variant="outline" 
+                              className="text-[10px] h-5 px-1.5 cursor-pointer bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20 transition-colors shadow-sm select-none flex items-center gap-0.5"
+                              onClick={() => {
+                                setModalFilter("soft");
+                                setConflictModalOpen(true);
+                              }}
+                            >
+                              <Lightbulb className="h-2.5 w-2.5 text-blue-500" />{softConflicts.length} ta SanPiN tavsiyasi
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" align="end" className="w-72 p-2.5 text-card-foreground bg-card border border-border shadow-lg rounded-lg z-50">
+                            <p className="text-[11px] font-medium text-foreground">SanPiN va pedagogik tavsiyalarni to'liq ro'yxatini ko'rish uchun bosing.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </>
+                );
+              })()}
               <span className="text-[10px] text-muted-foreground/60">{entries.length} ta dars</span>
             </div>
           </div>
@@ -2345,6 +2468,180 @@ export default function Timetables() {
         </DialogContent>
       </Dialog>
 
+      {/* Algorithm Selector Modal */}
+      <Dialog open={showAlgoModal} onOpenChange={setShowAlgoModal}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2 text-lg font-bold">
+              <Wand2 className="h-5 w-5 text-blue-500" />
+              <span>Dars jadvali optimallashtirish algoritmini tanlang</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <p className="text-xs text-muted-foreground mb-1">
+            Maktabingiz uchun mos keladigan va afzal deb bilgan jadval shakllantirish dvigatelini tanlang:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-3">
+            {/* Algorithm Option 1: FET Chain Swapping */}
+            <div 
+              onClick={() => setSelectedAlgorithm("greedy_chain")}
+              className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
+                selectedAlgorithm === "greedy_chain"
+                  ? "border-emerald-500 bg-emerald-500/10 shadow-md scale-[1.02]"
+                  : "border-border/60 bg-muted/20 hover:border-emerald-500/50 hover:bg-muted/40"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-semibold text-[11px]">
+                  ⚡ Tezkor & Ixcham
+                </Badge>
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedAlgorithm === "greedy_chain" ? "border-emerald-500 bg-emerald-500 text-white" : "border-muted-foreground/40"}`}>
+                  {selectedAlgorithm === "greedy_chain" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+              </div>
+              <h4 className="font-bold text-sm text-foreground mb-1 flex items-center gap-1.5">
+                <Wand2 className="h-4 w-4 text-emerald-500" />
+                FET Zanjirli Surish
+              </h4>
+              <p className="text-[11px] text-muted-foreground leading-snug mb-2">
+                5 ta stoxastik nomzod variantni yaratib, Hill-Climbing bilan darslarni almashtirib va ko'chirib eng optimal jadvalni tanlaydi.
+              </p>
+              <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                <Clock className="h-3 w-3" /> Ishlash vaqti: 3-5 soniya
+              </div>
+            </div>
+
+            {/* Algorithm Option 2: CP-SAT Matrix Optimal */}
+            <div 
+              onClick={() => setSelectedAlgorithm("cpsat_optimal")}
+              className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
+                selectedAlgorithm === "cpsat_optimal"
+                  ? "border-blue-500 bg-blue-500/10 shadow-md scale-[1.02]"
+                  : "border-border/60 bg-muted/20 hover:border-blue-500/50 hover:bg-muted/40"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 font-semibold text-[11px]">
+                  🎯 Ideal Balans
+                </Badge>
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedAlgorithm === "cpsat_optimal" ? "border-blue-500 bg-blue-500 text-white" : "border-muted-foreground/40"}`}>
+                  {selectedAlgorithm === "cpsat_optimal" && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+              </div>
+              <h4 className="font-bold text-sm text-foreground mb-1 flex items-center gap-1.5">
+                <Cpu className="h-4 w-4 text-blue-500" />
+                CP-SAT Matrisa Optimallashtirish
+              </h4>
+              <p className="text-[11px] text-muted-foreground leading-snug mb-2">
+                7 ta nomzod variant + Simulated Annealing bilan chuqur matematik qidiruv o'tkazib, mukammal balans va nollik oyna natijasini beradi.
+              </p>
+              <div className="text-[10px] text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1">
+                <Clock className="h-3 w-3" /> Ishlash vaqti: 5-10 soniya
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAlgoModal(false)}>
+              Bekor qilish
+            </Button>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+              onClick={() => {
+                setShowAlgoModal(false);
+                if (pendingTarget) {
+                  generateMutation.mutate({
+                    ...pendingTarget,
+                    algorithm: selectedAlgorithm,
+                  });
+                }
+              }}
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              Yaratishni boshlash
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Generation Animated Progress Pop-up Modal */}
+      <Dialog open={generateMutation.isPending} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-lg border-blue-500/30 bg-background/95 backdrop-blur-xl shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="relative flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-blue-500 animate-pulse" />
+                  <div className="absolute inset-0 rounded-full bg-blue-500/20 animate-ping" />
+                </div>
+                <span className="text-base font-bold text-foreground">
+                  Dars jadvali shakllantirilmoqda...
+                </span>
+              </div>
+              <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 font-bold font-mono">
+                {selectedAlgorithm === "greedy_chain" ? "⚡ FET Chain" : "🎯 CP-SAT Matrix"}
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-2">
+            <div className="flex items-center justify-between text-xs font-semibold mb-2">
+              <span className="text-muted-foreground">Ijro holati:</span>
+              <span className="text-blue-600 dark:text-blue-400 font-mono font-bold text-sm">{progressPercent}%</span>
+            </div>
+
+            {/* Glowing Gradient Progress Bar */}
+            <div className="w-full bg-muted/40 h-3 rounded-full overflow-hidden mb-5 p-0.5 border border-border/50 shadow-inner">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-500 ease-out shadow-md"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            {/* Steps Vertical List */}
+            <div className="space-y-2">
+              {generationSteps.map((step, idx) => {
+                const StepIcon = step.icon;
+                const isActive = idx === progressStep;
+                const isDone = idx < progressStep;
+                return (
+                  <div 
+                    key={idx}
+                    className={`flex items-center space-x-3 p-2.5 rounded-xl transition-all duration-300 border ${
+                      isActive 
+                        ? "bg-blue-500/15 border-blue-500/40 shadow-sm translate-x-1" 
+                        : isDone 
+                        ? "bg-emerald-500/10 border-emerald-500/20 opacity-85" 
+                        : "bg-muted/10 border-border/20 opacity-30"
+                    }`}
+                  >
+                    <div className={`p-2 rounded-full transition-all duration-300 ${
+                      isActive 
+                        ? "bg-blue-500 text-white animate-bounce shadow-md" 
+                        : isDone 
+                        ? "bg-emerald-500 text-white" 
+                        : "bg-muted text-muted-foreground"
+                    }`}>
+                      {isDone ? <CheckCircle2 className="h-4 w-4" /> : <StepIcon className="h-4 w-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold leading-none text-foreground">{step.label}</p>
+                        {isDone && <span className="text-[10px] text-emerald-500 font-semibold">Bajarildi</span>}
+                      </div>
+                      <p className={`text-[11px] mt-1 line-clamp-1 leading-tight ${isActive ? "text-blue-600 dark:text-blue-300 font-medium animate-pulse" : "text-muted-foreground"}`}>
+                        {step.desc}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Generate Confirmation Dialog */}
       <Dialog open={generateTarget !== null} onOpenChange={(v) => !v && setGenerateTarget(null)}>
         <DialogContent className="sm:max-w-md">
@@ -2435,6 +2732,121 @@ export default function Timetables() {
           </div>
         </div>
       )}
+
+      {/* Conflicts & SanPiN Recommendations Modal Popup */}
+      <Dialog open={conflictModalOpen} onOpenChange={setConflictModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-6 overflow-hidden bg-card text-card-foreground border border-border shadow-2xl rounded-xl z-[100]">
+          <DialogHeader className="pb-3 border-b border-border">
+            <DialogTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+              <ShieldAlert className="h-5 w-5 text-blue-500" />
+              Jadval Ziddiyatlari va SanPiN Tavsiyalari
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Barcha qat'iy to'qnashuvlar hamda SanPiN bo'yicha berilgan pedagogik tavsiyalar ro'yxati.
+            </p>
+          </DialogHeader>
+
+          {/* Modal Filter Tabs */}
+          {(() => {
+            const hardConflicts = conflicts.filter((c: any) => c.severity === "critical" || c.severity === "high" || c.conflictType === "teacher_clash" || c.conflictType === "room_clash");
+            const softConflicts = conflicts.filter((c: any) => !hardConflicts.includes(c));
+            const displayConflicts = modalFilter === "hard" ? hardConflicts : modalFilter === "soft" ? softConflicts : conflicts;
+
+            return (
+              <>
+                <div className="flex items-center gap-2 pt-3">
+                  <Button
+                    size="sm"
+                    variant={modalFilter === "all" ? "default" : "outline"}
+                    className="text-xs h-7 px-3"
+                    onClick={() => setModalFilter("all")}
+                  >
+                    Barchasi ({conflicts.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={modalFilter === "hard" ? "destructive" : "outline"}
+                    className="text-xs h-7 px-3"
+                    onClick={() => setModalFilter("hard")}
+                  >
+                    <AlertTriangle className="mr-1 h-3 w-3" />
+                    Qat'iy to'qnashuvlar ({hardConflicts.length})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={modalFilter === "soft" ? "default" : "outline"}
+                    className={`text-xs h-7 px-3 ${modalFilter === "soft" ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}`}
+                    onClick={() => setModalFilter("soft")}
+                  >
+                    <Lightbulb className="mr-1 h-3 w-3 text-amber-400" />
+                    SanPiN tavsiyalari ({softConflicts.length})
+                  </Button>
+                </div>
+
+                {/* Conflict List */}
+                <div className="flex-1 overflow-y-auto space-y-2.5 my-3 pr-1">
+                  {displayConflicts.length > 0 ? (
+                    displayConflicts.map((c: any, idx: number) => {
+                      const isHard = c.severity === "critical" || c.severity === "high" || c.conflictType === "teacher_clash" || c.conflictType === "room_clash";
+                      return (
+                        <div
+                          key={c.id || idx}
+                          className={`p-3 rounded-lg border text-xs transition-all ${
+                            isHard
+                              ? "bg-red-500/10 border-red-500/20 text-foreground"
+                              : "bg-blue-500/10 border-blue-500/20 text-foreground"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <div className="flex items-center gap-1.5 font-bold">
+                              {isHard ? (
+                                <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  Qat'iy To'qnashuv ({getConflictTypeLabel(c.conflictType)})
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                                  <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                                  SanPiN Tavsiyasi ({getConflictTypeLabel(c.conflictType)})
+                                </span>
+                              )}
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] px-1.5 py-0 ${
+                                c.severity === "high" || c.severity === "critical"
+                                  ? "bg-red-500/20 text-red-500 border-red-500/30"
+                                  : c.severity === "medium"
+                                  ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                                  : "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                              }`}
+                            >
+                              {c.severity === "high" || c.severity === "critical" ? "Muhimlik: Yuqori" : c.severity === "medium" ? "Muhimlik: O'rta" : "Muhimlik: Past (Tavsiya)"}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground leading-relaxed pl-5">{c.description}</p>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-2" />
+                      <p className="font-semibold text-foreground text-sm">Ushbu toifada hech qanday ziddiyat topilmadi</p>
+                      <p className="text-xs text-muted-foreground">Dars jadvali to'g'ri va muvaffaqiyatli shakllangan.</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+
+          <DialogFooter className="pt-2 border-t border-border">
+            <Button size="sm" variant="outline" onClick={() => setConflictModalOpen(false)}>
+              Yopish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

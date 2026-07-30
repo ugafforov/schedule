@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { attemptRelocations, minimizeGaps, compactDays, weekTypesConflict, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
+import { attemptRelocations, minimizeGaps, compactDays, balanceDays, weekTypesConflict, type MovablePlacedLesson, type SkippedLessonInput } from "./schedule-optimizer";
 
 describe("weekTypesConflict", () => {
   it("'always' har doim ziddiyat hisoblanadi", () => {
@@ -421,13 +421,107 @@ describe("compactDays — kun ichidagi oynalar", () => {
       expect(schedule[2].timeSlotId).toBe(13); // oyna yopildi
     });
 
-    it("boshlang'ich sinfda fanlar har xil bo'lsa ko'chirishga to'sqinlik qilmaydi", () => {
-      const schedule = makeSchedule(8); // p2 = fan 7, ko'chadigani = fan 8
-      const moves = compactDays(buildParams(schedule, {
-        classGrades: new Map([[10, "3"]]),
-      }));
-      expect(moves).toBe(1);
-      expect(schedule[2].timeSlotId).toBe(13);
+    it("1-dars bo'sh qolganda (2,3,4,5,6 -> 1,2,3,4,5) butun darslar blokini 1-darsga suradi", () => {
+      const schedule: Entry[] = [
+        { classId: 10, teacherId: 1, roomId: 100, timeSlotId: 12 },
+        { classId: 10, teacherId: 2, roomId: 100, timeSlotId: 13 },
+        { classId: 10, teacherId: 3, roomId: 100, timeSlotId: 14 },
+        { classId: 10, teacherId: 4, roomId: 100, timeSlotId: 15 },
+        { classId: 10, teacherId: 5, roomId: 100, timeSlotId: 16 },
+      ];
+      compactDays(buildParams(schedule));
+      const periods = schedule.map(e => e.timeSlotId % 10).sort((a, b) => a - b);
+      expect(periods).toEqual([1, 2, 3, 4, 5]);
     });
   });
 });
+
+describe("balanceDays — kunlararo balanslash", () => {
+  const DAYS = [1, 2, 3];
+  const PERIODS = [1, 2, 3, 4, 5, 6];
+  const activeSlots = DAYS.flatMap(d => PERIODS.map(p => ({ id: d * 10 + p, dayOfWeek: d })));
+  const slotPeriodMap = new Map(activeSlots.map(s => [s.id, s.id % 10]));
+  const slotDayMap = new Map(activeSlots.map(s => [s.id, s.dayOfWeek]));
+
+  type Entry = { classId: number; subjectId: number; teacherId: number; roomId: number; timeSlotId: number; weekType?: string | null };
+
+  function buildParams(schedule: Entry[], extra: Record<string, unknown> = {}) {
+    const busy = new Set<string>();
+    for (const e of schedule) {
+      busy.add(`class_${e.classId}_${e.timeSlotId}`);
+      busy.add(`teacher_${e.teacherId}_${e.timeSlotId}`);
+      busy.add(`room_${e.roomId}_${e.timeSlotId}`);
+    }
+    return {
+      schedule, activeSlots, slotPeriodMap, slotDayMap,
+      isClassFree: (c: number, s: number) => !busy.has(`class_${c}_${s}`),
+      isTeacherFree: (t: number, s: number) => !busy.has(`teacher_${t}_${s}`),
+      isRoomFree: (r: number, s: number) => !busy.has(`room_${r}_${s}`),
+      markClassBusy: (c: number, s: number) => { busy.add(`class_${c}_${s}`); },
+      unmarkClassBusy: (c: number, s: number) => { busy.delete(`class_${c}_${s}`); },
+      markTeacherBusy: (t: number, s: number) => { busy.add(`teacher_${t}_${s}`); },
+      unmarkTeacherBusy: (t: number, s: number) => { busy.delete(`teacher_${t}_${s}`); },
+      markRoomBusy: (r: number, s: number) => { busy.add(`room_${r}_${s}`); },
+      unmarkRoomBusy: (r: number, s: number) => { busy.delete(`room_${r}_${s}`); },
+      classStudyDays: new Map([[10, [1, 2, 3]]]),
+      classGrades: new Map([[10, "5"]]),
+      ...extra,
+    } as any;
+  }
+
+  it("6-darsgacha cho'zilgan kun darsini kam darsli kunga ko'chiradi", () => {
+    // Dushanba: 1, 2, 3, 4 (4 dars)
+    // Seshanba: 2, 3, 4, 5, 6 (5 dars, 6-darsgacha)
+    // Chorshanba: 1, 2, 3, 4, 5 (5 dars)
+    const schedule: Entry[] = [
+      { classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 11 },
+      { classId: 10, subjectId: 2, teacherId: 2, roomId: 100, timeSlotId: 12 },
+      { classId: 10, subjectId: 3, teacherId: 3, roomId: 100, timeSlotId: 13 },
+      { classId: 10, subjectId: 4, teacherId: 4, roomId: 100, timeSlotId: 14 },
+
+      { classId: 10, subjectId: 5, teacherId: 5, roomId: 100, timeSlotId: 22 },
+      { classId: 10, subjectId: 6, teacherId: 6, roomId: 100, timeSlotId: 23 },
+      { classId: 10, subjectId: 7, teacherId: 7, roomId: 100, timeSlotId: 24 },
+      { classId: 10, subjectId: 8, teacherId: 8, roomId: 100, timeSlotId: 25 },
+      { classId: 10, subjectId: 9, teacherId: 9, roomId: 100, timeSlotId: 26 },
+
+      { classId: 10, subjectId: 10, teacherId: 10, roomId: 100, timeSlotId: 31 },
+      { classId: 10, subjectId: 11, teacherId: 11, roomId: 100, timeSlotId: 32 },
+      { classId: 10, subjectId: 12, teacherId: 12, roomId: 100, timeSlotId: 33 },
+      { classId: 10, subjectId: 13, teacherId: 13, roomId: 100, timeSlotId: 34 },
+      { classId: 10, subjectId: 14, teacherId: 14, roomId: 100, timeSlotId: 35 },
+    ];
+
+    const moves = balanceDays(buildParams(schedule));
+    expect(moves).toBeGreaterThan(0);
+    // Seshanbaning 6-darsi (slot 26, teacher 9) Dushanbaning 5-darsiga (slot 15) ko'chirish kerak
+    const entry9 = schedule.find(e => e.teacherId === 9)!;
+    expect(entry9.timeSlotId).toBe(15);
+  });
+
+  it("okno (darcha) penaltisi yuqori bo'lgani uchun middle gap tugatiladi", () => {
+    // Dushanba: 1, 2, 3, (4 bo'sh - okno), 5
+    // Seshanba: 1, 2, 3, 4, 5, 6 (6-dars bor)
+    const schedule: Entry[] = [
+      { classId: 10, subjectId: 1, teacherId: 1, roomId: 100, timeSlotId: 11 },
+      { classId: 10, subjectId: 2, teacherId: 2, roomId: 100, timeSlotId: 12 },
+      { classId: 10, subjectId: 3, teacherId: 3, roomId: 100, timeSlotId: 13 },
+      { classId: 10, subjectId: 5, teacherId: 5, roomId: 100, timeSlotId: 15 },
+
+      { classId: 10, subjectId: 6, teacherId: 6, roomId: 100, timeSlotId: 21 },
+      { classId: 10, subjectId: 7, teacherId: 7, roomId: 100, timeSlotId: 22 },
+      { classId: 10, subjectId: 8, teacherId: 8, roomId: 100, timeSlotId: 23 },
+      { classId: 10, subjectId: 9, teacherId: 9, roomId: 100, timeSlotId: 24 },
+      { classId: 10, subjectId: 10, teacherId: 10, roomId: 100, timeSlotId: 25 },
+      { classId: 10, subjectId: 11, teacherId: 11, roomId: 100, timeSlotId: 26 },
+    ];
+
+    const moves = compactDays(buildParams(schedule));
+    expect(moves).toBeGreaterThan(0);
+    // Dushanbaning 5-slotdagi darsi (teacher 5) 4-slotga (14) suriladi
+    const entry5 = schedule.find(e => e.teacherId === 5)!;
+    expect(entry5.timeSlotId).toBe(14);
+  });
+});
+
+

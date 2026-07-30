@@ -103,15 +103,25 @@ const getTeacherLoadLogic = async () => {
 };
 
 const getTeacherRecommendationLogic = async () => {
-  const [allSubjects, allClasses, allTeachers, allClassSubjects] = await Promise.all([
+  const [allSubjects, allClasses, allTeachers, allClassSubjects, allTeacherSubjects] = await Promise.all([
     storage.getSubjects(),
     storage.getClasses(),
     storage.getTeachers(),
     storage.getAllClassSubjects(),
+    db.select().from(teacherSubjects),
   ]);
 
+  const teacherSubjectMap = new Map<number, Set<number>>();
+  for (const ts of allTeacherSubjects) {
+    if (!teacherSubjectMap.has(ts.teacherId)) teacherSubjectMap.set(ts.teacherId, new Set());
+    teacherSubjectMap.get(ts.teacherId)!.add(ts.subjectId);
+  }
+
   const recommendations: any[] = [];
-  const MAX_HOURS = 30;
+  const OPTIMAL_LOAD_PER_TEACHER = 20; // 1 stavka dars me'yori (20 soat)
+  const MAX_LOAD_PER_TEACHER = 24;     // Maksimal chegara (24 soat)
+  const RESERVE_FACTOR = 1.15;          // 15% zaxira marjasi
+
   const specialtyStats = new Map<string, {
     totalHours: number; classCount: number; uniqueClassIds: Set<number>;
     subjectIds: Set<number>; subjectName: string; color: string;
@@ -156,29 +166,46 @@ const getTeacherRecommendationLogic = async () => {
   for (const [specialty, stats] of Array.from(specialtyStats.entries())) {
     const classId = Array.from(stats.uniqueClassIds)[0];
     const targetClass = allClasses.find(c => c.id === classId);
-    const grade = targetClass ? String(targetClass.grade) : "5";
     const language = targetClass ? (targetClass as any).language || "uz" : "uz";
 
-    const existingTeachers = allTeachers.filter(
-      (t) =>
-        t.isActive &&
-        (getSpecialty(t.specialization || "", "5", language) === specialty ||
-          `${t.firstName} ${t.lastName}`.includes(specialty))
-    );
-    let neededTeachers = Math.ceil(stats.totalHours / MAX_HOURS);
+    const existingTeachers = allTeachers.filter((t) => {
+      if (!t.isActive) return false;
+      const tSpecialty = getSpecialty(t.specialization || "", "5", language);
+      if (tSpecialty === specialty) return true;
+      if ((t.specialization || "").toLowerCase().includes(specialty.toLowerCase())) return true;
+      const assignedSubs = teacherSubjectMap.get(t.id);
+      if (assignedSubs && Array.from(stats.subjectIds).some(sid => assignedSubs.has(sid))) return true;
+      return false;
+    });
+
+    // 20-25 soat dars me'yori (20soat + 15% zaxira marjasi, maksimal 24 soat chegara)
+    const totalWithReserve = Math.ceil(stats.totalHours * RESERVE_FACTOR);
+    const neededByOptimal = Math.ceil(totalWithReserve / OPTIMAL_LOAD_PER_TEACHER);
+    const neededByMaxLimit = Math.ceil(stats.totalHours / MAX_LOAD_PER_TEACHER);
+
+    let neededTeachers = Math.max(neededByOptimal, neededByMaxLimit);
     if (specialty === "Boshlang'ich sinf o'qituvchisi") {
       neededTeachers = Math.max(neededTeachers, stats.uniqueClassIds.size);
     }
+
     const vacancies = Math.max(0, neededTeachers - existingTeachers.length);
+    const roundedHours = Math.round(stats.totalHours * 10) / 10;
+
     recommendations.push({
       subjectId: Array.from(stats.subjectIds)[0] || 0,
       subjectName: specialty,
       subjectColor: stats.color,
-      totalWeeklyHours: Math.round(stats.totalHours * 10) / 10,
+      totalWeeklyHours: roundedHours,
       classCount: stats.uniqueClassIds.size,
       neededTeachers,
       existingTeachers: existingTeachers.length,
       vacancies,
+      optimalLoadPerTeacher: OPTIMAL_LOAD_PER_TEACHER,
+      maxLoadPerTeacher: MAX_LOAD_PER_TEACHER,
+      reservePercent: 15,
+      note: vacancies > 0
+        ? `Jami ${roundedHours} soat yuklama: 1 ta o'qituvchiga ko'pi bilan 20-24 soat dars (+15% zaxira) me'yorida ${neededTeachers} ta o'qituvchi kerak (${existingTeachers.length} ta mavjud, ${vacancies} ta vakant).`
+        : `Yetarli (${existingTeachers.length} ta o'qituvchi mavjud, o'rtacha yuklama: ${Math.round(roundedHours / (existingTeachers.length || 1))} soat/hafta).`,
     });
   }
 

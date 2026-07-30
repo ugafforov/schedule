@@ -95,8 +95,13 @@ export class ClassStorage {
           classId,
           subjectId: item.subjectId,
           teacherId: item.teacherId,
+          teacherId2: (item as any).teacherId2 || null,
           roomId: item.roomId || null,
+          roomId2: (item as any).roomId2 || null,
           weeklyHours: item.weeklyHours,
+          isSplit: (item as any).isSplit ?? false,
+          splitType: (item as any).splitType || "none",
+          jointGroupId: (item as any).jointGroupId || null,
         })),
         ...(classHourRow ? [{ classId, ...classHourRow }] : []),
       ];

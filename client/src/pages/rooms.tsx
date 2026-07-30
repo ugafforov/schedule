@@ -194,6 +194,7 @@ function RoomRecommendationDialog({ open, onClose, shifts, setShifts, reserve, s
     onSuccess: (res: any) => {
       invalidate();
       toast({ title: "Tavsiya qo'llandi", description: res?.message || "Xonalar yangilandi." });
+      onClose();
     },
     onError: (e: any) => {
       toast({ title: "Xatolik", description: e.message || "Tavsiyani qo'llab bo'lmadi", variant: "destructive" });
