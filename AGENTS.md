@@ -61,14 +61,7 @@ await apiRequest("POST", "/api/rooms", data);              // POST/PATCH/DELETE
 ```
 Toʻgʻridan-toʻgʻri `fetch()` chaqirmang — token qoʻshilmaydi.
 
-### 2. Routing — Wouter
-```typescript
-import { useLocation } from "wouter";
-const [, setLocation] = useLocation();
-setLocation("/teachers");
-```
-
-### 3. Hono route qoʻshish
+### 2. Hono route qoʻshish
 Yangi route: `server/routes/yangi.ts` → `server/routes/index.ts` ga `app.route(...)`.
 
 **URL mapping xatosi — eng koʻp uchraydigan muammo:**
@@ -78,17 +71,17 @@ app.route("/api/teacher-load", teacherLoadRoute) → /api/teacher-load/      ✅
 ```
 `teacher-load` va `teacher-recommendation` alohida routerlar — `teacherRoutes` ga qoʻshmang.
 
-### 4. Database
+### 3. Database
 - Soft delete: `isActive: false` — haqiqiy `DELETE` emas.
 - Schema oʻzgartirish tartibi — quyidagi "Kritik tartiblar" boʻlimida.
 - Jadvallar roʻyxati: `shared/schema.ts`.
 
-### 5. Boshlangʻich sinf oʻqituvchilari
+### 4. Boshlangʻich sinf oʻqituvchilari
 gradeLevel="primary" (1-4 sinf) oʻqituvchilar faqat oʻz sinfiga va faqat ruxsat etilgan fanlarga biriktiriladi.
 - Qoida manbasi: `shared/constants.ts` — `PRIMARY_TEACHER_ALLOWED_SUBJECTS`, `isPrimaryTeacherAllowedSubject()`
 - Qoʻllanish: `shared/teacher-matching.ts`, `client/src/pages/assignments.tsx` (`pickTeacherForSubject`), `server/services/teacher.service.ts` (`autoDistributeAll`)
 
-### 6. UI Ranglar (Dark Mode qo'llab-quvvatlashi)
+### 5. UI Ranglar (Dark Mode qo'llab-quvvatlashi)
 UI komponentlar (badge, kartochka, active state, hover) yozayotganda **hech qachon** `bg-blue-50`, `hover:bg-red-100`, `text-green-700` kabi och fonlarni "hardcoded" bermang, ular Dark Modeda oqish/ko'rinmas bo'lib qoladi.
 - Och fon o'rniga opacity ishlating: `bg-blue-500/10` yoki semantic ranglar: `bg-muted`, `bg-accent`.
 - Yozuvlar o'qilishi uchun doim dark variantni bering: `text-blue-700 dark:text-blue-400`.
@@ -121,21 +114,11 @@ GET  /api/teacher-recommendation  # /api/teachers/recommendation emas!
 
 Ikkita server ishlatiladi — **Supabase** (bazani tekshirish: `list_tables`, `execute_sql`, `get_logs`, `get_advisors`; schema oʻzgarishidan oldin real jadvallarni koʻzdan kechiring) va **Playwright** (brauzerda izolyatsiyalangan tekshirish, `http://localhost:5001`, avval `npm run dev`; skrinshotlar `.playwright-mcp/` ga).
 
-UI vizual tekshirishda default — Chrome tool (`claude-in-chrome`, **faqat Claude Code'da mavjud**); boshqa agentlarda va toza sessiya / dialogli oqim / uzun avtomatlashtirish hollarida — Playwright MCP (`/verify-ui` skillga qarang). Har muhim UI oʻzgarishidan soʻng skrinshot bilan tasdiqlang.
+UI vizual tekshirish tartibi (Chrome tool vs Playwright tanlovi, qadamlar): `/verify-ui` skill va `.claude/rules/frontend.md`. Har muhim UI oʻzgarishidan soʻng skrinshot bilan tasdiqlang.
 
 **Versiyalar hamma configda bir xil qotirilgan** — `@playwright/mcp@0.0.78 --headless --isolated` va `@supabase/mcp-server-supabase@0.9.0`. `@latest` YOZMANG: har MCP versiyasi oʻz playwright-core buildini talab qiladi, `@latest` bilan npx jim yangilanadi va "Browser is not installed" xatosi chiqadi. Bittasini oʻzgartirsangiz — **hammasini** oʻzgartiring.
 
-| Agent | MCP config | Yoʻriqnoma |
-|---|---|---|
-| Claude Code | `.mcp.json` | `CLAUDE.md` → `@AGENTS.md` |
-| VS Code Copilot | `.vscode/mcp.json` | `.github/copilot-instructions.md` → havola |
-| Cursor | `.cursor/mcp.json` | `AGENTS.md` (oʻzi oʻqiydi) |
-| Trae | `.trae/mcp.json` | `.trae/rules/project_rules.md` → havola |
-| Codex CLI | `.codex/config.toml` (trusted project shart) | `AGENTS.md` (oʻzi oʻqiydi) |
-| Windsurf | `~/.codeium/windsurf/mcp_config.json` (global) | `.windsurfrules` → havola |
-| Antigravity | `~/.gemini/config/mcp_config.json` (global) | `AGENTS.md` |
-
-Yoʻriqnoma fayllari **faqat havola**, nusxa emas — qoidalar faqat shu faylda. Claude Code uchun `~/.claude.json`da global MCP nusxasi ham bor; loyiha `.mcp.json`i ustun turadi (takror ataylab — `~/.claude.json`ni faqat Claude Code oʻqiydi).
+Har agent uchun MCP config va yoʻriqnoma fayllari roʻyxati: `docs/mcp-agents.md`.
 
 Token: yuqoridagi "Muhit oʻzgaruvchilari" boʻlimida. Tokenni hech qachon commit qilinadigan faylga yozmang.
 

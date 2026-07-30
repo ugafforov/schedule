@@ -6,7 +6,7 @@ paths:
 # Backend qoidalari (Hono)
 
 ## Route qoʻshish va URL mapping
-Yagona manba: AGENTS.md ("Muhim qoidalar" #3) — route qoʻshish zanjiri va teacher-load/teacher-recommendation URL mapping tuzogʻi. Shu yerda takrorlanmaydi. Murakkab logika: `server/services/` ga ajrating.
+Yagona manba: AGENTS.md ("Muhim qoidalar" #2) — route qoʻshish zanjiri va teacher-load/teacher-recommendation URL mapping tuzogʻi. Shu yerda takrorlanmaydi. Murakkab logika: `server/services/` ga ajrating.
 
 ## Storage
 - Interfeys: `server/storage/IStorage.ts`
