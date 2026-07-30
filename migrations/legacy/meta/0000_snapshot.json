@@ -1,33 +1,74 @@
 {
-  "id": "1d67696f-55d9-413c-b0bd-8886a15a2d89",
+  "id": "5f6d3a43-18f6-44d2-a696-900c7fa9a0a6",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.app_settings": {
-      "name": "app_settings",
+    "public.access_codes": {
+      "name": "access_codes",
       "schema": "",
       "columns": {
-        "key": {
-          "name": "key",
-          "type": "text",
+        "id": {
+          "name": "id",
+          "type": "serial",
           "primaryKey": true,
           "notNull": true
         },
-        "value": {
-          "name": "value",
+        "code": {
+          "name": "code",
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "owner_name": {
+          "name": "owner_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'teacher'"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_used": {
+          "name": "last_used",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "access_codes_code_unique": {
+          "name": "access_codes_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.audit_logs": {
       "name": "audit_logs",
@@ -83,7 +124,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.class_subjects": {
       "name": "class_subjects",
@@ -119,44 +160,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "room_id": {
-          "name": "room_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "room_id_2": {
-          "name": "room_id_2",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "weekly_hours": {
           "name": "weekly_hours",
           "type": "real",
           "primaryKey": false,
           "notNull": true,
           "default": 2
-        },
-        "is_split": {
-          "name": "is_split",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false,
-          "default": false
-        },
-        "split_type": {
-          "name": "split_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'none'"
-        },
-        "joint_group_id": {
-          "name": "joint_group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -243,39 +252,13 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "class_subjects_room_id_rooms_id_fk": {
-          "name": "class_subjects_room_id_rooms_id_fk",
-          "tableFrom": "class_subjects",
-          "tableTo": "rooms",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "class_subjects_room_id_2_rooms_id_fk": {
-          "name": "class_subjects_room_id_2_rooms_id_fk",
-          "tableFrom": "class_subjects",
-          "tableTo": "rooms",
-          "columnsFrom": [
-            "room_id_2"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.classes": {
       "name": "classes",
@@ -318,25 +301,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "default_room_id": {
-          "name": "default_room_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "total_students": {
           "name": "total_students",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "default": 30
-        },
-        "study_days": {
-          "name": "study_days",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'1,2,3,4,5'"
         },
         "is_active": {
           "name": "is_active",
@@ -360,454 +330,13 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "classes_default_room_id_rooms_id_fk": {
-          "name": "classes_default_room_id_rooms_id_fk",
-          "tableFrom": "classes",
-          "tableTo": "rooms",
-          "columnsFrom": [
-            "default_room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.curriculum_entries": {
-      "name": "curriculum_entries",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "plan_id": {
-          "name": "plan_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "grade": {
-          "name": "grade",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "subject_name": {
-          "name": "subject_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "codes": {
-          "name": "codes",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "keywords": {
-          "name": "keywords",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "weekly_hours": {
-          "name": "weekly_hours",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recommended_specialty": {
-          "name": "recommended_specialty",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "curriculum_entries_plan_id_idx": {
-          "name": "curriculum_entries_plan_id_idx",
-          "columns": [
-            {
-              "expression": "plan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "curriculum_entries_plan_grade_idx": {
-          "name": "curriculum_entries_plan_grade_idx",
-          "columns": [
-            {
-              "expression": "plan_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "grade",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "curriculum_entries_plan_id_curriculum_plans_id_fk": {
-          "name": "curriculum_entries_plan_id_curriculum_plans_id_fk",
-          "tableFrom": "curriculum_entries",
-          "tableTo": "curriculum_plans",
-          "columnsFrom": [
-            "plan_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.curriculum_plans": {
-      "name": "curriculum_plans",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "year": {
-          "name": "year",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "order_number": {
-          "name": "order_number",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "language": {
-          "name": "language",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.joint_lesson_classes": {
-      "name": "joint_lesson_classes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "joint_lesson_id": {
-          "name": "joint_lesson_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "class_id": {
-          "name": "class_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "joint_lesson_classes_joint_lesson_id_idx": {
-          "name": "joint_lesson_classes_joint_lesson_id_idx",
-          "columns": [
-            {
-              "expression": "joint_lesson_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "joint_lesson_classes_class_id_idx": {
-          "name": "joint_lesson_classes_class_id_idx",
-          "columns": [
-            {
-              "expression": "class_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "joint_lesson_classes_joint_lesson_id_joint_lessons_id_fk": {
-          "name": "joint_lesson_classes_joint_lesson_id_joint_lessons_id_fk",
-          "tableFrom": "joint_lesson_classes",
-          "tableTo": "joint_lessons",
-          "columnsFrom": [
-            "joint_lesson_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "joint_lesson_classes_class_id_classes_id_fk": {
-          "name": "joint_lesson_classes_class_id_classes_id_fk",
-          "tableFrom": "joint_lesson_classes",
-          "tableTo": "classes",
-          "columnsFrom": [
-            "class_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.joint_lesson_groups": {
-      "name": "joint_lesson_groups",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "joint_lesson_id": {
-          "name": "joint_lesson_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "group_name": {
-          "name": "group_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "teacher_id": {
-          "name": "teacher_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "room_id": {
-          "name": "room_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "joint_lesson_groups_joint_lesson_id_idx": {
-          "name": "joint_lesson_groups_joint_lesson_id_idx",
-          "columns": [
-            {
-              "expression": "joint_lesson_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "joint_lesson_groups_teacher_id_idx": {
-          "name": "joint_lesson_groups_teacher_id_idx",
-          "columns": [
-            {
-              "expression": "teacher_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "joint_lesson_groups_joint_lesson_id_joint_lessons_id_fk": {
-          "name": "joint_lesson_groups_joint_lesson_id_joint_lessons_id_fk",
-          "tableFrom": "joint_lesson_groups",
-          "tableTo": "joint_lessons",
-          "columnsFrom": [
-            "joint_lesson_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "joint_lesson_groups_teacher_id_teachers_id_fk": {
-          "name": "joint_lesson_groups_teacher_id_teachers_id_fk",
-          "tableFrom": "joint_lesson_groups",
-          "tableTo": "teachers",
-          "columnsFrom": [
-            "teacher_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "joint_lesson_groups_room_id_rooms_id_fk": {
-          "name": "joint_lesson_groups_room_id_rooms_id_fk",
-          "tableFrom": "joint_lesson_groups",
-          "tableTo": "rooms",
-          "columnsFrom": [
-            "room_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
-    },
-    "public.joint_lessons": {
-      "name": "joint_lessons",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "serial",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "subject_id": {
-          "name": "subject_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "weekly_hours": {
-          "name": "weekly_hours",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 2
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "joint_lessons_subject_id_subjects_id_fk": {
-          "name": "joint_lessons_subject_id_subjects_id_fk",
-          "tableFrom": "joint_lessons",
-          "tableTo": "subjects",
-          "columnsFrom": [
-            "subject_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.rooms": {
       "name": "rooms",
@@ -870,7 +399,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.schedule_conflicts": {
       "name": "schedule_conflicts",
@@ -961,7 +490,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.schedule_entries": {
       "name": "schedule_entries",
@@ -1003,18 +532,11 @@
           "primaryKey": false,
           "notNull": true
         },
-        "week_type": {
-          "name": "week_type",
-          "type": "text",
+        "week_start_date": {
+          "name": "week_start_date",
+          "type": "timestamp",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'always'"
-        },
-        "joint_lesson_id": {
-          "name": "joint_lesson_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "is_active": {
           "name": "is_active",
@@ -1067,6 +589,21 @@
           "columns": [
             {
               "expression": "time_slot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "schedule_entries_week_start_idx": {
+          "name": "schedule_entries_week_start_idx",
+          "columns": [
+            {
+              "expression": "week_start_date",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1158,26 +695,13 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "schedule_entries_joint_lesson_id_joint_lessons_id_fk": {
-          "name": "schedule_entries_joint_lesson_id_joint_lessons_id_fk",
-          "tableFrom": "schedule_entries",
-          "tableTo": "joint_lessons",
-          "columnsFrom": [
-            "joint_lesson_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.subjects": {
       "name": "subjects",
@@ -1250,7 +774,7 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.teacher_subjects": {
       "name": "teacher_subjects",
@@ -1308,7 +832,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.teacher_unavailability": {
       "name": "teacher_unavailability",
@@ -1402,7 +926,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.teachers": {
       "name": "teachers",
@@ -1466,13 +990,6 @@
           "notNull": false,
           "default": "'high'"
         },
-        "is_vacant": {
-          "name": "is_vacant",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "is_active": {
           "name": "is_active",
           "type": "boolean",
@@ -1495,7 +1012,7 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.time_slots": {
       "name": "time_slots",
@@ -1559,7 +1076,7 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     },
     "public.user_roles": {
       "name": "user_roles",
@@ -1606,7 +1123,7 @@
       },
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": true
+      "isRLSEnabled": false
     }
   },
   "enums": {},

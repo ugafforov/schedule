@@ -1,6 +1,6 @@
 {
-  "id": "1d67696f-55d9-413c-b0bd-8886a15a2d89",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "3cf86cc5-c951-49ea-950c-4861dbc196f8",
+  "prevId": "1d67696f-55d9-413c-b0bd-8886a15a2d89",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -171,9 +171,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "class_subjects_teacher_id_idx": {
           "name": "class_subjects_teacher_id_idx",
@@ -186,89 +186,89 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "class_subjects_class_id_classes_id_fk": {
           "name": "class_subjects_class_id_classes_id_fk",
           "tableFrom": "class_subjects",
-          "tableTo": "classes",
           "columnsFrom": [
             "class_id"
           ],
+          "tableTo": "classes",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "class_subjects_subject_id_subjects_id_fk": {
           "name": "class_subjects_subject_id_subjects_id_fk",
           "tableFrom": "class_subjects",
-          "tableTo": "subjects",
           "columnsFrom": [
             "subject_id"
           ],
+          "tableTo": "subjects",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "class_subjects_teacher_id_teachers_id_fk": {
           "name": "class_subjects_teacher_id_teachers_id_fk",
           "tableFrom": "class_subjects",
-          "tableTo": "teachers",
           "columnsFrom": [
             "teacher_id"
           ],
+          "tableTo": "teachers",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "class_subjects_teacher_id_2_teachers_id_fk": {
           "name": "class_subjects_teacher_id_2_teachers_id_fk",
           "tableFrom": "class_subjects",
-          "tableTo": "teachers",
           "columnsFrom": [
             "teacher_id_2"
           ],
+          "tableTo": "teachers",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "class_subjects_room_id_rooms_id_fk": {
           "name": "class_subjects_room_id_rooms_id_fk",
           "tableFrom": "class_subjects",
-          "tableTo": "rooms",
           "columnsFrom": [
             "room_id"
           ],
+          "tableTo": "rooms",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         },
         "class_subjects_room_id_2_rooms_id_fk": {
           "name": "class_subjects_room_id_2_rooms_id_fk",
           "tableFrom": "class_subjects",
-          "tableTo": "rooms",
           "columnsFrom": [
             "room_id_2"
           ],
+          "tableTo": "rooms",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -351,28 +351,28 @@
         "classes_class_teacher_id_teachers_id_fk": {
           "name": "classes_class_teacher_id_teachers_id_fk",
           "tableFrom": "classes",
-          "tableTo": "teachers",
           "columnsFrom": [
             "class_teacher_id"
           ],
+          "tableTo": "teachers",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "classes_default_room_id_rooms_id_fk": {
           "name": "classes_default_room_id_rooms_id_fk",
           "tableFrom": "classes",
-          "tableTo": "rooms",
           "columnsFrom": [
             "default_room_id"
           ],
+          "tableTo": "rooms",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -448,9 +448,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "curriculum_entries_plan_grade_idx": {
           "name": "curriculum_entries_plan_grade_idx",
@@ -469,24 +469,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "curriculum_entries_plan_id_curriculum_plans_id_fk": {
           "name": "curriculum_entries_plan_id_curriculum_plans_id_fk",
           "tableFrom": "curriculum_entries",
-          "tableTo": "curriculum_plans",
           "columnsFrom": [
             "plan_id"
           ],
+          "tableTo": "curriculum_plans",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -581,9 +581,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "joint_lesson_classes_class_id_idx": {
           "name": "joint_lesson_classes_class_id_idx",
@@ -596,37 +596,37 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "joint_lesson_classes_joint_lesson_id_joint_lessons_id_fk": {
           "name": "joint_lesson_classes_joint_lesson_id_joint_lessons_id_fk",
           "tableFrom": "joint_lesson_classes",
-          "tableTo": "joint_lessons",
           "columnsFrom": [
             "joint_lesson_id"
           ],
+          "tableTo": "joint_lessons",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "joint_lesson_classes_class_id_classes_id_fk": {
           "name": "joint_lesson_classes_class_id_classes_id_fk",
           "tableFrom": "joint_lesson_classes",
-          "tableTo": "classes",
           "columnsFrom": [
             "class_id"
           ],
+          "tableTo": "classes",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -682,9 +682,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "joint_lesson_groups_teacher_id_idx": {
           "name": "joint_lesson_groups_teacher_id_idx",
@@ -697,50 +697,50 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "joint_lesson_groups_joint_lesson_id_joint_lessons_id_fk": {
           "name": "joint_lesson_groups_joint_lesson_id_joint_lessons_id_fk",
           "tableFrom": "joint_lesson_groups",
-          "tableTo": "joint_lessons",
           "columnsFrom": [
             "joint_lesson_id"
           ],
+          "tableTo": "joint_lessons",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "joint_lesson_groups_teacher_id_teachers_id_fk": {
           "name": "joint_lesson_groups_teacher_id_teachers_id_fk",
           "tableFrom": "joint_lesson_groups",
-          "tableTo": "teachers",
           "columnsFrom": [
             "teacher_id"
           ],
+          "tableTo": "teachers",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "joint_lesson_groups_room_id_rooms_id_fk": {
           "name": "joint_lesson_groups_room_id_rooms_id_fk",
           "tableFrom": "joint_lesson_groups",
-          "tableTo": "rooms",
           "columnsFrom": [
             "room_id"
           ],
+          "tableTo": "rooms",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -792,15 +792,15 @@
         "joint_lessons_subject_id_subjects_id_fk": {
           "name": "joint_lessons_subject_id_subjects_id_fk",
           "tableFrom": "joint_lessons",
-          "tableTo": "subjects",
           "columnsFrom": [
             "subject_id"
           ],
+          "tableTo": "subjects",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -933,28 +933,28 @@
         "schedule_conflicts_schedule_entry_1_id_schedule_entries_id_fk": {
           "name": "schedule_conflicts_schedule_entry_1_id_schedule_entries_id_fk",
           "tableFrom": "schedule_conflicts",
-          "tableTo": "schedule_entries",
           "columnsFrom": [
             "schedule_entry_1_id"
           ],
+          "tableTo": "schedule_entries",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "schedule_conflicts_schedule_entry_2_id_schedule_entries_id_fk": {
           "name": "schedule_conflicts_schedule_entry_2_id_schedule_entries_id_fk",
           "tableFrom": "schedule_conflicts",
-          "tableTo": "schedule_entries",
           "columnsFrom": [
             "schedule_entry_2_id"
           ],
+          "tableTo": "schedule_entries",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1043,9 +1043,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "schedule_entries_teacher_id_idx": {
           "name": "schedule_entries_teacher_id_idx",
@@ -1058,9 +1058,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "schedule_entries_time_slot_id_idx": {
           "name": "schedule_entries_time_slot_id_idx",
@@ -1073,9 +1073,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "schedule_entries_active_idx": {
           "name": "schedule_entries_active_idx",
@@ -1088,89 +1088,89 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "schedule_entries_class_id_classes_id_fk": {
           "name": "schedule_entries_class_id_classes_id_fk",
           "tableFrom": "schedule_entries",
-          "tableTo": "classes",
           "columnsFrom": [
             "class_id"
           ],
+          "tableTo": "classes",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "schedule_entries_subject_id_subjects_id_fk": {
           "name": "schedule_entries_subject_id_subjects_id_fk",
           "tableFrom": "schedule_entries",
-          "tableTo": "subjects",
           "columnsFrom": [
             "subject_id"
           ],
+          "tableTo": "subjects",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "schedule_entries_teacher_id_teachers_id_fk": {
           "name": "schedule_entries_teacher_id_teachers_id_fk",
           "tableFrom": "schedule_entries",
-          "tableTo": "teachers",
           "columnsFrom": [
             "teacher_id"
           ],
+          "tableTo": "teachers",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "schedule_entries_room_id_rooms_id_fk": {
           "name": "schedule_entries_room_id_rooms_id_fk",
           "tableFrom": "schedule_entries",
-          "tableTo": "rooms",
           "columnsFrom": [
             "room_id"
           ],
+          "tableTo": "rooms",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "schedule_entries_time_slot_id_time_slots_id_fk": {
           "name": "schedule_entries_time_slot_id_time_slots_id_fk",
           "tableFrom": "schedule_entries",
-          "tableTo": "time_slots",
           "columnsFrom": [
             "time_slot_id"
           ],
+          "tableTo": "time_slots",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "schedule_entries_joint_lesson_id_joint_lessons_id_fk": {
           "name": "schedule_entries_joint_lesson_id_joint_lessons_id_fk",
           "tableFrom": "schedule_entries",
-          "tableTo": "joint_lessons",
           "columnsFrom": [
             "joint_lesson_id"
           ],
+          "tableTo": "joint_lessons",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "set null"
         }
       },
       "compositePrimaryKeys": {},
@@ -1242,10 +1242,10 @@
       "uniqueConstraints": {
         "subjects_code_unique": {
           "name": "subjects_code_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "code"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1280,28 +1280,28 @@
         "teacher_subjects_teacher_id_teachers_id_fk": {
           "name": "teacher_subjects_teacher_id_teachers_id_fk",
           "tableFrom": "teacher_subjects",
-          "tableTo": "teachers",
           "columnsFrom": [
             "teacher_id"
           ],
+          "tableTo": "teachers",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "teacher_subjects_subject_id_subjects_id_fk": {
           "name": "teacher_subjects_subject_id_subjects_id_fk",
           "tableFrom": "teacher_subjects",
-          "tableTo": "subjects",
           "columnsFrom": [
             "subject_id"
           ],
+          "tableTo": "subjects",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1351,9 +1351,9 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         },
         "teacher_unavail_lookup_idx": {
           "name": "teacher_unavail_lookup_idx",
@@ -1378,24 +1378,24 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "with": {},
           "method": "btree",
-          "with": {}
+          "concurrently": false
         }
       },
       "foreignKeys": {
         "teacher_unavailability_teacher_id_teachers_id_fk": {
           "name": "teacher_unavailability_teacher_id_teachers_id_fk",
           "tableFrom": "teacher_unavailability",
-          "tableTo": "teachers",
           "columnsFrom": [
             "teacher_id"
           ],
+          "tableTo": "teachers",
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -1487,10 +1487,10 @@
       "uniqueConstraints": {
         "teachers_employee_id_unique": {
           "name": "teachers_employee_id_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "employee_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1598,10 +1598,10 @@
       "uniqueConstraints": {
         "user_roles_user_id_unique": {
           "name": "user_roles_user_id_unique",
-          "nullsNotDistinct": false,
           "columns": [
             "user_id"
-          ]
+          ],
+          "nullsNotDistinct": false
         }
       },
       "policies": {},
@@ -1611,10 +1611,10 @@
   },
   "enums": {},
   "schemas": {},
+  "views": {},
   "sequences": {},
   "roles": {},
   "policies": {},
-  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},

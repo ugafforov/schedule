@@ -108,6 +108,11 @@ Claude Code'da bular skill/hook sifatida avtomatlashtirilgan; boshqa agentlar sh
 4. Mavjud ustunni oʻchirish/qayta nomlashdan oldin foydalanuvchidan tasdiq oling (maʼlumot yoʻqolishi mumkin).
 5. Yakunda: `npm run check` + `execute_sql` bilan yangi strukturani tekshiring.
 
+Migrationlar faqat `migrations/meta/_journal.json`dagi roʻyxat boʻyicha bajariladi — SQL faylni
+qoʻlda qoʻshish yetarli emas, `db:generate` (yoki `--custom`) orqali yarating. Drizzle yarata
+olmaydigan narsalar (RPC funksiyalari, GRANT/REVOKE) — `--custom` migrationda.
+`migrations/legacy/` — eski, ishlatilmaydigan arxiv (sabab: oʻsha yerdagi README).
+
 **Verifikatsiya intizomi:** har kod oʻzgarishidan soʻng `npm run check` toza oʻtishi shart; sof logika oʻzgarganda `npm run test`. UI oʻzgarishini brauzerda skrinshot bilan tasdiqlamasdan "tayyor" demang (dark mode'ni ham tekshiring, konsolda yangi error boʻlmasin).
 
 ## Noodatiy API URLlar
