@@ -165,22 +165,32 @@ $function$;
 -- o'qiydi/yozadi; brauzer Supabase'ni faqat auth uchun ishlatadi. RLS 0000 baseline'da
 -- yoqilgan va HECH QANDAY policy yo'q => anon/authenticated uchun kirish rad etiladi.
 -- TRUNCATE alohida muhim: RLS uni filtrlamaydi, faqat huquqning o'zi to'sadi.
+-- `anon`/`authenticated`/`service_role` — Supabase rollari. Toza PostgreSQL'da ular
+-- yo'q (u holda PostgREST ham yo'q, ya'ni ochilish xavfi ham yo'q), shuning uchun
+-- har bir amal rol mavjudligiga qarab bajariladi — migration xato bermaydi.
 DO $$
-DECLARE t text;
+DECLARE t text; r text;
 BEGIN
-  FOR t IN
-    SELECT c.relname FROM pg_class c
-    JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public' AND c.relkind = 'r'
-  LOOP
-    EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon, authenticated', t);
+  FOREACH r IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+      FOR t IN
+        SELECT c.relname FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind = 'r'
+      LOOP
+        EXECUTE format('REVOKE ALL ON TABLE public.%I FROM %I', t, r);
+      END LOOP;
+      EXECUTE format('REVOKE ALL ON FUNCTION public.check_schedule_conflicts() FROM %I', r);
+      EXECUTE format('REVOKE ALL ON FUNCTION public.get_teacher_recommendations() FROM %I', r);
+    END IF;
   END LOOP;
+
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.check_schedule_conflicts() TO service_role';
+    EXECUTE 'GRANT EXECUTE ON FUNCTION public.get_teacher_recommendations() TO service_role';
+  END IF;
 END $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION public.check_schedule_conflicts() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.check_schedule_conflicts() FROM PUBLIC;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION public.get_teacher_recommendations() FROM PUBLIC, anon, authenticated;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION public.check_schedule_conflicts() TO service_role;
---> statement-breakpoint
-GRANT EXECUTE ON FUNCTION public.get_teacher_recommendations() TO service_role;
+REVOKE ALL ON FUNCTION public.get_teacher_recommendations() FROM PUBLIC;
