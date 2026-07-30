@@ -82,6 +82,9 @@ app.route("/api/teacher-load", teacherLoadRoute) → /api/teacher-load/      ✅
 - Soft delete: `isActive: false` — haqiqiy `DELETE` emas.
 - Schema oʻzgartirish tartibi — quyidagi "Kritik tartiblar" boʻlimida.
 - Jadvallar roʻyxati: `shared/schema.ts`.
+- **Har yangi `pgTable` oxiriga `.enableRLS()` qoʻying.** Aks holda `npm run db:push`
+  bazadagi RLS'ni jim oʻchiradi va jadval `anon` kalit orqali ochiq qoladi (bu avval
+  uch marta sodir boʻlgan). Sabab va tafsilot: `migrations/0010_harden_rls_and_revoke_anon.sql`.
 
 ### 5. Boshlangʻich sinf oʻqituvchilari
 gradeLevel="primary" (1-4 sinf) oʻqituvchilar faqat oʻz sinfiga va faqat ruxsat etilgan fanlarga biriktiriladi.

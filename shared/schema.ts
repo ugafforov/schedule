@@ -17,7 +17,7 @@ export const subjects = pgTable("subjects", {
   // room type required: "classroom" | "lab" | "gym" | "computer" | "music" | "art" | "any"
   requiredRoomType: text("required_room_type").notNull().default("any"),
   isActive: boolean("is_active").notNull().default(true),
-});
+}).enableRLS();
 
 // Teachers table
 export const teachers = pgTable("teachers", {
@@ -35,7 +35,7 @@ export const teachers = pgTable("teachers", {
   // Avtomatik yaratilgan "vakant" (bo'sh o'rin) o'qituvchi — ism-matn heuristikasi o'rniga flag
   isVacant: boolean("is_vacant").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
-});
+}).enableRLS();
 
 // Teacher unavailability — which day/period a teacher cannot teach
 export const teacherUnavailability = pgTable("teacher_unavailability", {
@@ -46,7 +46,7 @@ export const teacherUnavailability = pgTable("teacher_unavailability", {
 }, (table) => ({
   teacherIdIdx: index("teacher_unavail_teacher_id_idx").on(table.teacherId),
   compositeIdx: index("teacher_unavail_lookup_idx").on(table.teacherId, table.dayOfWeek, table.periodNumber),
-}));
+})).enableRLS();
 
 // Classes table
 export const classes = pgTable("classes", {
@@ -60,7 +60,7 @@ export const classes = pgTable("classes", {
   totalStudents: integer("total_students").default(30),
   studyDays: text("study_days").notNull().default("1,2,3,4,5"), // "1,2,3,4,5" or "1,2,3,4,5,6"
   isActive: boolean("is_active").notNull().default(true),
-});
+}).enableRLS();
 
 // Rooms table
 export const rooms = pgTable("rooms", {
@@ -73,7 +73,7 @@ export const rooms = pgTable("rooms", {
   // "classroom" | "lab" | "gym" | "computer" | "music" | "art"
   roomType: text("room_type").notNull().default("classroom"),
   isActive: boolean("is_active").notNull().default(true),
-});
+}).enableRLS();
 
 // Time slots table
 export const timeSlots = pgTable("time_slots", {
@@ -85,14 +85,14 @@ export const timeSlots = pgTable("time_slots", {
   periodNumber: integer("period_number").notNull().default(1),
   isBreak: boolean("is_break").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
-});
+}).enableRLS();
 
 // Teacher-Subject junction (which subjects a teacher can teach)
 export const teacherSubjects = pgTable("teacher_subjects", {
   id: serial("id").primaryKey(),
   teacherId: integer("teacher_id").references(() => teachers.id, { onDelete: "cascade" }).notNull(),
   subjectId: integer("subject_id").references(() => subjects.id, { onDelete: "cascade" }).notNull(),
-});
+}).enableRLS();
 
 // Class-Subject assignments (which subjects a class studies, with teacher and weekly hours)
 export const classSubjects = pgTable("class_subjects", {
@@ -110,7 +110,7 @@ export const classSubjects = pgTable("class_subjects", {
 }, (table) => ({
   classIdIdx: index("class_subjects_class_id_idx").on(table.classId),
   teacherIdIdx: index("class_subjects_teacher_id_idx").on(table.teacherId),
-}));
+})).enableRLS();
 
 // Joint lessons table (combined lessons metadata)
 export const jointLessons = pgTable("joint_lessons", {
@@ -119,7 +119,7 @@ export const jointLessons = pgTable("joint_lessons", {
   weeklyHours: real("weekly_hours").notNull().default(2),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}).enableRLS();
 
 // Joint lesson classes junction table
 export const jointLessonClasses = pgTable("joint_lesson_classes", {
@@ -129,7 +129,7 @@ export const jointLessonClasses = pgTable("joint_lesson_classes", {
 }, (table) => ({
   jointLessonIdIdx: index("joint_lesson_classes_joint_lesson_id_idx").on(table.jointLessonId),
   classIdIdx: index("joint_lesson_classes_class_id_idx").on(table.classId),
-}));
+})).enableRLS();
 
 // Joint lesson groups table (teacher-room division for a joint lesson)
 export const jointLessonGroups = pgTable("joint_lesson_groups", {
@@ -141,7 +141,7 @@ export const jointLessonGroups = pgTable("joint_lesson_groups", {
 }, (table) => ({
   jointLessonIdIdx: index("joint_lesson_groups_joint_lesson_id_idx").on(table.jointLessonId),
   teacherIdIdx: index("joint_lesson_groups_teacher_id_idx").on(table.teacherId),
-}));
+})).enableRLS();
 
 // Schedule entries table (main timetable)
 export const scheduleEntries = pgTable("schedule_entries", {
@@ -160,7 +160,7 @@ export const scheduleEntries = pgTable("schedule_entries", {
   teacherIdIdx: index("schedule_entries_teacher_id_idx").on(table.teacherId),
   timeSlotIdIdx: index("schedule_entries_time_slot_id_idx").on(table.timeSlotId),
   activeIdx: index("schedule_entries_active_idx").on(table.isActive),
-}));
+})).enableRLS();
 
 // Schedule conflicts table
 export const scheduleConflicts = pgTable("schedule_conflicts", {
@@ -172,7 +172,7 @@ export const scheduleConflicts = pgTable("schedule_conflicts", {
   severity: text("severity").notNull().default("medium"),
   isResolved: boolean("is_resolved").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}).enableRLS();
 
 // Curriculum plans (DTS versiyalari) — har biri bitta rasmiy buyruqqa mos keladi.
 // Yangi o'quv yil/qonun yangilanganda yangi plan yaratiladi, eskisi isActive=false qilinadi.
@@ -183,7 +183,7 @@ export const curriculumPlans = pgTable("curriculum_plans", {
   language: text("language").notNull(), // "uz" | "ru"
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}).enableRLS();
 
 // Curriculum entries — bitta plan ichida grade x subject uchun haftalik soat.
 export const curriculumEntries = pgTable("curriculum_entries", {
@@ -198,13 +198,13 @@ export const curriculumEntries = pgTable("curriculum_entries", {
 }, (table) => ({
   planIdIdx: index("curriculum_entries_plan_id_idx").on(table.planId),
   planGradeIdx: index("curriculum_entries_plan_grade_idx").on(table.planId, table.grade),
-}));
+})).enableRLS();
 
 // Umumiy sozlamalar (key-value): masalan classHourSlot — sinf soati kuni/vaqti
 export const appSettings = pgTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
-});
+}).enableRLS();
 
 // User roles table
 export const userRoles = pgTable("user_roles", {
@@ -212,7 +212,7 @@ export const userRoles = pgTable("user_roles", {
   userId: text("user_id").notNull().unique(), // Supabase auth.users UUID
   role: text("role").notNull().default("teacher"), // "admin" | "teacher"
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}).enableRLS();
 
 // Audit logs table
 export const auditLogs = pgTable("audit_logs", {
@@ -223,7 +223,7 @@ export const auditLogs = pgTable("audit_logs", {
   path: text("path").notNull(),
   details: text("details"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}).enableRLS();
 
 // Relations
 export const teachersRelations = relations(teachers, ({ many }) => ({
