@@ -44,7 +44,7 @@ export const scheduleRoutes = new Hono().use(authMiddleware)
     if (classId) {
       await storage.clearScheduleForClass(parseInt(classId));
     } else {
-      await db.update(scheduleEntries).set({ isActive: false });
+      await storage.deleteAllScheduleEntries();
     }
     return c.body(null, 204);
   });

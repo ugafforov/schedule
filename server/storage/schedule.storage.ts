@@ -63,7 +63,21 @@ export class ScheduleStorage {
     return (r.rowCount || 0) > 0;
   }
   async deleteAllScheduleEntries(): Promise<void> {
-    await db.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.isActive, true));
+    // Butun jadval tozalanganda yozuvlarni nofaol qilib qoldirmaymiz — ularni hech kim
+    // qaytarmaydi, lekin ular bazada cheksiz to'planadi. Konfliktlar ham hosila ma'lumot:
+    // `check_schedule_conflicts()` ularni qayta hisoblaydi.
+    await db.transaction(async (tx) => {
+      await tx.delete(scheduleConflicts);
+      await tx.delete(scheduleEntries);
+    });
+  }
+  /** Eski soft-delete qilingan yozuvlarni va ularga bog'liq konfliktlarni butunlay tozalaydi. */
+  async purgeInactiveScheduleEntries(): Promise<number> {
+    return db.transaction(async (tx) => {
+      await tx.delete(scheduleConflicts);
+      const r = await tx.delete(scheduleEntries).where(eq(scheduleEntries.isActive, false));
+      return r.rowCount || 0;
+    });
   }
   async clearScheduleForClass(classId: number): Promise<void> {
     await db.transaction(async (tx) => {
@@ -97,10 +111,10 @@ export class ScheduleStorage {
             ));
         }
       }
-      // 4. Clear conflicts
-      await tx.update(scheduleConflicts)
-        .set({ isResolved: true })
-        .where(eq(scheduleConflicts.isResolved, false));
+      // 4. Konfliktlarni o'chiramiz — bu hosila ma'lumot, `check_schedule_conflicts()`
+      //    keyingi so'rovda qaytadan hisoblaydi. "isResolved = true" qilib qoldirilsa,
+      //    ular bazada to'planaveradi (bir vaqtlar 14 248 tagacha yig'ilgan).
+      await tx.delete(scheduleConflicts);
     });
   }
 
@@ -112,12 +126,16 @@ export class ScheduleStorage {
     const [r] = await db.insert(scheduleConflicts).values(data).returning();
     return r;
   }
+  // Eslatma: konfliktlar — hosila ma'lumot. `check_schedule_conflicts()` har chaqiruvda
+  // ularni qaytadan hisoblaydi, ya'ni "isResolved = true" qilish konfliktni qayta
+  // aniqlanishidan SAQLAMAYDI — faqat bazada o'qilmaydigan qator qoldiradi (shu sabab
+  // bir vaqtlar 14 248 ta "hal etilgan" qator yig'ilib qolgan). Shuning uchun o'chiramiz.
   async resolveConflict(id: number): Promise<boolean> {
-    const r = await db.update(scheduleConflicts).set({ isResolved: true }).where(eq(scheduleConflicts.id, id));
+    const r = await db.delete(scheduleConflicts).where(eq(scheduleConflicts.id, id));
     return (r.rowCount || 0) > 0;
   }
   async clearConflicts(): Promise<void> {
-    await db.update(scheduleConflicts).set({ isResolved: true });
+    await db.delete(scheduleConflicts);
   }
 
   // Dashboard

@@ -1,6 +1,6 @@
 import { storage } from "../storage/index";
 import { db } from "../db";
-import { scheduleEntries, timeSlots, type InsertScheduleEntry, type ScheduleEntry } from "@shared/schema";
+import { scheduleEntries, scheduleConflicts, timeSlots, type InsertScheduleEntry, type ScheduleEntry } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { getSubjectComplexity, getMaxHoursPerDay, getSubjectCategory, type SubjectCategory, getMaxDailyComplexity, isClassHourSubject, CLASS_HOUR_SLOT_SETTING_KEY, DEFAULT_CLASS_HOUR_SLOT, roomMatchesSubject } from "@shared/constants";
 import { DomainError } from "../errors";
@@ -2299,8 +2299,12 @@ export async function saveTimeSlotsFromRows(rowsRaw: any[]) {
   );
 
   await db.transaction(async (tx) => {
-    await tx.update(scheduleEntries).set({ isActive: false }).where(eq(scheduleEntries.isActive, true));
-    await tx.update(timeSlots).set({ isActive: false }).where(eq(timeSlots.isActive, true));
+    // Vaqt oralig'i qayta yaratilganda eski jadval baribir yaroqsiz bo'ladi, shuning uchun
+    // uni nofaol qilib qoldirmasdan butunlay o'chiramiz — aks holda har chaqiruvda bazada
+    // yangi "o'lik" qatlam to'planadi (bir vaqtlar 27 693 dars yozuvi va 138 slot yig'ilgan).
+    await tx.delete(scheduleConflicts);
+    await tx.delete(scheduleEntries);
+    await tx.delete(timeSlots);
     await tx.insert(timeSlots).values(toCreate);
   });
 

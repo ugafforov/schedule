@@ -1,0 +1,4 @@
+CREATE UNIQUE INDEX "rooms_active_name_number_uq" ON "rooms" USING btree ("name","room_number") WHERE "rooms"."is_active";--> statement-breakpoint
+CREATE UNIQUE INDEX "subjects_active_name_uq" ON "subjects" USING btree ("name") WHERE "subjects"."is_active";--> statement-breakpoint
+CREATE UNIQUE INDEX "time_slots_active_lesson_uq" ON "time_slots" USING btree ("day_of_week","period_number") WHERE "time_slots"."is_active" AND NOT "time_slots"."is_break";--> statement-breakpoint
+CREATE UNIQUE INDEX "time_slots_active_break_uq" ON "time_slots" USING btree ("day_of_week","name") WHERE "time_slots"."is_active" AND "time_slots"."is_break";

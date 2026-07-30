@@ -1,5 +1,5 @@
-import { pgTable, text, serial, integer, boolean, timestamp, time, real, index, jsonb } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { pgTable, text, serial, integer, boolean, timestamp, time, real, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -17,7 +17,11 @@ export const subjects = pgTable("subjects", {
   // room type required: "classroom" | "lab" | "gym" | "computer" | "music" | "art" | "any"
   requiredRoomType: text("required_room_type").notNull().default("any"),
   isActive: boolean("is_active").notNull().default(true),
-}).enableRLS();
+}, (table) => ({
+  // Faol fanlar orasida nom takrorlanmasin. Nofaol (soft-delete qilingan) qatorlar
+  // cheklanmaydi — "hammasini nofaol qilib, qaytadan yaratish" naqshi ishlayveradi.
+  activeNameUq: uniqueIndex("subjects_active_name_uq").on(table.name).where(sql`${table.isActive}`),
+})).enableRLS();
 
 // Teachers table
 export const teachers = pgTable("teachers", {
@@ -73,7 +77,9 @@ export const rooms = pgTable("rooms", {
   // "classroom" | "lab" | "gym" | "computer" | "music" | "art"
   roomType: text("room_type").notNull().default("classroom"),
   isActive: boolean("is_active").notNull().default(true),
-}).enableRLS();
+}, (table) => ({
+  activeNameNumberUq: uniqueIndex("rooms_active_name_number_uq").on(table.name, table.roomNumber).where(sql`${table.isActive}`),
+})).enableRLS();
 
 // Time slots table
 export const timeSlots = pgTable("time_slots", {
@@ -85,7 +91,15 @@ export const timeSlots = pgTable("time_slots", {
   periodNumber: integer("period_number").notNull().default(1),
   isBreak: boolean("is_break").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
-}).enableRLS();
+}, (table) => ({
+  // Dars soatlari: bir kunda bitta tartib raqami bitta marta. Tanaffuslar alohida —
+  // ularning periodNumber'i doim 0, shuning uchun nom bo'yicha ajratiladi
+  // (masalan "Tushlik tanaffusi" va "Kechki tushlik" bir kunda birga bo'lishi mumkin).
+  activeLessonUq: uniqueIndex("time_slots_active_lesson_uq").on(table.dayOfWeek, table.periodNumber)
+    .where(sql`${table.isActive} AND NOT ${table.isBreak}`),
+  activeBreakUq: uniqueIndex("time_slots_active_break_uq").on(table.dayOfWeek, table.name)
+    .where(sql`${table.isActive} AND ${table.isBreak}`),
+})).enableRLS();
 
 // Teacher-Subject junction (which subjects a teacher can teach)
 export const teacherSubjects = pgTable("teacher_subjects", {
