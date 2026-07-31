@@ -467,6 +467,7 @@ export default function Timetables() {
   const [pendingTarget, setPendingTarget] = useState<{ classIds?: number[] } | null>(null);
   const [progressStep, setProgressStep] = useState(0);
   const [progressPercent, setProgressPercent] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const generationSteps = useMemo(() => [
     { label: "Cheklovlar tahlili", desc: "Sinflar, o'qituvchilar va xonalar imkoniyatlari tekshirilmoqda...", pct: 20, icon: Sparkles },
@@ -1154,27 +1155,41 @@ export default function Timetables() {
     },
   });
 
+  // Server qidiruv budjetini maktab kattaligiga qarab oshiradi, shuning uchun kutilayotgan
+  // vaqt ham sinf soniga bog'liq. O'lchangan: 11 sinf ~12s, 22 sinf ~22s, 44 sinf ~60s,
+  // 88 sinf ~120s. Progress shu oraliqqa taqsimlanadi — avvalgidek 4 soniyada 98% ga
+  // yetib, qolgan vaqt "qotib" turmaydi.
+  const expectedGenerationMs = useMemo(
+    () => Math.min(150_000, Math.max(12_000, classes.length * 1_400)),
+    [classes.length],
+  );
+
   useEffect(() => {
     let timer: any;
     if (generateMutation.isPending) {
+      const startedAt = Date.now();
       setProgressStep(0);
-      setProgressPercent(15);
-      let step = 0;
+      setProgressPercent(8);
+      setElapsedSeconds(0);
       timer = setInterval(() => {
-        step++;
-        if (step < generationSteps.length) {
-          setProgressStep(step);
-          setProgressPercent(generationSteps[step].pct);
-        } else {
-          clearInterval(timer);
-        }
-      }, 750);
+        const elapsed = Date.now() - startedAt;
+        setElapsedSeconds(Math.floor(elapsed / 1000));
+        const ratio = Math.min(1, elapsed / expectedGenerationMs);
+        const step = Math.min(
+          generationSteps.length - 1,
+          Math.floor(ratio * generationSteps.length),
+        );
+        setProgressStep(step);
+        // Javob kelmaguncha 95% dan oshmaydi — "tugadi" degan yolg'on taassurot bermaslik uchun.
+        setProgressPercent(Math.min(95, Math.round(8 + ratio * 87)));
+      }, 250);
     } else {
       setProgressStep(0);
       setProgressPercent(0);
+      setElapsedSeconds(0);
     }
     return () => clearInterval(timer);
-  }, [generateMutation.isPending, generationSteps]);
+  }, [generateMutation.isPending, generationSteps, expectedGenerationMs]);
 
   const clearMutation = useMutation({
     mutationFn: async () => {
@@ -2587,7 +2602,9 @@ export default function Timetables() {
 
           <div className="py-2">
             <div className="flex items-center justify-between text-xs font-semibold mb-2">
-              <span className="text-muted-foreground">Ijro holati:</span>
+              <span className="text-muted-foreground">
+                Ijro holati: <span className="font-mono">{elapsedSeconds} s</span>
+              </span>
               <span className="text-blue-600 dark:text-blue-400 font-mono font-bold text-sm">{progressPercent}%</span>
             </div>
 
