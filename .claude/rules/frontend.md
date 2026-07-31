@@ -6,7 +6,7 @@ paths:
 # Frontend qoidalari
 
 ## API soʻrovlar va Routing
-Qoidalar AGENTS.md ("Muhim qoidalar" #1-2) da — apiRequest() va Wouter. Shu yerda takrorlanmaydi.
+`apiRequest()` qoidasi: AGENTS.md ("Muhim qoidalar" #1). Routing — Wouter (`useLocation`), React Router emas.
 
 ## UI
 - shadcn/ui komponentlar: `@/components/ui/*`; Tailwind + `cn()` (`@/lib/utils`)
