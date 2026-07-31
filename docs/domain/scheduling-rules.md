@@ -30,12 +30,63 @@ Tizim tomonidan buzilishi mumkin boʻlmagan qoidalar:
 
 ### B. "Spacing Effect" (interval taʼlimi)
 - Haftasiga 3 soatlik fan ketma-ket kunlarga emas (Du-Se-Ch), kunora (Du-Ch-Ju) qoʻyiladi — xotirada saqlash ~25% yaxshilanadi.
-- **Juft darslar (double periods):** boshlangʻich sinflarda taqiqlanadi; yuqori sinflarda faqat laboratoriya/insho uchun (≤90 daqiqa).
+- **Juft darslar (double periods):** bir kunda bir fandan bitta dars. Ikkinchisi faqat fanning haftalik soati oʻquv kunlaridan koʻp boʻlgandagina (masalan 6 soatlik matematika 5 kunlik haftada) — tafsilot §3.1 da.
 
 ## 3. Yumshoq cheklovlar (Soft Constraints)
 - **Zichlik (Compactness):** oʻquvchi va oʻqituvchi jadvalida kun oʻrtasida "oʻlik soat"lar (windows) boʻlmasin.
 - **Xona barqarorligi:** oʻqituvchi imkon qadar bitta xonada qolsin, sinflar koʻchishi kamaytirilsin.
 - **Kafedra hamkorligi:** bir kafedra oʻqituvchilariga haftada kamida bir marta bir vaqtda boʻsh soat.
+
+## 3.1. Jarima ierarxiyasi (optimizator qanday qaror qabul qiladi)
+
+Qoidalar bir-biriga zid kelganda tanlovni **jarima og'irligi** hal qiladi. Og'irliklar
+`server/services/schedule-hill-climber.ts` boshida konstanta sifatida turadi. Tartib
+buzilsa algoritm arifmetik jihatdan to'g'ri, ammo amalda yaroqsiz qaror qabul qiladi —
+shuning uchun yangi jarima qo'shganda uni shu jadvalga joylashtiring.
+
+| Jarima | Qiymat | Nima uchun shu o'rinda |
+|---|---|---|
+| Qat'iy to'qnashuv (sinf/o'qituvchi/xona bir vaqtda ikki darsda) | 100 000 | Jadvalni butunlay yaroqsiz qiladi — hamma narsadan ustun |
+| O'qituvchi band vaqtiga qo'yilgan dars | 100 000 | Qat'iy shart |
+| Jadvalga umuman tushmagan dars (nomzod tanlashda) | 50 000 | Qoplama — birinchi darajali sifat ko'rsatkichi |
+| SanPiN kunlik dars soni chegarasidan oshish | 20 000 × ortiqcha | Qat'iy norma, lekin o'quv reja sig'masa jadval buzilmasin |
+| Sinf oynasi (kun o'rtasida bo'sh soat) | 6 000 | O'quvchi maktabda bekor o'tiradi |
+| Dars 1-soatdan kech boshlanishi | 5 000 | Xuddi shu sabab |
+| Bir kunda bir fan takrori (limitdan ortiq) | 3 000 | Pedagogik zarar; o'qituvchi qulayligidan ustun |
+| Kech tugash (6-darsdan keyin) | 2 000 / 200 | Kunlar notekis bo'lsa jarima 10 barobar og'ir |
+| O'qituvchi oynasi | 1 200 | Amaldagi eng ko'p shikoyat, ammo yuqoridagilardan past |
+| Uy xonasidan tashqarida o'tish | 1 000 | Butun sinf ko'chadi — spacing'dan ustun (avval 300 edi) |
+| Fan ketma-ket kunlarda (oldini olish mumkin bo'lgani) | 800 | Spacing effect; takrordan (3 000) past bo'lishi shart |
+| Og'ir fan (murakkablik ≥ 9) kunning oxirgi darsida | 400 | Charchagan paytdagi eng qiyin dars |
+| SanPiN kunlik aqliy zo'riqish chegarasidan oshish | 200 × ortiqcha birlik | Odatda kuniga 1 000-3 000 ball |
+| Kunlik yuklama nomutanosibligi | ~120 × farq² | Eng yumshoq — qolganlarini siqib chiqarmasligi kerak |
+
+**Juft dars (bir kunda bir fandan 2 ta) qoidasi** — `sameSubjectDayLimit`: bir kunda bitta
+fan bir marta. Ikkinchisi faqat MAJBURIY bo'lganda, ya'ni fanning haftalik soati o'quv
+kunlaridan ko'p bo'lsa (6 soatlik matematika 5 kunlik haftada) ruxsat etiladi. Avvalgi
+"laboratoriya fani = 2 tagacha" qoidasi olib tashlandi: u 2 soatlik fizikaning ikkala
+soatini bir kunga qo'yishga yo'l qo'yardi. **Dastlabki joylashtirish
+(`schedule.service.ts` — `maxSameSubject`) va hill-climber shu bitta qoidani ishlatishi
+shart**, aks holda ikki bosqich bir-birining ishini buzadi.
+
+**Spacing jarimasi muqarrar qo'shnilikni jazolamaydi:** `S` kunlik haftaga `k` kun
+joylashtirilganda qo'shni juftliklarning minimal soni `max(0, 2k - S - 1)` va shu miqdor
+jarimadan chegiriladi. Aks holda 5 kunlik haftadagi 5 soatlik matematika doimiy jarima
+olardi va optimizator undan qutulish uchun darslarni bir kunga to'plashga urinardi.
+
+**Kunlik zo'riqish jarimasi chiziqli, kvadratik emas.** Kvadratik variant (`ortiqcha² × 40`)
+nazariy jihatdan yaxshiroq — DTS rejasi SanPiN byudjetidan og'ir bo'lgan sinflarda (2-4,
+7-9 — 11-17% ortiq) chiziqli had tekislash uchun yo'nalish bermaydi. Ammo o'lchov teskarisini
+ko'rsatdi: og'ir kunlar shu qadar qimmatlashadiki, qidiruv spacing va oynani sotib yuboradi
+(spacing ortiqchasi 17 → 36, sinf oynasi 0 → 1, ball 88 → 85).
+
+**Vaqt budjeti** maktab kattaligiga qarab hisoblanadi (`resolveTimeBudgetMs`): 50 ms × dars
+soni, 25 s dan 120 s gacha. `SCHEDULE_TIME_BUDGET_MS` muhit o'zgaruvchisi bilan bekor
+qilinadi. Budjet — yuqori chegara: qidiruv lokal optimumga yetsa o'zi to'xtaydi.
+
+**Miqyos kafolati:** `server/services/schedule-scale.test.ts` 22 sinfli sintetik maktabda
+qoplama 100%, qat'iy to'qnashuv 0, sinf oynasi 0 ekanini tekshiradi. Kattaroq o'lchamni
+sinash uchun `buildSyntheticSchool({ parallelsPerGrade: 8 })` (88 sinf) ishlatiladi.
 
 ## 4. Tanaffuslar standarti
 - Kichik tanaffus: kamida 10 daqiqa.

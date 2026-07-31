@@ -25,6 +25,11 @@ export interface OptimizerScheduleEntry {
   weekType?: string | null;
   isActive?: boolean | null;
   roomCandidates?: number[];
+  /**
+   * Shu dars uchun afzal xona: fanga biriktirilgan xona (`class_subjects.roomId`),
+   * u bo'lmasa sinfning uy xonasi. Optimizatorlar imkon boricha shu xonani saqlaydi.
+   */
+  preferredRoomId?: number;
   jointLessonId?: number | null;
 }
 
@@ -380,6 +385,8 @@ export function minimizeGaps(params: {
   canPlaceClassOnDay?: CanPlaceClassOnDay;
   classGrades?: Map<number, string>;
   maxIterations?: number;
+  /** Qat'iy vaqt chegarasi (`Date.now()` shkalasi) — o'tgach optimizatsiya to'xtaydi. */
+  deadline?: number;
 }): number {
   const {
     schedule, activeSlots, slotPeriodMap, slotDayMap,
@@ -389,6 +396,7 @@ export function minimizeGaps(params: {
     canPlaceClassOnDay,
     classGrades,
     maxIterations = 300,
+    deadline,
   } = params;
   const canPlace: CanPlaceClassOnDay = canPlaceClassOnDay ?? (() => true);
 
@@ -403,6 +411,7 @@ export function minimizeGaps(params: {
   let iteration = 0;
 
   while (improved && iteration < maxIterations) {
+    if (deadline !== undefined && Date.now() >= deadline) break;
     improved = false;
     iteration++;
 
@@ -554,6 +563,8 @@ export function compactDays(params: {
   protectedIndices?: Set<number>;
   classGrades?: Map<number, string>;
   maxIterations?: number;
+  /** Qat'iy vaqt chegarasi (`Date.now()` shkalasi) — o'tgach optimizatsiya to'xtaydi. */
+  deadline?: number;
 }): number {
   const {
     schedule, activeSlots, slotPeriodMap, slotDayMap,
@@ -562,6 +573,7 @@ export function compactDays(params: {
     protectedIndices,
     classGrades,
     maxIterations = 300,
+    deadline,
   } = params;
 
   const slotByDayPeriod = new Map<string, number>();
@@ -575,6 +587,7 @@ export function compactDays(params: {
   let iteration = 0;
 
   while (improved && iteration < maxIterations) {
+    if (deadline !== undefined && Date.now() >= deadline) break;
     improved = false;
     iteration++;
 
@@ -765,6 +778,8 @@ export function balanceDays(params: {
   /** classId → grade string */
   classGrades?: Map<number, string>;
   maxIterations?: number;
+  /** Qat'iy vaqt chegarasi (`Date.now()` shkalasi) — o'tgach optimizatsiya to'xtaydi. */
+  deadline?: number;
 }): number {
   const {
     schedule, activeSlots, slotPeriodMap, slotDayMap,
@@ -775,6 +790,7 @@ export function balanceDays(params: {
     classStudyDays,
     classGrades,
     maxIterations = 200,
+    deadline,
   } = params;
   const canPlace: CanPlaceClassOnDay = canPlaceClassOnDay ?? (() => true);
 
@@ -798,6 +814,7 @@ export function balanceDays(params: {
   let iteration = 0;
 
   while (improved && iteration < maxIterations) {
+    if (deadline !== undefined && Date.now() >= deadline) break;
     improved = false;
     iteration++;
 
@@ -948,6 +965,8 @@ export function optimizeSanPinComplexity(params: {
   protectedIndices?: Set<number>;
   classGrades?: Map<number, string>;
   maxIterations?: number;
+  /** Qat'iy vaqt chegarasi (`Date.now()` shkalasi) — o'tgach optimizatsiya to'xtaydi. */
+  deadline?: number;
 }): number {
   const {
     schedule, activeSlots, slotPeriodMap, slotDayMap, subjectCategoryMap,
@@ -956,6 +975,7 @@ export function optimizeSanPinComplexity(params: {
     protectedIndices,
     classGrades,
     maxIterations = 200,
+    deadline,
   } = params;
 
   // Evaluate penalty score for a lesson placement (lower is better)
@@ -987,6 +1007,7 @@ export function optimizeSanPinComplexity(params: {
   }
 
   while (improved && iteration < maxIterations) {
+    if (deadline !== undefined && Date.now() >= deadline) break;
     improved = false;
     iteration++;
 

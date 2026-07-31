@@ -234,6 +234,12 @@ export function checkFeasibility(
   subjects: Array<{ id: number; name: string; requiredRoomType: string }>,
   unavailability: Array<{ teacherId: number }>,
   activeSlotsPerDay: number,
+  /**
+   * Jadvaldagi haqiqiy o'quv kunlari soni. Berilmasa 6 deb olinadi (eski xatti-harakat).
+   * MUHIM: 5 kunlik maktabda 6 deb hisoblash sig'imni 20% ga oshirib ko'rsatadi va
+   * "hammasi joyida" degan noto'g'ri xulosa beradi — keyin darslar jim tushib qoladi.
+   */
+  activeDayCount: number = 6,
 ): FeasibilityResult {
   const errors: FeasibilityError[] = [];
   const warnings: Array<{ type: string; message: string }> = [];
@@ -273,7 +279,7 @@ export function checkFeasibility(
     if (demand === 0) continue;
     const maxCapacity = t.maxHoursPerWeek || 30;
     const unavailCount = teacherUnavailCounts.get(t.id) || 0;
-    const totalSlotsForTeacher = activeSlotsPerDay * 6;
+    const totalSlotsForTeacher = activeSlotsPerDay * activeDayCount;
     const realCapacity = Math.min(maxCapacity, totalSlotsForTeacher - unavailCount);
     const name = `${t.firstName} ${t.lastName}`.trim();
     if (demand > realCapacity) {
@@ -313,14 +319,14 @@ export function checkFeasibility(
       }
     }
     if (demandSlots === 0) continue;
-    const supplySlots = roomCount * activeSlotsPerDay * 6;
+    const supplySlots = roomCount * activeSlotsPerDay * activeDayCount;
     if (demandSlots > supplySlots) {
       errors.push({
         type: "room_shortage",
         entity: rt,
         demand: demandSlots,
         supply: supplySlots,
-        message: `${rt}: ${demandSlots} soat kerak, ${roomCount} xona × ${activeSlotsPerDay * 6} slot = ${supplySlots} slot`,
+        message: `${rt}: ${demandSlots} soat kerak, ${roomCount} xona × ${activeSlotsPerDay * activeDayCount} slot = ${supplySlots} slot`,
       });
     } else if (demandSlots > supplySlots * 0.80) {
       warnings.push({
@@ -343,14 +349,14 @@ export function checkFeasibility(
       }
     }
     if (anyDemandSlots > 0 && rooms.length > 0) {
-      const anySupplySlots = rooms.length * activeSlotsPerDay * 6;
+      const anySupplySlots = rooms.length * activeSlotsPerDay * activeDayCount;
       if (anyDemandSlots > anySupplySlots) {
         errors.push({
           type: "room_shortage",
           entity: "any",
           demand: anyDemandSlots,
           supply: anySupplySlots,
-          message: `Umumiy xonalar: ${anyDemandSlots} soat kerak, ${rooms.length} xona × ${activeSlotsPerDay * 6} slot = ${anySupplySlots} slot`,
+          message: `Umumiy xonalar: ${anyDemandSlots} soat kerak, ${rooms.length} xona × ${activeSlotsPerDay * activeDayCount} slot = ${anySupplySlots} slot`,
         });
       } else if (anyDemandSlots > anySupplySlots * 0.80) {
         warnings.push({
@@ -377,6 +383,87 @@ export interface GenerateScheduleOptions {
   clearExisting?: boolean;
   algorithm?: "greedy_chain" | "cpsat_optimal";
   seed?: number;
+  /** Qidiruvga ajratilgan maksimal vaqt (ms). Berilmasa — SCHEDULE_TIME_BUDGET_MS yoki default. */
+  timeBudgetMs?: number;
+}
+
+/**
+ * Jadval qidiruviga ajratiladigan default vaqt budjeti (ms).
+ *
+ * Nima uchun kerak: solver — sof sinxron CPU ishi va HTTP handler ichida bajariladi.
+ * Budjetsiz 11 sinf miqyosida bitta so'rov o'nlab daqiqa davom etardi; shu vaqt ichida
+ * Node event loop band bo'lgani uchun server BOSHQA hech qanday so'rovga (sahifani
+ * yangilash ham) javob bera olmasdi. Budjet + `yieldToEventLoop()` shu ikkala muammoni
+ * ham yopadi: generatsiya kafolatli tugaydi va server javob beradigan holatda qoladi.
+ */
+const MIN_TIME_BUDGET_MS = 25_000;
+const MAX_TIME_BUDGET_MS = 120_000;
+/**
+ * Bitta darsga ajratiladigan qidiruv vaqti. O'lchov: 44 sinfli maktabda (1200 dars)
+ * bitta nomzodning lokal optimumga yetishi ~20 soniya; 50ms/dars shu vaqtdan uch barobar
+ * ko'p budjet beradi, ya'ni multi-start ham ishlaydi. Budjet — YUQORI chegara: kichik
+ * maktabda qidiruv lokal optimumda o'zi to'xtaydi va budjetni sarflab o'tirmaydi.
+ */
+const TIME_BUDGET_PER_LESSON_MS = 50;
+
+/**
+ * Jadvalga tushishi kerak bo'lgan dars soniga qarab budjetni hisoblaydi.
+ * Qat'iy 25 soniya katta maktabda bitta nomzodning ham tugashiga yetmasdi —
+ * natijada 44 sinfli maktab yarim optimallashtirilgan jadval olardi.
+ */
+export function resolveTimeBudgetMs(lessonCount: number, explicit?: number): number {
+  if (explicit !== undefined && Number.isFinite(explicit) && explicit > 0) return explicit;
+  const fromEnv = Number(process.env.SCHEDULE_TIME_BUDGET_MS);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  const scaled = lessonCount * TIME_BUDGET_PER_LESSON_MS;
+  return Math.min(MAX_TIME_BUDGET_MS, Math.max(MIN_TIME_BUDGET_MS, scaled));
+}
+
+/**
+ * Jadvalga umuman tusha olmagan dars uchun jarima — nomzodlarni solishtirishda.
+ * Har qanday yumshoq jarimadan yuqori (qoplama — birinchi darajali sifat ko'rsatkichi),
+ * ammo qat'iy to'qnashuvdan past: tushmagan dars — ma'lum kamchilik, to'qnashuv esa
+ * jadvalni butunlay yaroqsiz qiladi.
+ */
+const SKIPPED_LESSON_PENALTY = 50_000;
+
+/**
+ * Jadval sifati balli (0-100).
+ *
+ * MUHIM: barcha kamchiliklar dars soniga NISBATAN o'lchanadi. Ilgari ular absolyut
+ * hisoblanardi (`- teacherGaps * 1`), shuning uchun 11 sinfli maktabdagi normal jadval
+ * ham 0/100 ko'rsatardi va maktab kattalashgani sayin ball muqarrar nolga tushardi —
+ * ya'ni ko'rsatkich foydalanuvchi uchun ma'nosiz edi.
+ *
+ * Koeffitsientlar "har 100 darsga to'g'ri keladigan kamchilik" bilan o'lchanadi:
+ * masalan har 100 darsda 1 ta tushmagan dars — 3 ball, 1 ta qat'iy buzilish — 5 ball.
+ */
+export function computeQualityScore(m: {
+  totalLessons: number;
+  skipped: number;
+  hardViolations: number;
+  classGaps: number;
+  teacherGaps: number;
+  complexityViolations: number;
+  spacingViolations: number;
+}): number {
+  const per100 = (n: number) => (n / Math.max(1, m.totalLessons)) * 100;
+  const score = 100
+    - per100(m.skipped) * 3
+    - per100(m.hardViolations) * 5
+    - per100(m.classGaps) * 2
+    - per100(m.teacherGaps) * 0.5
+    - per100(m.spacingViolations) * 0.5
+    - per100(m.complexityViolations) * 0.3;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/**
+ * Event loopni bo'shatadi — shu paytda server boshqa so'rovlarni (sahifa yangilash,
+ * GET /api/... ) qayta ishlab ulguradi. Og'ir sinxron fazalar orasiga qo'yiladi.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 export async function generateSchedule(options: GenerateScheduleOptions) {
@@ -427,6 +514,11 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   for (const cls of allClasses) {
     classStudyDaysMap.set(cls.id, cls.studyDays ? cls.studyDays.split(",").map(Number) : [1, 2, 3, 4, 5]);
   }
+  // Sinfning "uy" xonasi — maxsus xona talab qilmaydigan darslar shu yerda o'tishi kerak.
+  const classHomeRoomsMap = new Map<number, number>();
+  for (const cls of allClasses) {
+    if (cls.defaultRoomId) classHomeRoomsMap.set(cls.id, cls.defaultRoomId);
+  }
   const canPlaceClassOnDay = (classId: number, slotId: number) => {
     const slot = slotById.get(slotId);
     if (!slot) return true;
@@ -446,8 +538,9 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
 
   const periodsPerDay = new Set(activeSlots.filter(s => Number(s.dayOfWeek) === 1).map(s => s.periodNumber)).size
     || activeSlots.filter(s => Number(s.dayOfWeek) === activeSlots[0]?.dayOfWeek).length;
+  const activeDayCount = new Set(activeSlots.map(s => Number(s.dayOfWeek))).size || 6;
   const feasibility = checkFeasibility(
-    targetClasses, allClassSubjects, allTeachers, allRooms, allSubjects, allUnavailability, periodsPerDay,
+    targetClasses, allClassSubjects, allTeachers, allRooms, allSubjects, allUnavailability, periodsPerDay, activeDayCount,
   );
 
   const unavailSet = new Set<string>(
@@ -599,16 +692,29 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     }
   }
 
+  // `${classId}_${subjectId}` -> haftalik yuklama (surat/mahraj = 0.5). Juft dars
+  // chegarasi shundan kelib chiqadi — hill-climber'dagi `sameSubjectDayLimit` bilan
+  // bir xil qoida bo'lishi shart, aks holda ikki bosqich bir-birini buzadi.
+  const weeklyLoadByClassSubject = new Map<string, number>();
+  for (const l of lessonsToSchedule) {
+    const key = `${l.classId}_${l.subjectId}`;
+    const w = (l.weekType || "always") === "always" ? 1 : 0.5;
+    weeklyLoadByClassSubject.set(key, (weeklyLoadByClassSubject.get(key) || 0) + w);
+  }
+
   const precomputedLessons = lessonsToSchedule.map(lesson => {
     const classStudents = lesson.isJoint && lesson.classIds
       ? lesson.classIds.reduce((sum, cid) => sum + (targetClasses.find(c => c.id === cid)?.totalStudents || 25), 0)
       : (targetClasses.find(c => c.id === lesson.classId)?.totalStudents || 25);
     const reqType = (subjectMap.get(lesson.subjectId) as any)?.requiredRoomType || "any";
     // Juft dars (double period) qoidasi (docs/domain/scheduling-rules.md §2.B):
-    // boshlang'ich sinfda (1-4) bir kunda bir fandan faqat 1 marta; yuqori sinfda
-    // faqat laboratoriya talab qiladigan fanlar uchun bir kunda 2 martagacha ruxsat.
+    // bir kunda bir fandan bitta dars. Ikkinchisi faqat MAJBURIY bo'lganda —
+    // fanning haftalik soati o'quv kunlaridan ko'p bo'lsa (masalan 6 soatlik
+    // matematika 5 kunlik haftada) ruxsat etiladi.
     const grade = Number(lesson.grade);
-    const maxSameSubject = grade >= 1 && grade <= 4 ? 1 : (reqType === "lab" ? 2 : 1);
+    const studyDayCount = Math.max(1, String(lesson.studyDays || "1,2,3,4,5").split(",").filter(Boolean).length);
+    const weeklyLoad = weeklyLoadByClassSubject.get(`${lesson.classId}_${lesson.subjectId}`) || 0;
+    const maxSameSubject = weeklyLoad > studyDayCount ? Math.ceil(weeklyLoad / studyDayCount) : 1;
     return {
       ...lesson,
       classStudents,
@@ -792,8 +898,14 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   }
 
   const CANDIDATE_RUNS = algorithm === "cpsat_optimal" ? 20 : 10;
-  console.log(`[MultiStart] Running ${CANDIDATE_RUNS} candidate search iterations for algorithm: ${algorithm}`);
   const startTime = Date.now();
+  // Budjet maktab o'lchamiga qarab hisoblanadi — dars soni ma'lum bo'lgach.
+  const timeBudgetMs = resolveTimeBudgetMs(precomputedLessons.length, options.timeBudgetMs);
+  // Qidiruv budjeti shu yerdan boshlanadi (baza o'qish vaqti hisobga olinmaydi).
+  const deadline = startTime + timeBudgetMs;
+  let budgetExhausted = false;
+  let completedRuns = 0;
+  console.log(`[MultiStart] Running up to ${CANDIDATE_RUNS} candidate search iterations for algorithm: ${algorithm} (budget: ${timeBudgetMs}ms)`);
 
   let bestRun: {
     finalSchedule: InsertScheduleEntry[];
@@ -810,6 +922,17 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   } | null = null;
 
   for (let candidateSeed = 0; candidateSeed < CANDIDATE_RUNS; candidateSeed++) {
+    // Budjet tugagan bo'lsa yangi nomzod boshlanmaydi — lekin kamida bittasi to'liq
+    // bajariladi (bestRun bo'lmasa jadval umuman qaytmaydi).
+    if (bestRun && Date.now() >= deadline) {
+      budgetExhausted = true;
+      console.log(`[MultiStart] Vaqt budjeti tugadi — ${completedRuns}/${CANDIDATE_RUNS} nomzod bajarildi.`);
+      break;
+    }
+    // Har nomzod oldidan event loopni bo'shatamiz: shu payt server boshqa
+    // so'rovlarni (sahifa yangilash va h.k.) qayta ishlab ulguradi.
+    await yieldToEventLoop();
+
     // Clone base state maps for candidate run
     const teacherBusy = new Set(baseTeacherBusy);
     const roomBusy = new Set(baseRoomBusy);
@@ -1437,11 +1560,23 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       const matching = candidateRooms.filter(r => roomMatchesSubject(r.name, subjectName));
       if (matching.length > 0) candidateRooms = matching;
     }
-    const roomCandidates = candidateRooms.length > 0 ? candidateRooms.map(r => r.id) : allRooms.map(r => r.id);
+    let roomCandidates = candidateRooms.length > 0 ? candidateRooms.map(r => r.id) : allRooms.map(r => r.id);
+
+    // Afzal xona: avval fanga biriktirilgani, bo'lmasa sinfning uy xonasi (faqat maxsus
+    // xona talab qilmaydigan fanlar uchun). Ro'yxat boshida tursin — optimizatorlar bo'sh
+    // xonani `.find()` bilan tanlaydi, shuning uchun tartib sinf o'z xonasida qolishini
+    // belgilaydi; aks holda sinf har darsda boshqa xonaga ko'chib yuradi.
+    const explicitRoomId = (lesson as any)?.roomId as number | undefined | null;
+    const preferredRoomId = explicitRoomId
+      || (reqType === "any" || reqType === "classroom" ? classHomeRoomsMap.get(entry.classId) : undefined);
+    if (preferredRoomId !== undefined && roomCandidates.includes(preferredRoomId)) {
+      roomCandidates = [preferredRoomId, ...roomCandidates.filter(id => id !== preferredRoomId)];
+    }
 
     return {
       ...entry,
       roomCandidates,
+      preferredRoomId: preferredRoomId ?? undefined,
     };
   });
 
@@ -1453,6 +1588,9 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       protectedEntryIndices.add(i);
     }
   }
+
+  await yieldToEventLoop();
+  const tOptimize = Date.now();
 
   // Kun ichida darslarni ixchamlashtirish
   compactDays({
@@ -1471,6 +1609,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     unmarkRoomBusy: (roomId, slotId, weekType) => unmarkEntityBusy(roomBusy, roomId, slotId, weekType),
     protectedIndices: protectedEntryIndices,
     classGrades: classGradesMap,
+    deadline,
   });
 
   // Kunlararo darslarni balanslash
@@ -1492,6 +1631,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     canPlaceClassOnDay,
     classStudyDays: classStudyDaysMap,
     classGrades: classGradesMap,
+    deadline,
   });
 
   // Kun ichidagi oyna (gap) larni minimizatsiya
@@ -1512,6 +1652,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     protectedIndices: protectedEntryIndices,
     canPlaceClassOnDay,
     classGrades: classGradesMap,
+    deadline,
   });
 
   // SanPiN fanlar murakkablik balansi va dars o'rinlarini almashtirish
@@ -1536,6 +1677,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     unmarkRoomBusy: (roomId, slotId, weekType) => unmarkEntityBusy(roomBusy, roomId, slotId, weekType),
     protectedIndices: protectedEntryIndices,
     classGrades: classGradesMap,
+    deadline,
   });
 
   // Yopilgan optimizatsiya natijalarini qo'llash
@@ -1643,6 +1785,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   let gapPasses = 0;
 
   while (gapPassMoved && gapPasses < 10) {
+    if (Date.now() >= deadline) break;
     gapPassMoved = false;
     gapPasses++;
 
@@ -1804,6 +1947,7 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   let balancePasses = 0;
 
   while (balanceMoved && balancePasses < 5) {
+    if (Date.now() >= deadline) break;
     balanceMoved = false;
     balancePasses++;
 
@@ -1944,7 +2088,9 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   }
 
   // --- Faza 3.8: Global Hill-Climbing / Simulated Annealing Pass ---
-  const hillClimbResult = hillClimbOptimize({
+  await yieldToEventLoop();
+  const tHillClimb = Date.now();
+  const hillClimbResult = await hillClimbOptimize({
     schedule: scheduleWithRoomCandidates,
     activeSlots: optimizerSlotsForGap,
     slotMap: slotById,
@@ -1954,12 +2100,14 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     classStudyDays: classStudyDaysMap,
     subjectMap,
     allRooms,
+    classHomeRooms: classHomeRoomsMap,
     mode: algorithm === "cpsat_optimal" ? "annealing" : "greedy",
     maxIterations: algorithm === "cpsat_optimal" ? 500 : 300,
+    deadline,
   });
 
   if (hillClimbResult.improved) {
-    console.log(`[HillClimb] Timetable improved! Penalty: ${hillClimbResult.initialPenalty} -> ${hillClimbResult.finalPenalty} (${hillClimbResult.totalSwaps} swaps, ${hillClimbResult.totalMoves} moves)`);
+    console.log(`[HillClimb] Timetable improved! Penalty: ${hillClimbResult.initialPenalty} -> ${hillClimbResult.finalPenalty} (${hillClimbResult.totalSwaps} swaps, ${hillClimbResult.totalMoves} moves, ${hillClimbResult.homeRoomFixes} uy xonasi, ${hillClimbResult.iterations} iter, ${Date.now() - tHillClimb}ms${hillClimbResult.timedOut ? ", budjet tugadi" : ""})`);
   }
 
   // Re-apply updated slot IDs and room IDs back into finalSchedule
@@ -2062,15 +2210,12 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     }
   }
 
-  const qualityScore = Math.max(0, Math.round(
-    100
-    - skippedLessons.length * 10
-    - hardViolations.length * 50
-    - classGaps * 2
-    - teacherGaps * 1
-    - complexityViolations * 1.5
-    - spacingViolations * 1
-  ));
+  const qualityScore = computeQualityScore({
+    totalLessons: precomputedLessons.length,
+    skipped: skippedLessons.length,
+    hardViolations: hardViolations.length,
+    classGaps, teacherGaps, complexityViolations, spacingViolations,
+  });
 
     const candidatePenaltyEval = evaluateSchedulePenalty(scheduleWithRoomCandidates, {
       schedule: scheduleWithRoomCandidates,
@@ -2082,10 +2227,12 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
       classStudyDays: classStudyDaysMap,
       subjectMap,
       allRooms,
+      classHomeRooms: classHomeRoomsMap,
     });
 
-    const candidatePenalty = candidatePenaltyEval.totalPenalty + skippedLessons.length * 2000;
-    console.log(`[Candidate #${candidateSeed + 1}/${CANDIDATE_RUNS}] Penalty: ${candidatePenalty}, Quality: ${qualityScore}/100, Placed: ${placedLessons}/${precomputedLessons.length}`);
+    const candidatePenalty = candidatePenaltyEval.totalPenalty + skippedLessons.length * SKIPPED_LESSON_PENALTY;
+    completedRuns++;
+    console.log(`[Candidate #${candidateSeed + 1}/${CANDIDATE_RUNS}] Penalty: ${candidatePenalty}, Quality: ${qualityScore}/100, Placed: ${placedLessons}/${precomputedLessons.length} — optimizatsiya ${tHillClimb - tOptimize}ms, jami ${Date.now() - startTime}ms`);
 
     if (bestRun === null || candidatePenalty < bestRun.penalty) {
       bestRun = {
@@ -2107,7 +2254,8 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
   if (!bestRun) throw new DomainError("Jadval yaratib bo'lmadi");
 
   const { finalSchedule, generatedConflicts, placedLessons, skippedLessons, qualityScore, hardViolations, classGaps, teacherGaps, spacingViolations, complexityViolations } = bestRun;
-  console.log(`[MultiStart Winner] Selected best candidate with penalty ${bestRun.penalty} and quality ${qualityScore}/100`);
+  console.log(`[MultiStart Winner] Selected best candidate with penalty ${bestRun.penalty} and quality ${qualityScore}/100 (${completedRuns}/${CANDIDATE_RUNS} nomzod, ${Date.now() - startTime}ms)`);
+  await yieldToEventLoop();
 
   if (finalSchedule.length > 0) {
     const insertedEntries = await storage.createScheduleEntriesBulk(finalSchedule);
@@ -2175,7 +2323,14 @@ export async function generateSchedule(options: GenerateScheduleOptions) {
     coverage,
     skipped: skippedLessons,
     success: true,
-    stats: { steps: precomputedLessons.length, timeMs: Date.now() - startTime },
+    stats: {
+      steps: precomputedLessons.length,
+      timeMs: Date.now() - startTime,
+      candidateRuns: completedRuns,
+      maxCandidateRuns: CANDIDATE_RUNS,
+      timeBudgetMs,
+      budgetExhausted,
+    },
     feasibility,
     quality: {
       score: qualityScore,
