@@ -4,9 +4,9 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "cross-env NODE_ENV=development tsx --env-file=.env server/index.ts",
+    "dev": "cross-env NODE_ENV=development tsx watch --clear-screen=false --env-file=.env server/index.ts",
     "dev:client": "vite",
-    "dev:server": "cross-env NODE_ENV=development tsx --env-file=.env server/index.ts",
+    "dev:server": "cross-env NODE_ENV=development tsx watch --clear-screen=false --env-file=.env server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "check": "tsc",
